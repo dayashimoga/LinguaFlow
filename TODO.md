@@ -519,3 +519,11 @@
   - Upgraded `android-actions/setup-android` from `v3` to `v4` in `.github/workflows/mobile.yml`.
   - Addressed upstream Google deprecation and unpublishing of the legacy `tools` package from Android SDK repositories.
   - Verified clean tracking and pushed changes to remote repository.
+
+### [2026-10-28 17:00 UTC] CI Quality Gates & Release Linux Dependencies Fix
+- [x] Resolved GitHub Actions `quality-gates` and `release-package` compilation failure:
+  - Added Linux system development packages (`libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `libssl-dev`, `libasound2-dev`, `libxdo-dev`) to the `quality-gates` job in `.github/workflows/ci.yml`.
+  - Added matching Linux dependencies to `.github/workflows/release.yml`.
+  - Resolved `glib-sys` / `gobject-sys` missing `glib-2.0.pc` build error during `cargo clippy --workspace` and `cargo test --workspace`.
+  - Verified local Clippy and full test suite passes with 0 warnings.
+  - Pushed fix commit to remote repository.

@@ -1,0 +1,97 @@
+# LinguaFlow — Project Task Tracker (TODO.md)
+
+> **Contract Enforcement**: This file is strictly append-only. Existing items and their history must never be deleted or altered. New tasks, state transitions, and notes are appended to the historical log.
+
+---
+
+## Historical Status Log
+
+### [2026-10-28 13:55 UTC] Initial Workspace Setup and Stage 0 Kickoff
+- [x] Initialized Git repository on `main` branch.
+- [x] Audited local development toolchain (Rust 1.99.1, Cargo 1.99.1, Node v25.8.2, npm 11.11.1, Podman 6.1.4, Git 2.56.0).
+- [x] Created root `.gitignore` respecting reproducible lockfiles, secrets exclusion, and build cache isolation.
+- [x] Verified existing stage specification prompts (`docs/stages/stage-00-foundation.md` through `stage-08-enterprise.md`).
+- [ ] Create Master Requirements Traceability Matrix (`docs/requirements-traceability-matrix.md`).
+- [ ] Document Phase 0.1 Requirements and Architecture:
+  - Product Goals, Personas, MVP Scope (`docs/architecture/product-specification.md`).
+  - Per-Language Capabilities Matrix & Latency/Resource Budgets (`docs/architecture/capabilities-and-budgets.md`).
+  - Modular Rust Architecture, IPC Contracts, & Data Flows (`docs/architecture/rust-architecture.md`).
+  - Real-Time Audio & Inference Pipeline Specification (`docs/architecture/audio-inference-pipeline.md`).
+  - Privacy, Threat Model & Security Policy (`SECURITY.md`, `docs/architecture/security-and-privacy.md`).
+  - Dependency & Model Inventory / SBOM Framework (`docs/compliance/LICENSES.md`).
+  - Architectural Decision Records (`docs/adr/ADR-0001` through `ADR-0004`).
+- [ ] Execute Phase 0.2 Repository & Workspace Setup:
+  - Cargo Workspace root `Cargo.toml`.
+  - Shared crate `crates/lingua-core` (BCP-47 language primitives, Unicode normalization, capability matrix, error types, typed IPC messages).
+  - Persistence crate `crates/lingua-storage` (SQLite pooling, migrations, settings, favorites, history, model packs catalogue).
+  - Engine abstraction crate `crates/lingua-engine` (pluggable traits, runtime capability detection, router foundation).
+  - Server crate `crates/lingua-server` (Axum REST and WebSocket gateway, health check, versioning).
+  - CLI crate `crates/lingua-cli` (headless command-line diagnostic tool).
+  - Tauri 2 host `src-tauri` (desktop and mobile application entrypoint).
+  - Cloudflare Edge configuration `edge/wrangler.toml` and edge router worker.
+- [ ] Execute Phase 0.3 Working User Experience:
+  - Svelte 5 / TypeScript web and Tauri frontend.
+  - Accessible, responsive layout for desktop, tablet, and mobile.
+  - Polished themes (dark/light/system) and Kannada/Tamil typography styling.
+  - Navigation views: Home, Dictionary, Translate, Conversation, Downloads (Model Packs), Settings.
+  - Persisted user preferences and active language pair via SQLite persistence.
+  - Honest capability detection display (no fake AI translation; clear capability states).
+- [ ] Execute Phase 0.4 Local Development & Podman Tooling:
+  - Reproducible `Containerfile` / `Dockerfile` and `podman-compose.yml`.
+  - Idempotent lifecycle scripts: `scripts/podman-up.sh`, `scripts/podman-up.ps1`, `scripts/podman-down.sh`, `scripts/podman-down.ps1`, `scripts/podman-clean.sh`, `scripts/podman-clean.ps1`.
+  - Health checks and bounded resource limits.
+- [ ] Execute Phase 0.5 GitHub Actions Workflows:
+  - Cross-platform CI pipeline (`.github/workflows/ci.yml`) targeting Ubuntu, Windows, macOS.
+  - Mobile pipeline (`.github/workflows/mobile.yml`) targeting Android and iOS.
+  - Release pipeline (`.github/workflows/release.yml`) with SHA-256 integrity checksums.
+  - Documented signing credentials policy and platform limitations.
+- [ ] Execute Phase 0.6 Quality Gates & Verification:
+  - Rust unit & integration test suite targeting >=90% business logic coverage.
+  - Clippy and formatting checks.
+  - Frontend typecheck and component/smoke tests.
+  - Benchmarks baseline (`docs/BENCHMARKS.md`).
+  - Runbook, Setup, User Guide, Troubleshooting, and Code Understanding documentation.
+  - Stage 0 verification report and blocker assessment.
+### [2026-10-28 14:30 UTC] Stage 0 Foundation & Architecture Completion
+- [x] Create Master Requirements Traceability Matrix (`docs/requirements-traceability-matrix.md`).
+- [x] Document Phase 0.1 Requirements and Architecture:
+  - Product Goals, Personas, MVP Scope (`docs/architecture/product-specification.md`).
+  - Per-Language Capabilities Matrix & Latency/Resource Budgets (`docs/architecture/capabilities-and-budgets.md`).
+  - Modular Rust Architecture, IPC Contracts, & Data Flows (`docs/architecture/rust-architecture.md`).
+  - Real-Time Audio & Inference Pipeline Specification (`docs/architecture/audio-inference-pipeline.md`).
+  - Privacy, Threat Model & Security Policy (`SECURITY.md`, `docs/architecture/security-and-privacy.md`).
+  - Dependency & Model Inventory / SBOM Framework (`docs/compliance/LICENSES.md`).
+  - Architectural Decision Records (`docs/adr/ADR-0001` through `ADR-0004`).
+- [x] Execute Phase 0.2 Repository & Workspace Setup:
+  - Cargo Workspace root `Cargo.toml`.
+  - Shared crate `crates/lingua-core` (BCP-47 language primitives, Unicode normalization, capability matrix, error types, typed IPC messages).
+  - Persistence crate `crates/lingua-storage` (SQLite pooling, migrations, settings, favorites, history, model packs catalogue).
+  - Engine abstraction crate `crates/lingua-engine` (pluggable traits, runtime capability detection, router foundation).
+  - Server crate `crates/lingua-server` (Axum REST and WebSocket gateway, health check, versioning).
+  - CLI crate `crates/lingua-cli` (headless command-line diagnostic tool).
+  - Tauri 2 host `src-tauri` (desktop and mobile application entrypoint).
+  - Cloudflare Edge configuration `edge/wrangler.toml` and edge router worker.
+- [x] Execute Phase 0.3 Working User Experience:
+  - Svelte 5 / TypeScript web and Tauri frontend.
+  - Accessible, responsive layout for desktop, tablet, and mobile.
+  - Polished themes (dark/light/system) and Kannada/Tamil typography styling.
+  - Navigation views: Home, Dictionary, Translate, Conversation, Downloads (Model Packs), Settings.
+  - Persisted user preferences and active language pair via SQLite persistence.
+  - Honest capability detection display (no fake AI translation; clear capability states).
+- [x] Execute Phase 0.4 Local Development & Podman Tooling:
+  - Reproducible `Containerfile` / `Dockerfile` and `podman-compose.yml`.
+  - Idempotent lifecycle scripts: `scripts/podman-up.sh`, `scripts/podman-up.ps1`, `scripts/podman-down.sh`, `scripts/podman-down.ps1`, `scripts/podman-clean.sh`, `scripts/podman-clean.ps1`.
+  - Health checks and bounded resource limits.
+- [x] Execute Phase 0.5 GitHub Actions Workflows:
+  - Cross-platform CI pipeline (`.github/workflows/ci.yml`) targeting Ubuntu, Windows, macOS.
+  - Mobile pipeline (`.github/workflows/mobile.yml`) targeting Android and iOS.
+  - Release pipeline (`.github/workflows/release.yml`) with SHA-256 integrity checksums.
+  - Documented signing credentials policy and platform limitations.
+- [x] Execute Phase 0.6 Quality Gates & Verification:
+  - Rust unit & integration test suite targeting >=90% business logic coverage (15/15 passed).
+  - Clippy and formatting checks (0 warnings, 0 fmt errors).
+  - Frontend typecheck and component/smoke tests (0 errors, 0 warnings).
+  - Benchmarks baseline (`docs/BENCHMARKS.md` - IPC: 20.95 µs, DB: 38.17 µs).
+  - Runbook, Setup, User Guide, Troubleshooting, and Code Understanding documentation.
+  - Stage 0 verification report (`docs/STAGE_0_ACCEPTANCE_REPORT.md`).
+- [ ] Gated: Stage 1 Dictionary and Text Translation (awaiting user review and authorization).

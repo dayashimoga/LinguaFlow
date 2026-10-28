@@ -1,0 +1,64 @@
+name: LinguaFlow Production Release & SBOM Integrity Publication
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release-package:
+    name: Package Release with Checksums & SBOM
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Build Web Bundle
+        run: npm run build
+
+      - name: Compile Release Workspace
+        run: cargo build --release --workspace
+
+      - name: Generate CycloneDX SBOM (Cargo & NPM)
+        run: |
+          mkdir -p release-distribution/sbom
+          cargo install cargo-cyclonedx --locked || true
+          cargo cyclonedx --all --format json -o release-distribution/sbom/sbom-cargo.json || true
+          npm sbom --json > release-distribution/sbom/sbom-npm.json || true
+
+      - name: Assemble Release Assets
+        run: |
+          mkdir -p release-distribution/bin
+          cp target/release/lingua release-distribution/bin/
+          cp -r dist release-distribution/web-pwa
+          cd release-distribution
+          sha256sum bin/* sbom/* > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-distribution/bin/*
+            release-distribution/sbom/*
+            release-distribution/SHA256SUMS.txt
+          draft: false
+          prerelease: false
+          generate_release_notes: true

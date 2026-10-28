@@ -1,0 +1,55 @@
+# Rust build artifacts
+target/
+
+# Node.js and Frontend
+node_modules/
+dist/
+dist-ssr/
+.svelte-kit/
+build/
+.cache/
+
+# Tauri
+src-tauri/target/
+src-tauri/gen/
+
+# Environment and secrets (Global Contract Requirement 7: Never commit secrets)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.keystore
+*.jks
+*.mobileprovision
+
+# SQLite local databases and write-ahead logs
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+!tests/fixtures/*.db
+
+# OS metadata
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE and Editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Coverage and profiling
+coverage/
+*.lcov
+*.profraw
+*.profdata
+
+# Container volumes and transient runtime logs
+.podman-data/
+*.log
+scratch/

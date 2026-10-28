@@ -1,0 +1,23 @@
+[package]
+name = "lingua-cli"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "lingua"
+path = "src/main.rs"
+
+[dependencies]
+lingua-core = { workspace = true }
+lingua-storage = { workspace = true }
+lingua-engine = { workspace = true }
+lingua-server = { workspace = true }
+clap = { workspace = true }
+tokio = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }

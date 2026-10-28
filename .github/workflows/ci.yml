@@ -1,0 +1,142 @@
+name: LinguaFlow CI Quality Gates & Desktop Multi-Platform
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  quality-gates:
+    name: Rust & Frontend Code Quality Gates
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - name: Rust Formatting Check
+        run: cargo fmt --check
+
+      - name: Rust Clippy Strict Check
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Rust Workspace Unit & Integration Tests
+        run: cargo test --workspace --verbose
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Frontend Typecheck
+        run: npm run check
+
+      - name: Compile Production Web Bundle
+        run: npm run build
+
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: linguaflow-web-bundle
+          path: dist/
+          retention-days: 14
+
+  desktop-build-matrix:
+    name: Desktop Binary Matrix (${{ matrix.platform }})
+    needs: quality-gates
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: linguaflow-windows-x64
+          - platform: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            artifact_name: linguaflow-linux-x64
+          - platform: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: linguaflow-macos-arm64
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Install Linux Build Dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Frontend Dependencies
+        run: npm ci
+
+      - name: Build Web Assets
+        run: npm run build
+
+      - name: Compile Desktop Binary & Headless CLI
+        run: cargo build --release --workspace
+
+      - name: Package Windows Artifacts
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p release-artifacts
+          cp target/release/lingua.exe release-artifacts/
+          cp target/release/lingua_tauri.exe release-artifacts/LinguaFlow.exe
+
+      - name: Package Linux Artifacts
+        if: runner.os == 'Linux'
+        run: |
+          mkdir -p release-artifacts
+          cp target/release/lingua release-artifacts/
+          cp target/release/lingua_tauri release-artifacts/linguaflow
+
+      - name: Package macOS Artifacts
+        if: runner.os == 'macOS'
+        run: |
+          mkdir -p release-artifacts
+          cp target/release/lingua release-artifacts/
+          cp target/release/lingua_tauri release-artifacts/linguaflow
+
+      - name: Compute SHA-256 Checksums
+        shell: bash
+        run: |
+          cd release-artifacts
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - name: Upload Platform Build Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact_name }}
+          path: release-artifacts/
+          retention-days: 14

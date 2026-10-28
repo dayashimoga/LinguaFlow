@@ -1,0 +1,64 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/lingua-core",
+    "crates/lingua-storage",
+    "crates/lingua-engine",
+    "crates/lingua-server",
+    "crates/lingua-cli",
+    "src-tauri",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["LinguaFlow Engineering Team <engineering@linguaflow.org>"]
+license = "Apache-2.0"
+repository = "https://github.com/dayanandthammaiah/LinguaFlow"
+rust-version = "1.80"
+
+[workspace.dependencies]
+# Internal workspace crates
+lingua-core = { path = "crates/lingua-core" }
+lingua-storage = { path = "crates/lingua-storage" }
+lingua-engine = { path = "crates/lingua-engine" }
+lingua-server = { path = "crates/lingua-server" }
+
+# Serialization & Data
+serde = { version = "1.0.218", features = ["derive"] }
+serde_json = "1.0.139"
+chrono = { version = "0.4.39", features = ["serde"] }
+uuid = { version = "1.15.1", features = ["v4", "serde"] }
+
+# Asynchronous Runtime
+tokio = { version = "1.43.0", features = ["full"] }
+async-trait = "0.1.86"
+
+# Error Handling & Diagnostics
+thiserror = "2.0.11"
+tracing = "0.1.41"
+tracing-subscriber = { version = "0.3.19", features = ["env-filter", "fmt", "json"] }
+
+# Persistence
+rusqlite = { version = "0.33.0", features = ["bundled", "backup", "blob"] }
+
+# Web & Networking
+axum = { version = "0.8.1", features = ["ws"] }
+tower = "0.5.2"
+tower-http = { version = "0.6.2", features = ["cors", "trace"] }
+
+# Text & Linguistic Utilities
+unicode-normalization = "0.1.24"
+
+# CLI
+clap = { version = "4.5.31", features = ["derive"] }
+
+# Development / Testing
+tempfile = "3.17.1"
+
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

@@ -1,0 +1,41 @@
+# LinguaFlow — Troubleshooting & Diagnostics Guide
+
+## 1. Common Issues & Resolutions
+
+### 1.1 Windows: WebView2 Runtime Initialization Error
+- **Symptom**: Tauri application launches with a blank white screen or error indicating `Failed to initialize WebView2`.
+- **Cause**: WebView2 Runtime is either disabled or not installed on legacy Windows 10 editions.
+- **Resolution**:
+  - Download and install the [Evergreen WebView2 Bootstrapper](https://developer.microsoft.com/en-us/microsoft-edge/webview2/).
+  - Ensure Windows 10 is at least build 1803+.
+
+### 1.2 Linux: Missing WebKitGTK Libraries
+- **Symptom**: Compilation fails with `pkg-config: webkit2gtk-4.1 not found`.
+- **Cause**: Missing system development headers.
+- **Resolution**:
+  ```bash
+  sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev
+  ```
+
+### 1.3 SQLite Database Locked / WAL Recovery
+- **Symptom**: `LinguaError::Database("database is locked")`.
+- **Cause**: An external process opened the `.db` file in exclusive locking mode, or abnormal termination left a stale lock file.
+- **Resolution**:
+  - LinguaFlow uses `PRAGMA synchronous = NORMAL` and WAL mode to prevent deadlocks.
+  - Ensure no external SQLite browser has opened the database in exclusive write mode.
+  - Run `lingua doctor` to automatically verify schema integrity.
+
+### 1.4 Audio Device Permissions (Mobile / Desktop)
+- **Symptom**: Microphone button triggers `AudioDeviceError` or remains silent.
+- **Resolution**:
+  - On macOS: Ensure Terminal / LinguaFlow has Microphone permission in `System Settings -> Privacy & Security -> Microphone`.
+  - On iOS: Ensure `NSMicrophoneUsageDescription` is present in `Info.plist`.
+  - On Android: Ensure `android.permission.RECORD_AUDIO` is approved in app permissions.
+
+### 1.5 Port 8080 Conflict on Gateway Startup
+- **Symptom**: `Failed to bind TCP listener: Only one usage of each socket address is normally permitted`.
+- **Resolution**:
+  - Specify an alternate port using `--port`:
+    ```bash
+    lingua serve --port 8085
+    ```

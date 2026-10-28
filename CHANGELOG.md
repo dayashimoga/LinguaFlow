@@ -502,5 +502,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 - **Mobile CI Workflow**: Upgraded `android-actions/setup-android` from `v3` to `v4` in `.github/workflows/mobile.yml`. Fixes GitHub Actions build failure caused by Google deprecating and unpublishing the legacy `tools` package from the Android SDK repository, which caused `sdkmanager tools` to exit with code 1.
 - **CI & Release Linux Build Dependencies**: Added Linux system dependencies (`libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `libssl-dev`, `libasound2-dev`, etc.) to the `quality-gates` job in `.github/workflows/ci.yml` and `release-package` job in `.github/workflows/release.yml`. Fixes `glib-sys` and `gobject-sys` missing package error (`glib-2.0` / `gobject-2.0` not found in `pkg-config`) during `cargo clippy --workspace` and `cargo test --workspace`.
+- **Desktop Artifact Packaging**: Corrected binary packaging paths in `.github/workflows/ci.yml` and `.github/workflows/release.yml`. Cargo names the desktop executable according to crate package name `lingua-tauri` (with hyphen, e.g. `lingua-tauri.exe`), whereas previous packaging steps looked for `lingua_tauri.exe` (with underscore). Added dual detection for both hyphenated and underscored binary names across Windows, Linux, and macOS matrix runners.
 
 

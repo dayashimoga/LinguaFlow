@@ -527,3 +527,9 @@
   - Resolved `glib-sys` / `gobject-sys` missing `glib-2.0.pc` build error during `cargo clippy --workspace` and `cargo test --workspace`.
   - Verified local Clippy and full test suite passes with 0 warnings.
   - Pushed fix commit to remote repository.
+
+### [2026-10-28 17:25 UTC] Desktop Matrix Artifact Packaging Fix
+- [x] Resolved Windows/Linux/macOS desktop matrix artifact copy failure:
+  - Fixed binary filename mismatch where packaging scripts expected `lingua_tauri.exe` / `lingua_tauri` with underscore, whereas Cargo names output binaries based on crate name `lingua-tauri` (`lingua-tauri.exe` / `lingua-tauri`).
+  - Implemented dual filename fallback detection in `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
+  - Pushed fix commit to remote repository.

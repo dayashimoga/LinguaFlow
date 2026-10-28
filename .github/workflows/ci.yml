@@ -127,21 +127,33 @@ jobs:
         run: |
           mkdir -p release-artifacts
           cp target/release/lingua.exe release-artifacts/
-          cp target/release/lingua_tauri.exe release-artifacts/LinguaFlow.exe
+          if (Test-Path "target/release/lingua-tauri.exe") {
+            cp target/release/lingua-tauri.exe release-artifacts/LinguaFlow.exe
+          } elseif (Test-Path "target/release/lingua_tauri.exe") {
+            cp target/release/lingua_tauri.exe release-artifacts/LinguaFlow.exe
+          }
 
       - name: Package Linux Artifacts
         if: runner.os == 'Linux'
         run: |
           mkdir -p release-artifacts
           cp target/release/lingua release-artifacts/
-          cp target/release/lingua_tauri release-artifacts/linguaflow
+          if [ -f target/release/lingua-tauri ]; then
+            cp target/release/lingua-tauri release-artifacts/linguaflow
+          elif [ -f target/release/lingua_tauri ]; then
+            cp target/release/lingua_tauri release-artifacts/linguaflow
+          fi
 
       - name: Package macOS Artifacts
         if: runner.os == 'macOS'
         run: |
           mkdir -p release-artifacts
           cp target/release/lingua release-artifacts/
-          cp target/release/lingua_tauri release-artifacts/linguaflow
+          if [ -f target/release/lingua-tauri ]; then
+            cp target/release/lingua-tauri release-artifacts/linguaflow
+          elif [ -f target/release/lingua_tauri ]; then
+            cp target/release/lingua_tauri release-artifacts/linguaflow
+          fi
 
       - name: Compute SHA-256 Checksums
         shell: bash

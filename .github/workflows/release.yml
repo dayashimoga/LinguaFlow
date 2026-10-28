@@ -62,6 +62,11 @@ jobs:
         run: |
           mkdir -p release-distribution/bin
           cp target/release/lingua release-distribution/bin/
+          if [ -f target/release/lingua-tauri ]; then
+            cp target/release/lingua-tauri release-distribution/bin/linguaflow
+          elif [ -f target/release/lingua_tauri ]; then
+            cp target/release/lingua_tauri release-distribution/bin/linguaflow
+          fi
           cp -r dist release-distribution/web-pwa
           cd release-distribution
           sha256sum bin/* sbom/* > SHA256SUMS.txt

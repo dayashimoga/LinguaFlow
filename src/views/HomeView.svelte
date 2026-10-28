@@ -28,7 +28,7 @@
   <section class="hero-card glass-panel">
     <div class="hero-badge-row">
       <span class="badge badge-active">Global Contract Active</span>
-      <span class="badge badge-info">Stage 0: Foundation</span>
+      <span class="badge badge-info">Stage {appInfo?.stage ?? 4}: {appInfo?.stage_name ?? 'Real-Time Voice Conversation'}</span>
       {#if health?.status === 'healthy'}
         <span class="badge badge-active">SQLite WAL Active</span>
       {/if}

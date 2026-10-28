@@ -271,6 +271,94 @@ pub struct FeedAudioChunkCmdResponse {
     pub new_events: Vec<crate::models::AsrTranscriptEvent>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StartConversationCmdRequest {
+    pub speaker_a_lang: crate::language::LanguageCode,
+    pub speaker_b_lang: crate::language::LanguageCode,
+    pub title: Option<String>,
+    pub is_hands_free: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StartConversationCmdResponse {
+    pub session: crate::models::ConversationSession,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SubmitTurnCmdRequest {
+    pub session_id: String,
+    pub speaker_id: crate::models::SpeakerId,
+    pub source_text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SubmitTurnCmdResponse {
+    pub turn: crate::models::ConversationTurnItem,
+    pub audio_samples: Vec<f32>,
+    pub sample_rate: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SwitchSpeakerCmdRequest {
+    pub session_id: String,
+    pub next_speaker: Option<crate::models::SpeakerId>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SwitchSpeakerCmdResponse {
+    pub session: crate::models::ConversationSession,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InterruptConversationCmdRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct InterruptConversationCmdResponse {
+    pub session_id: String,
+    pub success: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StopConversationCmdRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StopConversationCmdResponse {
+    pub session: crate::models::ConversationSession,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GetConversationTurnsCmdRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetConversationTurnsCmdResponse {
+    pub turns: Vec<crate::models::ConversationTurnItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GetTtsVoicesCmdResponse {
+    pub voices: Vec<crate::models::TtsVoiceInfo>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SynthesizeSpeechCmdRequest {
+    pub text: String,
+    pub language: crate::language::LanguageCode,
+    pub voice_id: Option<String>,
+    pub speed: f32,
+    pub pitch: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SynthesizeSpeechCmdResponse {
+    pub response: crate::models::TtsSynthesizeResponse,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

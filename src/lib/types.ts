@@ -329,5 +329,102 @@ export interface FeedAudioChunkCmdRequest {
   samples: number[];
 }
 
+export type SpeakerId = 'SpeakerA' | 'SpeakerB';
+
+export type TurnState =
+  | 'Idle'
+  | { Listening: SpeakerId }
+  | { Processing: SpeakerId }
+  | { Speaking: SpeakerId };
+
+export interface ConversationSession {
+  id: string;
+  title: string;
+  speaker_a_lang: LanguageCode;
+  speaker_b_lang: LanguageCode;
+  active_speaker: SpeakerId;
+  is_hands_free: boolean;
+  status: string;
+  created_at: string;
+  ended_at: string | null;
+  total_turns: number;
+}
+
+export interface ConversationTurnItem {
+  id: string;
+  session_id: string;
+  turn_number: number;
+  speaker_id: SpeakerId;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  source_text: string;
+  translated_text: string;
+  audio_duration_ms: number;
+  is_interrupted: boolean;
+  created_at: string;
+}
+
+export interface TtsVoiceInfo {
+  id: string;
+  name: string;
+  language: LanguageCode;
+  gender: string;
+  is_offline: boolean;
+  sample_rate: number;
+}
+
+export interface TtsSynthesizeRequest {
+  text: string;
+  language: LanguageCode;
+  voice_id?: string | null;
+  speed: number;
+  pitch: number;
+}
+
+export interface TtsSynthesizeResponse {
+  audio_samples: number[];
+  sample_rate: number;
+  channels: number;
+  duration_ms: number;
+  voice_id: string;
+  language: LanguageCode;
+}
+
+export interface StartConversationCmdRequest {
+  speaker_a_lang: LanguageCode;
+  speaker_b_lang: LanguageCode;
+  title?: string | null;
+  is_hands_free: boolean;
+}
+
+export interface SubmitTurnCmdRequest {
+  session_id: string;
+  speaker_id: SpeakerId;
+  source_text: string;
+}
+
+export interface SubmitTurnCmdResponse {
+  turn: ConversationTurnItem;
+  audio_samples: number[];
+  sample_rate: number;
+}
+
+export interface SwitchSpeakerCmdRequest {
+  session_id: string;
+  next_speaker?: SpeakerId | null;
+}
+
+export interface InterruptConversationCmdRequest {
+  session_id: string;
+}
+
+export interface StopConversationCmdRequest {
+  session_id: string;
+}
+
+export interface GetConversationTurnsCmdRequest {
+  session_id: string;
+}
+
 
 

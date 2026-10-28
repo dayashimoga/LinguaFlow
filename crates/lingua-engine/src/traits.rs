@@ -1,5 +1,8 @@
 use async_trait::async_trait;
-use lingua_core::{CapabilityState, LanguageCode, LanguagePair, LinguaError};
+use lingua_core::{
+    CapabilityState, LanguageCode, LanguagePair, LinguaError, TtsSynthesizeRequest,
+    TtsSynthesizeResponse, TtsVoiceInfo,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -45,4 +48,9 @@ pub trait TextToSpeechEngine: Send + Sync {
     fn name(&self) -> &'static str;
     fn supports_language(&self, lang: LanguageCode) -> bool;
     fn capability_state(&self, lang: LanguageCode) -> CapabilityState;
+    fn list_voices(&self) -> Vec<TtsVoiceInfo>;
+    async fn synthesize(
+        &self,
+        request: TtsSynthesizeRequest,
+    ) -> Result<TtsSynthesizeResponse, LinguaError>;
 }

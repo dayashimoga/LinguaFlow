@@ -1,14 +1,18 @@
 use crate::DesktopAppState;
 use lingua_core::{
     detect_language, AddFavoriteCmdRequest, AppInfo, CapabilityMatrix, CaptionSegment,
-    DatabaseHealthInfo, DetectLanguageCmdRequest, DetectLanguageCmdResponse, DictionaryEntry,
-    DictionarySearchCmdRequest, DictionarySearchCmdResponse, ExportCaptionsCmdRequest,
-    ExportCaptionsCmdResponse, FavoriteItem, FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse,
-    GetSessionCaptionsCmdRequest, GetSessionCaptionsCmdResponse, IpcResponse, LanguagePair,
-    ModelPackInfo, PauseSpeechSessionCmdRequest, ResumeSpeechSessionCmdRequest, SpeechSession,
-    StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse, StopSpeechSessionCmdRequest,
-    StopSpeechSessionCmdResponse, TranslateCmdRequest, TranslateCmdResponse, TranslationRecord,
-    UserSettings,
+    ConversationSession, ConversationTurnItem, DatabaseHealthInfo, DetectLanguageCmdRequest,
+    DetectLanguageCmdResponse, DictionaryEntry, DictionarySearchCmdRequest,
+    DictionarySearchCmdResponse, ExportCaptionsCmdRequest, ExportCaptionsCmdResponse, FavoriteItem,
+    FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse, GetConversationTurnsCmdRequest,
+    GetSessionCaptionsCmdRequest, GetSessionCaptionsCmdResponse, InterruptConversationCmdRequest,
+    InterruptConversationCmdResponse, IpcResponse, LanguagePair, ModelPackInfo,
+    PauseSpeechSessionCmdRequest, ResumeSpeechSessionCmdRequest, SpeechSession,
+    StartConversationCmdRequest, StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse,
+    StopConversationCmdRequest, StopSpeechSessionCmdRequest, StopSpeechSessionCmdResponse,
+    SubmitTurnCmdRequest, SubmitTurnCmdResponse, SwitchSpeakerCmdRequest,
+    SynthesizeSpeechCmdRequest, TranslateCmdRequest, TranslateCmdResponse, TranslationRecord,
+    TtsSynthesizeRequest, TtsSynthesizeResponse, TtsVoiceInfo, UserSettings,
 };
 use lingua_engine::{AudioCaptureManager, TranslationRequest};
 use tauri::State;
@@ -465,6 +469,150 @@ pub async fn lingua_command_feed_audio_chunk(
         .await
     {
         Ok(segments) => Ok(IpcResponse::ok("tauri-ipc", segments)),
+        Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
+    }
+}
+
+#[tauri::command]
+pub async fn lingua_command_start_conversation(
+    state: State<'_, DesktopAppState>,
+    request: StartConversationCmdRequest,
+) -> Result<IpcResponse<ConversationSession>, String> {
+    match state
+        .conversation_orchestrator
+        .start_session(
+            request.speaker_a_lang,
+            request.speaker_b_lang,
+            request.title,
+            request.is_hands_free,
+        )
+        .await
+    {
+        Ok(session) => Ok(IpcResponse::ok("tauri-ipc", session)),
+        Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
+    }
+}
+
+#[tauri::command]
+pub async fn lingua_command_submit_turn(
+    state: State<'_, DesktopAppState>,
+    request: SubmitTurnCmdRequest,
+) -> Result<IpcResponse<SubmitTurnCmdResponse>, String> {
+    match state
+        .conversation_orchestrator
+        .submit_turn(
+            &request.session_id,
+            request.speaker_id,
+            &request.source_text,
+        )
+        .await
+    {
+        Ok((turn, audio_samples, sample_rate)) => Ok(IpcResponse::ok(
+            "tauri-ipc",
+            SubmitTurnCmdResponse {
+                turn,
+                audio_samples,
+                sample_rate,
+            },
+        )),
+        Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
+    }
+}
+
+#[tauri::command]
+pub async fn lingua_command_switch_speaker(
+    state: State<'_, DesktopAppState>,
+    request: SwitchSpeakerCmdRequest,
+) -> Result<IpcResponse<ConversationSession>, String> {
+    match state
+        .conversation_orchestrator
+        .switch_speaker(&request.session_id, request.next_speaker)
+        .await
+    {
+        Ok(session) => Ok(IpcResponse::ok("tauri-ipc", session)),
+        Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
+    }
+}
+
+#[tauri::command]
+pub async fn lingua_command_interrupt_conversation(
+    state: State<'_, DesktopAppState>,
+    request: InterruptConversationCmdRequest,
+) -> Result<IpcResponse<InterruptConversationCmdResponse>, String> {
+    match state
+        .conversation_orchestrator
+        .interrupt(&request.session_id)
+        .await
+    {
+        Ok(success) => Ok(IpcResponse::ok(
+            "tauri-ipc",
+            InterruptConversationCmdResponse {
+                session_id: request.session_id,
+                success,
+            },
+        )),
+        Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
+    }
+}
+
+#[tauri::command]
+pub async fn lingua_command_stop_conversation(
+    state: State<'_, DesktopAppState>,
+    request: StopConversationCmdRequest,
+) -> Result<IpcResponse<ConversationSession>, String> {
+    match state
+        .conversation_orchestrator
+        .stop_session(&request.session_id)
+        .await
+    {
+        Ok(session) => Ok(IpcResponse::ok("tauri-ipc", session)),
+        Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
+    }
+}
+
+#[tauri::command]
+pub async fn lingua_command_get_conversation_turns(
+    state: State<'_, DesktopAppState>,
+    request: GetConversationTurnsCmdRequest,
+) -> Result<IpcResponse<Vec<ConversationTurnItem>>, String> {
+    match state
+        .conversation_orchestrator
+        .get_turns(&request.session_id)
+        .await
+    {
+        Ok(turns) => Ok(IpcResponse::ok("tauri-ipc", turns)),
+        Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_list_tts_voices(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<Vec<TtsVoiceInfo>> {
+    let voices = state.conversation_orchestrator.tts_engine().list_voices();
+    IpcResponse::ok("tauri-ipc", voices)
+}
+
+#[tauri::command]
+pub async fn lingua_command_synthesize_speech(
+    state: State<'_, DesktopAppState>,
+    request: SynthesizeSpeechCmdRequest,
+) -> Result<IpcResponse<TtsSynthesizeResponse>, String> {
+    let req = TtsSynthesizeRequest {
+        text: request.text,
+        language: request.language,
+        voice_id: request.voice_id,
+        speed: request.speed,
+        pitch: request.pitch,
+    };
+
+    match state
+        .conversation_orchestrator
+        .tts_engine()
+        .synthesize(req)
+        .await
+    {
+        Ok(response) => Ok(IpcResponse::ok("tauri-ipc", response)),
         Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
     }
 }

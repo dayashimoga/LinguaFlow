@@ -59,6 +59,15 @@ pub enum LinguaError {
     #[error("Not found: {0}")]
     NotFound(String),
 
+    #[error("TTS engine error: {0}")]
+    TtsEngineError(String),
+
+    #[error("Conversation session '{0}' not found")]
+    ConversationSessionNotFound(String),
+
+    #[error("Speaker conflict or invalid turn state: {0}")]
+    SpeakerConflict(String),
+
     #[error("Internal system error: {0}")]
     Internal(String),
 }
@@ -84,6 +93,9 @@ impl LinguaError {
             LinguaError::DownloadCancelled(_) => "DOWNLOAD_CANCELLED",
             LinguaError::DownloadFailed(_) => "DOWNLOAD_FAILED",
             LinguaError::NotFound(_) => "NOT_FOUND",
+            LinguaError::TtsEngineError(_) => "TTS_ENGINE_ERROR",
+            LinguaError::ConversationSessionNotFound(_) => "CONVERSATION_SESSION_NOT_FOUND",
+            LinguaError::SpeakerConflict(_) => "SPEAKER_CONFLICT",
             LinguaError::Internal(_) => "INTERNAL_ERROR",
         }
     }
@@ -105,6 +117,9 @@ impl LinguaError {
                 | LinguaError::DownloadCancelled(_)
                 | LinguaError::DownloadFailed(_)
                 | LinguaError::NotFound(_)
+                | LinguaError::TtsEngineError(_)
+                | LinguaError::ConversationSessionNotFound(_)
+                | LinguaError::SpeakerConflict(_)
         )
     }
 }

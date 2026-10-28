@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 4;
+pub const CURRENT_SCHEMA_VERSION: u32 = 5;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -42,6 +42,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 4 {
         apply_migration_004(conn)?;
+    }
+    if current_version < 5 {
+        apply_migration_005(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -352,5 +355,58 @@ fn apply_migration_004(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 004: {e}")))?;
 
     info!("Migration 004 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_005(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!("Applying LinguaFlow Database Migration 005 — Real-Time Voice Conversation Sessions and Turns");
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    tx.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS conversation_sessions (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            speaker_a_lang TEXT NOT NULL,
+            speaker_b_lang TEXT NOT NULL,
+            active_speaker TEXT NOT NULL,
+            is_hands_free INTEGER NOT NULL DEFAULT 0,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            ended_at TEXT,
+            total_turns INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS conversation_turns (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            turn_number INTEGER NOT NULL,
+            speaker_id TEXT NOT NULL,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            source_text TEXT NOT NULL,
+            translated_text TEXT NOT NULL,
+            audio_duration_ms INTEGER NOT NULL DEFAULT 0,
+            is_interrupted INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(session_id) REFERENCES conversation_sessions(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_conv_turns_session_turn
+        ON conversation_turns(session_id, turn_number);
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (5, datetime('now'), 'Stage 4: Real-Time Voice Conversation sessions and turns');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 005: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 005: {e}")))?;
+
+    info!("Migration 005 applied successfully");
     Ok(())
 }

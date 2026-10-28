@@ -1,3 +1,4 @@
+pub mod conversation_repo;
 pub mod db;
 pub mod dictionary_repo;
 pub mod history_repo;

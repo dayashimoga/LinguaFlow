@@ -14,11 +14,16 @@ use lingua_core::{
     CaptionSegment, DatabaseHealthInfo, DetectLanguageCmdRequest, DetectLanguageCmdResponse,
     DictionaryEntry, DictionarySearchCmdResponse, DiskSpaceInfo, ExportCaptionsCmdResponse,
     FavoriteItem, FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse,
-    GetSessionCaptionsCmdResponse, LanguageCode, LanguagePair, ModelPackDetailedInfo,
-    ModelPackInfo, PauseSpeechSessionCmdRequest, ResumeSpeechSessionCmdRequest, SpeechSession,
-    StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse, StopSpeechSessionCmdRequest,
-    StopSpeechSessionCmdResponse, TranslateCmdRequest, TranslateCmdResponse, TranslationRecord,
-    UserSettings, VerifyModelCmdResponse,
+    GetConversationTurnsCmdResponse, GetSessionCaptionsCmdResponse, GetTtsVoicesCmdResponse,
+    InterruptConversationCmdRequest, InterruptConversationCmdResponse, LanguageCode, LanguagePair,
+    ModelPackDetailedInfo, ModelPackInfo, PauseSpeechSessionCmdRequest,
+    ResumeSpeechSessionCmdRequest, SpeechSession, StartConversationCmdRequest,
+    StartConversationCmdResponse, StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse,
+    StopConversationCmdRequest, StopConversationCmdResponse, StopSpeechSessionCmdRequest,
+    StopSpeechSessionCmdResponse, SubmitTurnCmdRequest, SubmitTurnCmdResponse,
+    SwitchSpeakerCmdRequest, SwitchSpeakerCmdResponse, SynthesizeSpeechCmdRequest,
+    SynthesizeSpeechCmdResponse, TranslateCmdRequest, TranslateCmdResponse, TranslationRecord,
+    TtsSynthesizeRequest, UserSettings, VerifyModelCmdResponse,
 };
 use lingua_engine::{AudioCaptureManager, TranslationRequest};
 use serde::Deserialize;
@@ -90,6 +95,30 @@ pub fn create_router(state: ServerState) -> Router {
         )
         .route("/api/v1/speech/feed-chunk", post(feed_speech_chunk_handler))
         .route("/api/v1/speech/ws", get(speech_ws_handler))
+        .route(
+            "/api/v1/conversation/start",
+            post(start_conversation_handler),
+        )
+        .route(
+            "/api/v1/conversation/turn",
+            post(submit_conversation_turn_handler),
+        )
+        .route(
+            "/api/v1/conversation/switch-speaker",
+            post(switch_speaker_handler),
+        )
+        .route(
+            "/api/v1/conversation/interrupt",
+            post(interrupt_conversation_handler),
+        )
+        .route("/api/v1/conversation/stop", post(stop_conversation_handler))
+        .route(
+            "/api/v1/conversation/{id}/turns",
+            get(get_conversation_turns_handler),
+        )
+        .route("/api/v1/tts/voices", get(list_tts_voices_handler))
+        .route("/api/v1/tts/synthesize", post(synthesize_tts_handler))
+        .route("/api/v1/conversation/ws", get(conversation_ws_handler))
         .route("/api/v1/ws", get(ws_handler))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
@@ -603,4 +632,183 @@ async fn handle_speech_socket(mut socket: WebSocket, state: ServerState) {
         }
     }
     info!("Speech WebSocket client disconnected");
+}
+
+async fn start_conversation_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<StartConversationCmdRequest>,
+) -> Result<Json<StartConversationCmdResponse>, (StatusCode, String)> {
+    match state
+        .conversation_orchestrator
+        .start_session(
+            payload.speaker_a_lang,
+            payload.speaker_b_lang,
+            payload.title,
+            payload.is_hands_free,
+        )
+        .await
+    {
+        Ok(session) => Ok(Json(StartConversationCmdResponse { session })),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }
+}
+
+async fn submit_conversation_turn_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<SubmitTurnCmdRequest>,
+) -> Result<Json<SubmitTurnCmdResponse>, (StatusCode, String)> {
+    match state
+        .conversation_orchestrator
+        .submit_turn(
+            &payload.session_id,
+            payload.speaker_id,
+            &payload.source_text,
+        )
+        .await
+    {
+        Ok((turn, audio_samples, sample_rate)) => Ok(Json(SubmitTurnCmdResponse {
+            turn,
+            audio_samples,
+            sample_rate,
+        })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn switch_speaker_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<SwitchSpeakerCmdRequest>,
+) -> Result<Json<SwitchSpeakerCmdResponse>, (StatusCode, String)> {
+    match state
+        .conversation_orchestrator
+        .switch_speaker(&payload.session_id, payload.next_speaker)
+        .await
+    {
+        Ok(session) => Ok(Json(SwitchSpeakerCmdResponse { session })),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }
+}
+
+async fn interrupt_conversation_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<InterruptConversationCmdRequest>,
+) -> Result<Json<InterruptConversationCmdResponse>, (StatusCode, String)> {
+    match state
+        .conversation_orchestrator
+        .interrupt(&payload.session_id)
+        .await
+    {
+        Ok(success) => Ok(Json(InterruptConversationCmdResponse {
+            session_id: payload.session_id,
+            success,
+        })),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }
+}
+
+async fn stop_conversation_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<StopConversationCmdRequest>,
+) -> Result<Json<StopConversationCmdResponse>, (StatusCode, String)> {
+    match state
+        .conversation_orchestrator
+        .stop_session(&payload.session_id)
+        .await
+    {
+        Ok(session) => Ok(Json(StopConversationCmdResponse { session })),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }
+}
+
+async fn get_conversation_turns_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+) -> Result<Json<GetConversationTurnsCmdResponse>, (StatusCode, String)> {
+    match state.conversation_orchestrator.get_turns(&id).await {
+        Ok(turns) => Ok(Json(GetConversationTurnsCmdResponse { turns })),
+        Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
+    }
+}
+
+async fn list_tts_voices_handler(
+    State(state): State<ServerState>,
+) -> Json<GetTtsVoicesCmdResponse> {
+    let voices = state.conversation_orchestrator.tts_engine().list_voices();
+    Json(GetTtsVoicesCmdResponse { voices })
+}
+
+async fn synthesize_tts_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<SynthesizeSpeechCmdRequest>,
+) -> Result<Json<SynthesizeSpeechCmdResponse>, (StatusCode, String)> {
+    let req = TtsSynthesizeRequest {
+        text: payload.text,
+        language: payload.language,
+        voice_id: payload.voice_id,
+        speed: payload.speed,
+        pitch: payload.pitch,
+    };
+
+    match state
+        .conversation_orchestrator
+        .tts_engine()
+        .synthesize(req)
+        .await
+    {
+        Ok(response) => Ok(Json(SynthesizeSpeechCmdResponse { response })),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }
+}
+
+async fn conversation_ws_handler(
+    ws: WebSocketUpgrade,
+    State(state): State<ServerState>,
+) -> Response {
+    ws.on_upgrade(move |socket| handle_conversation_socket(socket, state))
+}
+
+async fn handle_conversation_socket(mut socket: WebSocket, state: ServerState) {
+    let mut rx = state.conversation_orchestrator.subscribe();
+    while let Ok(event) = rx.recv().await {
+        let json_str = match &event {
+            lingua_engine::ConversationEvent::TurnStateChanged { session_id, state } => {
+                serde_json::json!({
+                    "type": "turn_state",
+                    "session_id": session_id,
+                    "state": state
+                })
+            }
+            lingua_engine::ConversationEvent::TurnCompleted { session_id, turn } => {
+                serde_json::json!({
+                    "type": "turn_completed",
+                    "session_id": session_id,
+                    "turn": turn
+                })
+            }
+            lingua_engine::ConversationEvent::TurnInterrupted {
+                session_id,
+                turn_id,
+            } => {
+                serde_json::json!({
+                    "type": "turn_interrupted",
+                    "session_id": session_id,
+                    "turn_id": turn_id
+                })
+            }
+            lingua_engine::ConversationEvent::SessionEnded { session_id } => {
+                serde_json::json!({
+                    "type": "session_ended",
+                    "session_id": session_id
+                })
+            }
+        };
+
+        if socket
+            .send(Message::Text(json_str.to_string().into()))
+            .await
+            .is_err()
+        {
+            break;
+        }
+    }
 }

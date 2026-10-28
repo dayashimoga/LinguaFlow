@@ -187,7 +187,7 @@ mod tests {
             created_at: chrono::Utc::now(),
         };
 
-        let vtt = CaptionCoordinator::export_vtt(&[seg.clone()]);
+        let vtt = CaptionCoordinator::export_vtt(std::slice::from_ref(&seg));
         assert!(vtt.starts_with("WEBVTT"));
         assert!(vtt.contains("00:00:00.500 --> 00:00:01.500"));
         assert!(vtt.contains("ನಮಸ್ಕಾರ"));

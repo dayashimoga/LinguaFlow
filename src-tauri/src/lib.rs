@@ -1,7 +1,7 @@
 pub mod commands;
 
 use lingua_core::AppInfo;
-use lingua_engine::{EngineRegistry, SpeechSessionCoordinator};
+use lingua_engine::{ConversationOrchestrator, EngineRegistry, SpeechSessionCoordinator};
 use lingua_storage::StorageService;
 use std::sync::Arc;
 use tracing::info;
@@ -10,6 +10,7 @@ pub struct DesktopAppState {
     pub storage: StorageService,
     pub engine_registry: Arc<EngineRegistry>,
     pub speech_coordinator: Arc<SpeechSessionCoordinator>,
+    pub conversation_orchestrator: Arc<ConversationOrchestrator>,
     pub app_info: AppInfo,
 }
 
@@ -22,12 +23,18 @@ pub fn run() {
         Some(storage.clone()),
         audio_capture,
     ));
+    let conversation_orchestrator = Arc::new(ConversationOrchestrator::new(
+        Arc::clone(&engine_registry),
+        engine_registry.tts_engine(),
+        Some(storage.clone()),
+    ));
     let app_info = AppInfo::default();
 
     let app_state = DesktopAppState {
         storage,
         engine_registry,
         speech_coordinator,
+        conversation_orchestrator,
         app_info,
     };
 
@@ -65,6 +72,14 @@ pub fn run() {
             commands::lingua_command_get_session_captions,
             commands::lingua_command_export_captions,
             commands::lingua_command_feed_audio_chunk,
+            commands::lingua_command_start_conversation,
+            commands::lingua_command_submit_turn,
+            commands::lingua_command_switch_speaker,
+            commands::lingua_command_interrupt_conversation,
+            commands::lingua_command_stop_conversation,
+            commands::lingua_command_get_conversation_turns,
+            commands::lingua_command_list_tts_voices,
+            commands::lingua_command_synthesize_speech,
         ])
         .run(tauri::generate_context!())
         .expect("error while running LinguaFlow application");

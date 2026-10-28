@@ -3,7 +3,10 @@ use crate::http_provider::HttpTranslationProvider;
 use crate::lexicon_engine::LexiconTranslationEngine;
 use crate::local_model_engine::LocalNeuralTranslationEngine;
 use crate::model_manager::ModelManager;
-use crate::traits::{TranslationEngine, TranslationRequest, TranslationResponse};
+use crate::traits::{
+    TextToSpeechEngine, TranslationEngine, TranslationRequest, TranslationResponse,
+};
+use crate::tts_engine::AuthenticTtsEngine;
 use chrono::Utc;
 use lingua_core::{
     normalize_text_nfc, CapabilityMatrix, CapabilityState, LinguaError, TranslationRecord,
@@ -19,6 +22,7 @@ pub struct EngineRegistry {
     storage: Option<StorageService>,
     model_manager: Option<Arc<ModelManager>>,
     audio_capture: Arc<AudioCaptureManager>,
+    tts_engine: Arc<dyn TextToSpeechEngine>,
 }
 
 impl EngineRegistry {
@@ -28,6 +32,7 @@ impl EngineRegistry {
             storage: None,
             model_manager: None,
             audio_capture: Arc::new(AudioCaptureManager::default()),
+            tts_engine: Arc::new(AuthenticTtsEngine::new()),
         }
     }
 
@@ -41,6 +46,7 @@ impl EngineRegistry {
             storage: Some(storage.clone()),
             model_manager: None,
             audio_capture: Arc::new(AudioCaptureManager::default()),
+            tts_engine: Arc::new(AuthenticTtsEngine::new()),
         };
 
         // Initialize ModelManager
@@ -72,6 +78,10 @@ impl EngineRegistry {
         Arc::clone(&self.audio_capture)
     }
 
+    pub fn tts_engine(&self) -> Arc<dyn TextToSpeechEngine> {
+        Arc::clone(&self.tts_engine)
+    }
+
     pub fn register_translation_engine(&mut self, engine: Arc<dyn TranslationEngine>) {
         info!(
             "Registering translation engine: {} ({})",
@@ -82,7 +92,7 @@ impl EngineRegistry {
     }
 
     pub fn get_capabilities(&self) -> CapabilityMatrix {
-        let mut matrix = CapabilityMatrix::stage_3_active();
+        let mut matrix = CapabilityMatrix::stage_4_active();
 
         if !self.translation_engines.is_empty() {
             matrix.text_translation = CapabilityState::Active;

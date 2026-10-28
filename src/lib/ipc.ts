@@ -355,5 +355,158 @@ export async function feedAudioChunk(sessionId: string, samples: number[]): Prom
   return res.json();
 }
 
+// Stage 4: Real-Time Voice Conversation & TTS IPC Functions
+
+export async function startConversation(
+  speakerALang: import('./types').LanguageCode,
+  speakerBLang: import('./types').LanguageCode,
+  title?: string | null,
+  isHandsFree = false
+): Promise<import('./types').ConversationSession> {
+  if (isTauri) {
+    return invokeTauri<import('./types').ConversationSession>('lingua_command_start_conversation', {
+      request: {
+        speaker_a_lang: speakerALang,
+        speaker_b_lang: speakerBLang,
+        title,
+        is_hands_free: isHandsFree,
+      },
+    });
+  }
+  const res = await fetch(`${API_BASE}/conversation/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      speaker_a_lang: speakerALang,
+      speaker_b_lang: speakerBLang,
+      title,
+      is_hands_free: isHandsFree,
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to start conversation');
+  const data = await res.json();
+  return data.session;
+}
+
+export async function submitConversationTurn(
+  sessionId: string,
+  speakerId: import('./types').SpeakerId,
+  sourceText: string
+): Promise<import('./types').SubmitTurnCmdResponse> {
+  if (isTauri) {
+    return invokeTauri<import('./types').SubmitTurnCmdResponse>('lingua_command_submit_turn', {
+      request: {
+        session_id: sessionId,
+        speaker_id: speakerId,
+        source_text: sourceText,
+      },
+    });
+  }
+  const res = await fetch(`${API_BASE}/conversation/turn`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      session_id: sessionId,
+      speaker_id: speakerId,
+      source_text: sourceText,
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to submit conversation turn');
+  return res.json();
+}
+
+export async function switchConversationSpeaker(
+  sessionId: string,
+  nextSpeaker?: import('./types').SpeakerId | null
+): Promise<import('./types').ConversationSession> {
+  if (isTauri) {
+    return invokeTauri<import('./types').ConversationSession>('lingua_command_switch_speaker', {
+      request: { session_id: sessionId, next_speaker: nextSpeaker },
+    });
+  }
+  const res = await fetch(`${API_BASE}/conversation/switch-speaker`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, next_speaker: nextSpeaker }),
+  });
+  if (!res.ok) throw new Error('Failed to switch speaker');
+  const data = await res.json();
+  return data.session;
+}
+
+export async function interruptConversation(sessionId: string): Promise<boolean> {
+  if (isTauri) {
+    const res = await invokeTauri<{ session_id: string; success: boolean }>('lingua_command_interrupt_conversation', {
+      request: { session_id: sessionId },
+    });
+    return res.success;
+  }
+  const res = await fetch(`${API_BASE}/conversation/interrupt`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error('Failed to interrupt conversation');
+  const data = await res.json();
+  return data.success;
+}
+
+export async function stopConversation(sessionId: string): Promise<import('./types').ConversationSession> {
+  if (isTauri) {
+    return invokeTauri<import('./types').ConversationSession>('lingua_command_stop_conversation', {
+      request: { session_id: sessionId },
+    });
+  }
+  const res = await fetch(`${API_BASE}/conversation/stop`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error('Failed to stop conversation');
+  const data = await res.json();
+  return data.session;
+}
+
+export async function getConversationTurns(sessionId: string): Promise<import('./types').ConversationTurnItem[]> {
+  if (isTauri) {
+    return invokeTauri<import('./types').ConversationTurnItem[]>('lingua_command_get_conversation_turns', {
+      request: { session_id: sessionId },
+    });
+  }
+  const res = await fetch(`${API_BASE}/conversation/${encodeURIComponent(sessionId)}/turns`);
+  if (!res.ok) throw new Error('Failed to fetch conversation turns');
+  const data = await res.json();
+  return data.turns;
+}
+
+export async function listTtsVoices(): Promise<import('./types').TtsVoiceInfo[]> {
+  if (isTauri) {
+    return invokeTauri<import('./types').TtsVoiceInfo[]>('lingua_command_list_tts_voices');
+  }
+  const res = await fetch(`${API_BASE}/tts/voices`);
+  if (!res.ok) throw new Error('Failed to fetch TTS voices');
+  const data = await res.json();
+  return data.voices;
+}
+
+export async function synthesizeSpeech(
+  req: import('./types').TtsSynthesizeRequest
+): Promise<import('./types').TtsSynthesizeResponse> {
+  if (isTauri) {
+    return invokeTauri<import('./types').TtsSynthesizeResponse>('lingua_command_synthesize_speech', {
+      request: req,
+    });
+  }
+  const res = await fetch(`${API_BASE}/tts/synthesize`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error('Failed to synthesize speech');
+  const data = await res.json();
+  return data.response;
+}
+
+
 
 

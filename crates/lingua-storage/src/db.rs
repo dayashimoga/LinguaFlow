@@ -1,3 +1,4 @@
+use crate::conversation_repo;
 use crate::dictionary_repo::{
     get_dictionary_entry, get_entry_by_exact_word, import_dictionary_entries, search_dictionary,
     seed_stage_1_dictionary,
@@ -17,10 +18,10 @@ use crate::schema::run_migrations;
 use crate::settings_repo::{get_user_settings, save_user_settings};
 use chrono::{DateTime, Utc};
 use lingua_core::{
-    CachedTranslation, CaptionSegment, DatabaseHealthInfo, DictionaryEntry, FavoriteItem,
-    LanguageCode, LinguaError, ModelInstallState, ModelPackDetailedInfo, ModelPackInfo,
-    ModelPackManifest, MorphologyEntry, SpeechSession, SpeechSessionStatus, TranslationRecord,
-    UserSettings,
+    CachedTranslation, CaptionSegment, ConversationSession, ConversationTurnItem,
+    DatabaseHealthInfo, DictionaryEntry, FavoriteItem, LanguageCode, LinguaError,
+    ModelInstallState, ModelPackDetailedInfo, ModelPackInfo, ModelPackManifest, MorphologyEntry,
+    SpeakerId, SpeechSession, SpeechSessionStatus, TranslationRecord, UserSettings,
 };
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
@@ -372,6 +373,79 @@ impl StorageService {
         crate::speech_repo::delete_speech_session(&conn, session_id)
     }
 
+    // --- Stage 4: Real-Time Voice Conversation Sessions and Turns ---
+
+    pub fn create_conversation_session(
+        &self,
+        session: &ConversationSession,
+    ) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(format!("Failed to lock connection: {e}")))?;
+        conversation_repo::create_conversation_session(&conn, session)
+    }
+
+    pub fn get_conversation_session(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<ConversationSession>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(format!("Failed to lock connection: {e}")))?;
+        conversation_repo::get_conversation_session(&conn, session_id)
+    }
+
+    pub fn update_conversation_session(
+        &self,
+        session_id: &str,
+        active_speaker: SpeakerId,
+        status: &str,
+        total_turns: u32,
+        ended_at: Option<DateTime<Utc>>,
+    ) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(format!("Failed to lock connection: {e}")))?;
+        conversation_repo::update_conversation_session(
+            &conn,
+            session_id,
+            active_speaker,
+            status,
+            total_turns,
+            ended_at,
+        )
+    }
+
+    pub fn record_conversation_turn(&self, turn: &ConversationTurnItem) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(format!("Failed to lock connection: {e}")))?;
+        conversation_repo::insert_conversation_turn(&conn, turn)
+    }
+
+    pub fn get_conversation_turns(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<ConversationTurnItem>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(format!("Failed to lock connection: {e}")))?;
+        conversation_repo::get_conversation_turns(&conn, session_id)
+    }
+
+    pub fn mark_turn_interrupted(&self, turn_id: &str) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(format!("Failed to lock connection: {e}")))?;
+        conversation_repo::mark_turn_interrupted(&conn, turn_id)
+    }
+
     pub fn check_health(&self) -> Result<DatabaseHealthInfo, LinguaError> {
         let conn = self
             .conn
@@ -693,5 +767,113 @@ mod tests {
             .expect("missing");
         assert_eq!(updated_sess.status, SpeechSessionStatus::Completed);
         assert_eq!(updated_sess.duration_seconds, 15);
+    }
+
+    #[test]
+    fn test_stage_4_conversation_sessions_and_turns() {
+        let storage = StorageService::open_in_memory().expect("in-memory DB failed");
+
+        // 1. Create a conversation session (kn-IN <-> en-US)
+        let session = ConversationSession {
+            id: "conv-sess-01".into(),
+            title: "Doctor Patient Consultation".into(),
+            speaker_a_lang: LanguageCode::KnIn,
+            speaker_b_lang: LanguageCode::EnUs,
+            active_speaker: SpeakerId::SpeakerA,
+            is_hands_free: false,
+            status: "active".into(),
+            created_at: Utc::now(),
+            ended_at: None,
+            total_turns: 0,
+        };
+        storage
+            .create_conversation_session(&session)
+            .expect("create conversation session failed");
+
+        // 2. Fetch session
+        let fetched = storage
+            .get_conversation_session("conv-sess-01")
+            .expect("fetch failed")
+            .expect("session missing");
+        assert_eq!(fetched.title, "Doctor Patient Consultation");
+        assert_eq!(fetched.speaker_a_lang, LanguageCode::KnIn);
+        assert_eq!(fetched.speaker_b_lang, LanguageCode::EnUs);
+        assert_eq!(fetched.active_speaker, SpeakerId::SpeakerA);
+        assert_eq!(fetched.total_turns, 0);
+
+        // 3. Record Turn 1 (Speaker A: kn-IN -> en-US)
+        let turn1 = ConversationTurnItem {
+            id: "turn-01".into(),
+            session_id: "conv-sess-01".into(),
+            turn_number: 1,
+            speaker_id: SpeakerId::SpeakerA,
+            source_lang: LanguageCode::KnIn,
+            target_lang: LanguageCode::EnUs,
+            source_text: "ನನಗೆ ಜ್ವರ ಬಂದಿದೆ".into(),
+            translated_text: "I have a fever".into(),
+            audio_duration_ms: 1250,
+            is_interrupted: false,
+            created_at: Utc::now(),
+        };
+        storage
+            .record_conversation_turn(&turn1)
+            .expect("turn 1 insert failed");
+
+        // 4. Record Turn 2 (Speaker B: en-US -> kn-IN)
+        let turn2 = ConversationTurnItem {
+            id: "turn-02".into(),
+            session_id: "conv-sess-01".into(),
+            turn_number: 2,
+            speaker_id: SpeakerId::SpeakerB,
+            source_lang: LanguageCode::EnUs,
+            target_lang: LanguageCode::KnIn,
+            source_text: "Take this medicine twice a day".into(),
+            translated_text: "ಈ ಔಷಧಿಯನ್ನು ದಿನಕ್ಕೆ ಎರಡು ಬಾರಿ ತೆಗೆದುಕೊಳ್ಳಿ".into(),
+            audio_duration_ms: 2100,
+            is_interrupted: false,
+            created_at: Utc::now(),
+        };
+        storage
+            .record_conversation_turn(&turn2)
+            .expect("turn 2 insert failed");
+
+        // 5. Query ordered turns
+        let turns = storage
+            .get_conversation_turns("conv-sess-01")
+            .expect("get turns failed");
+        assert_eq!(turns.len(), 2);
+        assert_eq!(turns[0].speaker_id, SpeakerId::SpeakerA);
+        assert_eq!(turns[0].source_text, "ನನಗೆ ಜ್ವರ ಬಂದಿದೆ");
+        assert_eq!(turns[0].translated_text, "I have a fever");
+        assert_eq!(turns[1].speaker_id, SpeakerId::SpeakerB);
+        assert_eq!(turns[1].source_text, "Take this medicine twice a day");
+
+        // 6. Test interruption marking
+        storage
+            .mark_turn_interrupted("turn-02")
+            .expect("mark interrupted failed");
+        let turns_after_int = storage
+            .get_conversation_turns("conv-sess-01")
+            .expect("get turns failed");
+        assert!(turns_after_int[1].is_interrupted);
+
+        // 7. Update session status
+        storage
+            .update_conversation_session(
+                "conv-sess-01",
+                SpeakerId::SpeakerA,
+                "ended",
+                2,
+                Some(Utc::now()),
+            )
+            .expect("update session failed");
+
+        let ended_sess = storage
+            .get_conversation_session("conv-sess-01")
+            .expect("fetch failed")
+            .expect("missing");
+        assert_eq!(ended_sess.status, "ended");
+        assert_eq!(ended_sess.total_turns, 2);
+        assert!(ended_sess.ended_at.is_some());
     }
 }

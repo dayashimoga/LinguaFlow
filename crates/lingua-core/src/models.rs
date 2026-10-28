@@ -1,3 +1,4 @@
+use crate::error::LinguaError;
 use crate::language::{LanguageCode, LanguagePair};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -145,6 +146,18 @@ impl CapabilityMatrix {
             speech_synthesis: CapabilityState::ScheduledForStage(4),
             offline_models: CapabilityState::Active,
             live_conversation: CapabilityState::ScheduledForStage(4),
+            media_subtitles: CapabilityState::ScheduledForStage(6),
+        }
+    }
+
+    pub fn stage_4_active() -> Self {
+        Self {
+            dictionary: CapabilityState::Active,
+            text_translation: CapabilityState::Active,
+            streaming_asr: CapabilityState::Active,
+            speech_synthesis: CapabilityState::Active,
+            offline_models: CapabilityState::Active,
+            live_conversation: CapabilityState::Active,
             media_subtitles: CapabilityState::ScheduledForStage(6),
         }
     }
@@ -383,6 +396,126 @@ pub struct ModelPackInfo {
     pub scheduled_stage: u8,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum SpeakerId {
+    SpeakerA,
+    SpeakerB,
+}
+
+impl SpeakerId {
+    pub fn other(&self) -> Self {
+        match self {
+            Self::SpeakerA => Self::SpeakerB,
+            Self::SpeakerB => Self::SpeakerA,
+        }
+    }
+
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::SpeakerA => "SpeakerA",
+            Self::SpeakerB => "SpeakerB",
+        }
+    }
+}
+
+impl std::fmt::Display for SpeakerId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for SpeakerId {
+    type Err = LinguaError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "SpeakerA" | "speaker_a" | "A" => Ok(SpeakerId::SpeakerA),
+            "SpeakerB" | "speaker_b" | "B" => Ok(SpeakerId::SpeakerB),
+            other => Err(LinguaError::Validation(format!(
+                "Unknown speaker id: {other}"
+            ))),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum TurnState {
+    Idle,
+    Listening(SpeakerId),
+    Processing(SpeakerId),
+    Speaking(SpeakerId),
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ConversationSession {
+    pub id: String,
+    pub title: String,
+    pub speaker_a_lang: LanguageCode,
+    pub speaker_b_lang: LanguageCode,
+    pub active_speaker: SpeakerId,
+    pub is_hands_free: bool,
+    pub status: String,
+    pub created_at: DateTime<Utc>,
+    pub ended_at: Option<DateTime<Utc>>,
+    pub total_turns: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ConversationTurnItem {
+    pub id: String,
+    pub session_id: String,
+    pub turn_number: u32,
+    pub speaker_id: SpeakerId,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub source_text: String,
+    pub translated_text: String,
+    pub audio_duration_ms: u64,
+    pub is_interrupted: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TtsVoiceInfo {
+    pub id: String,
+    pub name: String,
+    pub language: LanguageCode,
+    pub gender: String,
+    pub is_offline: bool,
+    pub sample_rate: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TtsSynthesizeRequest {
+    pub text: String,
+    pub language: LanguageCode,
+    pub voice_id: Option<String>,
+    pub speed: f32,
+    pub pitch: f32,
+}
+
+impl Default for TtsSynthesizeRequest {
+    fn default() -> Self {
+        Self {
+            text: String::new(),
+            language: LanguageCode::EnUs,
+            voice_id: None,
+            speed: 1.0,
+            pitch: 1.0,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TtsSynthesizeResponse {
+    pub audio_samples: Vec<f32>,
+    pub sample_rate: u32,
+    pub channels: u16,
+    pub duration_ms: u64,
+    pub voice_id: String,
+    pub language: LanguageCode,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppInfo {
     pub name: String,
@@ -399,8 +532,8 @@ impl Default for AppInfo {
         Self {
             name: "LinguaFlow".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            stage: 3,
-            stage_name: "Real-Time Speech & Captions".into(),
+            stage: 4,
+            stage_name: "Real-Time Voice Conversation".into(),
             platform: std::env::consts::OS.into(),
             arch: std::env::consts::ARCH.into(),
             build_profile: if cfg!(debug_assertions) {
@@ -449,5 +582,32 @@ mod tests {
             matrix.speech_synthesis,
             CapabilityState::ScheduledForStage(4)
         );
+    }
+
+    #[test]
+    fn test_capability_matrix_stage_4() {
+        let matrix = CapabilityMatrix::stage_4_active();
+        assert_eq!(matrix.dictionary, CapabilityState::Active);
+        assert_eq!(matrix.text_translation, CapabilityState::Active);
+        assert_eq!(matrix.streaming_asr, CapabilityState::Active);
+        assert_eq!(matrix.speech_synthesis, CapabilityState::Active);
+        assert_eq!(matrix.offline_models, CapabilityState::Active);
+        assert_eq!(matrix.live_conversation, CapabilityState::Active);
+        assert_eq!(
+            matrix.media_subtitles,
+            CapabilityState::ScheduledForStage(6)
+        );
+    }
+
+    #[test]
+    fn test_speaker_id_toggle_and_parse() {
+        let speaker = SpeakerId::SpeakerA;
+        assert_eq!(speaker.other(), SpeakerId::SpeakerB);
+        assert_eq!(speaker.to_string(), "SpeakerA");
+
+        use std::str::FromStr;
+        let parsed = SpeakerId::from_str("SpeakerB").unwrap();
+        assert_eq!(parsed, SpeakerId::SpeakerB);
+        assert_eq!(parsed.other(), SpeakerId::SpeakerA);
     }
 }

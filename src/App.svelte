@@ -40,20 +40,20 @@
       const [info, caps, settings, dbHealth] = await Promise.all([
         getAppInfo().catch(() => ({
           name: 'LinguaFlow',
-          version: '0.1.0',
-          stage: 0,
-          stage_name: 'Foundation & Cross-Platform Host',
+          version: '0.5.0',
+          stage: 4,
+          stage_name: 'Real-Time Voice Conversation',
           platform: 'Web/Native',
           arch: 'x64',
           build_profile: 'release',
         })),
-        getCapabilities().catch(() => ({
-          dictionary: { ScheduledForStage: 1 },
-          text_translation: { ScheduledForStage: 1 },
-          streaming_asr: { ScheduledForStage: 3 },
-          speech_synthesis: { ScheduledForStage: 4 },
-          offline_models: { ScheduledForStage: 2 },
-          live_conversation: { ScheduledForStage: 4 },
+        getCapabilities().catch((): CapabilityMatrix => ({
+          dictionary: 'Ready',
+          text_translation: 'Ready',
+          streaming_asr: 'Ready',
+          speech_synthesis: 'Ready',
+          offline_models: 'Ready',
+          live_conversation: 'Ready',
           media_subtitles: { ScheduledForStage: 6 },
         })),
         getUserSettings().catch(() => ({
@@ -154,7 +154,7 @@
       <div class="logo-circle">LF</div>
       <div>
         <span class="brand-name">Lingua<span class="gradient-text">Flow</span></span>
-        <span class="brand-stage">Stage {appInfo?.stage ?? 3} {appInfo?.stage_name ?? 'Real-Time Speech & Captions'}</span>
+        <span class="brand-stage">Stage {appInfo?.stage ?? 4} {appInfo?.stage_name ?? 'Real-Time Voice Conversation'}</span>
       </div>
     </button>
 

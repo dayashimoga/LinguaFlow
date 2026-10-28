@@ -73,7 +73,7 @@ mod tests {
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let caps: CapabilityMatrix = serde_json::from_slice(&body).unwrap();
-        assert_eq!(caps, CapabilityMatrix::stage_3_active());
+        assert_eq!(caps, CapabilityMatrix::stage_4_active());
 
         // Test /api/v1/models
         let response = app
@@ -249,6 +249,7 @@ mod tests {
 
         // Test /api/v1/speech/session/{id}/export?format=vtt
         let response = app
+            .clone()
             .oneshot(
                 axum::http::Request::builder()
                     .uri(format!(
@@ -260,5 +261,50 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // Test /api/v1/tts/voices
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/tts/voices")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let voice_resp: lingua_core::GetTtsVoicesCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(voice_resp.voices.len(), 6);
+
+        // Test /api/v1/conversation/start
+        let start_conv_payload = serde_json::to_string(&lingua_core::StartConversationCmdRequest {
+            speaker_a_lang: LanguageCode::KnIn,
+            speaker_b_lang: LanguageCode::EnUs,
+            title: Some("Consultation".into()),
+            is_hands_free: false,
+        })
+        .unwrap();
+
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/conversation/start")
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(start_conv_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let conv_resp: lingua_core::StartConversationCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(conv_resp.session.speaker_a_lang, LanguageCode::KnIn);
+        assert_eq!(conv_resp.session.speaker_b_lang, LanguageCode::EnUs);
     }
 }

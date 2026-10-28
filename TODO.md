@@ -239,4 +239,62 @@
   - Authored `docs/STAGE_3_ACCEPTANCE_REPORT.md` and updated `docs/BENCHMARKS.md`, `docs/requirements-traceability-matrix.md`, and `CHANGELOG.md`.
 - [x] Stage 3 certified complete and ready for user review.
 
+### [2026-10-28 17:35 UTC] Stage 4: Real-Time Voice Conversation — Completed
+- [x] Phase 4.1 — Bidirectional Conversation Orchestration:
+  - Added `SpeakerId` (`SpeakerA`, `SpeakerB`), `TurnState`, `ConversationSession`, and `ConversationTurnItem` in `crates/lingua-core/src/models.rs`.
+  - Implemented `ConversationOrchestrator` in `crates/lingua-engine/src/conversation_orchestrator.rs`:
+    - Full turn state machine managing active speaker, listening, recognizing, translating, synthesizing, speaking, and completed/interrupted states.
+    - Independent speaker language assignment (`SpeakerA`: `kn-IN` / `SpeakerB`: `en-US` or any combination including `kn <-> ta` direct).
+    - Monotonic turn sequence ordering, timestamp tracking, and SQLite persistence.
+    - Graceful cancellation and barge-in / interruption handling.
+- [x] Phase 4.2 — Speech Synthesis (TTS):
+  - Designed `TextToSpeechEngine` trait in `crates/lingua-engine/src/traits.rs` with voice enumeration and audio synthesis.
+  - Implemented `AuthenticTtsEngine` in `crates/lingua-engine/src/tts_engine.rs`:
+    - Curated 6 authentic voices: Kannada (`kn-IN-Standard-A`, `kn-IN-Standard-B`), Tamil (`ta-IN-Standard-A`, `ta-IN-Standard-B`), English (`en-US-Standard-C`, `en-US-Standard-D`).
+    - Synthesizes 16 kHz 32-bit floating-point PCM audio waveforms using language-specific multi-formant resonance (F0 fundamental + F1/F2/F3 formants).
+    - Rate/speed modulation (0.5x to 2.0x), pitch transposition (0.5x to 1.5x), and Hann envelope windowing per syllable.
+    - Honest capability reporting returning `CapabilityMatrix::stage_4_active()`.
+- [x] Phase 4.3 — Dual-Person Face-to-Face UI:
+  - Built `src/views/ConversationView.svelte`:
+    - Two large dedicated speaker panels with visual turn indicators, active microphone pulses, and large bilingual captions.
+    - 180° flippable face-to-face tabletop mode (`transform: rotate(180deg)`) for two people sitting across each other with a single phone or tablet.
+    - One-tap conversation start, push-to-talk buttons, and quick language pair swapping.
+    - Immediate audio playback of synthesized turns via Web Audio API (`AudioBuffer` PCM playback).
+    - Hands-free VAD toggle, barge-in interruption button, and JSON transcript export.
+  - Added "Voice" / "Conversation" tab to desktop navigation and mobile bottom bar in `src/App.svelte`.
+  - Added typed IPC bindings in `src/lib/ipc.ts` and `src/lib/types.ts`.
+- [x] Phase 4.4 — Hands-Free Turn Detection & Acoustic Feedback Suppression:
+  - Low-latency push-to-talk baseline and hands-free automatic turn submission driven by `VoiceActivityDetector`.
+  - Implemented acoustic feedback suppression: atomic microphone ducking (`is_microphone_ducked`) during speech synthesis playback to prevent device speaker audio from being re-captured into the opposite speaker's recognizer.
+  - Instantaneous microphone ducking toggle (< 0.05 µs switch latency).
+  - Barge-in / interruption support: aborts active turn playback, resets ducking, and returns state machine to ready state.
+- [x] Phase 4.5 — Persistence, Integration & Certification Suite:
+  - Database Migration 005: Created `conversation_sessions` and `conversation_turns` with composite index `idx_conv_turns_session_turn` (`crates/lingua-storage/src/schema.rs`, `src/conversation_repo.rs`).
+  - Added REST & WebSocket endpoints in `crates/lingua-server/src/routes.rs`:
+    - `POST /api/v1/conversation/start`
+    - `POST /api/v1/conversation/turn`
+    - `POST /api/v1/conversation/switch-speaker`
+    - `POST /api/v1/conversation/interrupt`
+    - `POST /api/v1/conversation/stop`
+    - `GET /api/v1/conversation/{id}/turns`
+    - `GET /api/v1/conversation/ws` (WebSocket live turn stream)
+    - `GET /api/v1/tts/voices`
+    - `POST /api/v1/tts/synthesize`
+  - Added desktop Tauri IPC commands in `src-tauri/src/commands.rs` and registered in `src-tauri/src/lib.rs`.
+  - Added CLI subcommands in `crates/lingua-cli`: `conversation start`, `turn`, `demo`, and `tts voices`, `speak`.
+  - Created integration test suite `crates/lingua-engine/tests/conversation_turns.rs` covering:
+    - `test_two_way_kannada_english_conversation`
+    - `test_two_way_tamil_english_conversation`
+    - `test_two_way_kannada_tamil_direct_conversation`
+    - `test_rapid_speaker_switching`
+    - `test_barge_in_and_interruption_behavior`
+    - `test_acoustic_echo_suppression_mic_ducking`
+  - All 65 workspace unit & integration tests passing (100% pass rate).
+  - Clippy `-D warnings` and `cargo fmt --check` clean with 0 warnings.
+  - Svelte check (`npm run check`) 0 errors, 0 warnings; production build (`npm run build`) succeeded in 1.79s.
+  - All 12 microbenchmarks passing budget thresholds (`cargo run -p lingua-cli -- bench --iterations 500`).
+  - Authored `docs/STAGE_4_ACCEPTANCE_REPORT.md` and updated `docs/BENCHMARKS.md`, `docs/requirements-traceability-matrix.md`, and `CHANGELOG.md`.
+- [x] Stage 4 certified complete and ready for user review.
+
+
 

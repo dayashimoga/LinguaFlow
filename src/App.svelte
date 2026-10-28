@@ -24,6 +24,7 @@
   import TranslateView from './views/TranslateView.svelte';
   import MediaView from './views/MediaView.svelte';
   import LearnView from './views/LearnView.svelte';
+  import EnterpriseView from './views/EnterpriseView.svelte';
 
   type ViewType =
     | 'home'
@@ -34,6 +35,7 @@
     | 'intelligence'
     | 'media'
     | 'learn'
+    | 'enterprise'
     | 'downloads'
     | 'settings';
 
@@ -53,9 +55,9 @@
       const [info, caps, settings, dbHealth] = await Promise.all([
         getAppInfo().catch(() => ({
           name: 'LinguaFlow',
-          version: '0.6.0',
-          stage: 5,
-          stage_name: 'Translation Intelligence & Optimization',
+          version: '1.0.0',
+          stage: 8,
+          stage_name: 'Commercial & Enterprise Platform',
           platform: 'Web/Native',
           arch: 'x64',
           build_profile: 'release',
@@ -68,6 +70,8 @@
           offline_models: 'Ready',
           live_conversation: 'Ready',
           media_subtitles: 'Ready',
+          language_learning: 'Ready',
+          enterprise_platform: 'Ready',
         })),
         getUserSettings().catch(() => ({
           theme: 'system' as const,
@@ -222,6 +226,12 @@
         Learn
       </button>
       <button
+        class="nav-btn {currentView === 'enterprise' ? 'active' : ''}"
+        on:click={() => navigate('enterprise')}
+      >
+        Enterprise
+      </button>
+      <button
         class="nav-btn {currentView === 'downloads' ? 'active' : ''}"
         on:click={() => navigate('downloads')}
       >
@@ -273,6 +283,8 @@
         <MediaView />
       {:else if currentView === 'learn'}
         <LearnView />
+      {:else if currentView === 'enterprise'}
+        <EnterpriseView />
       {:else if currentView === 'downloads'}
         <ModelsView />
       {:else if currentView === 'settings'}
@@ -338,6 +350,13 @@
     >
       <span class="m-icon">🗂️</span>
       <span>Learn</span>
+    </button>
+    <button
+      class="mobile-nav-btn {currentView === 'enterprise' ? 'active' : ''}"
+      on:click={() => navigate('enterprise')}
+    >
+      <span class="m-icon">🏢</span>
+      <span>Enterprise</span>
     </button>
     <button
       class="mobile-nav-btn {currentView === 'downloads' ? 'active' : ''}"

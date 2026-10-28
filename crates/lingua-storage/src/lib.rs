@@ -1,6 +1,7 @@
 pub mod conversation_repo;
 pub mod db;
 pub mod dictionary_repo;
+pub mod enterprise_repo;
 pub mod glossary_repo;
 pub mod history_repo;
 pub mod learning_repo;
@@ -12,4 +13,5 @@ pub mod settings_repo;
 pub mod speech_repo;
 
 pub use db::StorageService;
+pub use enterprise_repo::EnterpriseRepository;
 pub use schema::CURRENT_SCHEMA_VERSION;

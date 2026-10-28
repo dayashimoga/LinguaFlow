@@ -100,6 +100,7 @@ pub struct CapabilityMatrix {
     pub live_conversation: CapabilityState,
     pub media_subtitles: CapabilityState,
     pub language_learning: CapabilityState,
+    pub enterprise_platform: CapabilityState,
 }
 
 impl CapabilityMatrix {
@@ -113,6 +114,7 @@ impl CapabilityMatrix {
             live_conversation: CapabilityState::ScheduledForStage(4),
             media_subtitles: CapabilityState::ScheduledForStage(6),
             language_learning: CapabilityState::ScheduledForStage(7),
+            enterprise_platform: CapabilityState::ScheduledForStage(8),
         }
     }
 
@@ -126,6 +128,7 @@ impl CapabilityMatrix {
             live_conversation: CapabilityState::ScheduledForStage(4),
             media_subtitles: CapabilityState::ScheduledForStage(6),
             language_learning: CapabilityState::ScheduledForStage(7),
+            enterprise_platform: CapabilityState::ScheduledForStage(8),
         }
     }
 
@@ -139,6 +142,7 @@ impl CapabilityMatrix {
             live_conversation: CapabilityState::ScheduledForStage(4),
             media_subtitles: CapabilityState::ScheduledForStage(6),
             language_learning: CapabilityState::ScheduledForStage(7),
+            enterprise_platform: CapabilityState::ScheduledForStage(8),
         }
     }
 
@@ -152,6 +156,7 @@ impl CapabilityMatrix {
             live_conversation: CapabilityState::ScheduledForStage(4),
             media_subtitles: CapabilityState::ScheduledForStage(6),
             language_learning: CapabilityState::ScheduledForStage(7),
+            enterprise_platform: CapabilityState::ScheduledForStage(8),
         }
     }
 
@@ -165,6 +170,7 @@ impl CapabilityMatrix {
             live_conversation: CapabilityState::Active,
             media_subtitles: CapabilityState::ScheduledForStage(6),
             language_learning: CapabilityState::ScheduledForStage(7),
+            enterprise_platform: CapabilityState::ScheduledForStage(8),
         }
     }
 
@@ -178,6 +184,7 @@ impl CapabilityMatrix {
             live_conversation: CapabilityState::Active,
             media_subtitles: CapabilityState::ScheduledForStage(6),
             language_learning: CapabilityState::ScheduledForStage(7),
+            enterprise_platform: CapabilityState::ScheduledForStage(8),
         }
     }
 
@@ -191,6 +198,7 @@ impl CapabilityMatrix {
             live_conversation: CapabilityState::Active,
             media_subtitles: CapabilityState::Active,
             language_learning: CapabilityState::ScheduledForStage(7),
+            enterprise_platform: CapabilityState::ScheduledForStage(8),
         }
     }
 
@@ -204,6 +212,21 @@ impl CapabilityMatrix {
             live_conversation: CapabilityState::Active,
             media_subtitles: CapabilityState::Active,
             language_learning: CapabilityState::Active,
+            enterprise_platform: CapabilityState::ScheduledForStage(8),
+        }
+    }
+
+    pub fn stage_8_active() -> Self {
+        Self {
+            dictionary: CapabilityState::Active,
+            text_translation: CapabilityState::Active,
+            streaming_asr: CapabilityState::Active,
+            speech_synthesis: CapabilityState::Active,
+            offline_models: CapabilityState::Active,
+            live_conversation: CapabilityState::Active,
+            media_subtitles: CapabilityState::Active,
+            language_learning: CapabilityState::Active,
+            enterprise_platform: CapabilityState::Active,
         }
     }
 }
@@ -755,8 +778,8 @@ impl Default for AppInfo {
         Self {
             name: "LinguaFlow".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            stage: 7,
-            stage_name: "Learning & Production Certification".into(),
+            stage: 8,
+            stage_name: "Commercial & Enterprise Platform".into(),
             platform: std::env::consts::OS.into(),
             arch: std::env::consts::ARCH.into(),
             build_profile: if cfg!(debug_assertions) {
@@ -1265,6 +1288,301 @@ pub struct PlatformReleaseStatus {
     pub limitations: Vec<String>,
 }
 
+// =========================================================================
+// Stage 8 Models: Commercial & Enterprise Platform
+// =========================================================================
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountTier {
+    #[default]
+    Free,
+    Pro,
+    Enterprise,
+}
+
+impl AccountTier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Free => "free",
+            Self::Pro => "pro",
+            Self::Enterprise => "enterprise",
+        }
+    }
+
+    pub fn max_monthly_words(&self) -> u64 {
+        match self {
+            Self::Free => 10_000,
+            Self::Pro => 500_000,
+            Self::Enterprise => 100_000_000,
+        }
+    }
+
+    pub fn max_monthly_audio_seconds(&self) -> u64 {
+        match self {
+            Self::Free => 600,
+            Self::Pro => 18_000,
+            Self::Enterprise => 360_000,
+        }
+    }
+
+    pub fn max_devices(&self) -> usize {
+        match self {
+            Self::Free => 1,
+            Self::Pro => 5,
+            Self::Enterprise => 100,
+        }
+    }
+
+    pub fn rate_limit_per_minute(&self) -> u32 {
+        match self {
+            Self::Free => 60,
+            Self::Pro => 300,
+            Self::Enterprise => 1200,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum AccountStatus {
+    #[default]
+    Active,
+    Suspended,
+    PendingVerification,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct UserAccount {
+    pub id: String,
+    pub email: String,
+    pub display_name: String,
+    pub tier: AccountTier,
+    pub is_anonymous: bool,
+    pub status: AccountStatus,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DeviceType {
+    #[default]
+    DesktopWindows,
+    DesktopMac,
+    DesktopLinux,
+    MobileAndroid,
+    MobileIos,
+    WebBrowser,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeviceRegistration {
+    pub id: String,
+    pub user_id: String,
+    pub device_name: String,
+    pub device_type: DeviceType,
+    pub public_key_fingerprint: String,
+    pub registered_at: DateTime<Utc>,
+    pub last_seen_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ApiKeyRecord {
+    pub id: String,
+    pub user_id: String,
+    pub org_id: Option<String>,
+    pub key_hash: String,
+    pub key_prefix: String,
+    pub name: String,
+    pub rate_limit_per_min: u32,
+    pub is_active: bool,
+    pub created_at: DateTime<Utc>,
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OrgRole {
+    Owner,
+    Admin,
+    LinguistEditor,
+    #[default]
+    Member,
+    Viewer,
+}
+
+impl OrgRole {
+    pub fn can_manage_team(&self) -> bool {
+        matches!(self, Self::Owner | Self::Admin)
+    }
+
+    pub fn can_edit_glossary(&self) -> bool {
+        matches!(self, Self::Owner | Self::Admin | Self::LinguistEditor)
+    }
+
+    pub fn can_manage_api_keys(&self) -> bool {
+        matches!(self, Self::Owner | Self::Admin)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Organization {
+    pub id: String,
+    pub name: String,
+    pub slug: String,
+    pub max_seats: u32,
+    pub sso_enabled: bool,
+    pub data_retention_days: u32,
+    pub enforce_zero_transcript_logging: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrgMember {
+    pub id: String,
+    pub org_id: String,
+    pub user_id: String,
+    pub email: String,
+    pub display_name: String,
+    pub role: OrgRole,
+    pub joined_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum OrgGlossaryStatus {
+    #[default]
+    Draft,
+    Approved,
+    Deprecated,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrgGlossary {
+    pub id: String,
+    pub org_id: String,
+    pub name: String,
+    pub description: String,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub status: OrgGlossaryStatus,
+    pub terms_count: usize,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrgGlossaryTerm {
+    pub id: String,
+    pub glossary_id: String,
+    pub source_term: String,
+    pub target_term: String,
+    pub notes: Option<String>,
+    pub case_sensitive: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum UsageType {
+    CloudTranslationWords,
+    CloudSpeechSeconds,
+    CloudOcrPages,
+    ApiRequests,
+}
+
+impl UsageType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::CloudTranslationWords => "cloud_translation_words",
+            Self::CloudSpeechSeconds => "cloud_speech_seconds",
+            Self::CloudOcrPages => "cloud_ocr_pages",
+            Self::ApiRequests => "api_requests",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct UsageRecord {
+    pub id: String,
+    pub account_id: String,
+    pub org_id: Option<String>,
+    pub usage_type: UsageType,
+    pub quantity: u64,
+    pub billable_cents: u64,
+    pub was_successful: bool,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct UsageSummary {
+    pub account_id: String,
+    pub tier: AccountTier,
+    pub words_used: u64,
+    pub words_limit: u64,
+    pub speech_seconds_used: u64,
+    pub speech_seconds_limit: u64,
+    pub ocr_pages_used: u64,
+    pub ocr_pages_limit: u64,
+    pub current_period_cents: u64,
+    pub projected_month_end_cents: u64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum InvoiceStatus {
+    #[default]
+    Pending,
+    Paid,
+    Refunded,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct InvoiceLineItem {
+    pub description: String,
+    pub quantity: u64,
+    pub unit_price_cents: u64,
+    pub total_cents: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct BillingInvoiceRecord {
+    pub id: String,
+    pub account_id: String,
+    pub org_id: Option<String>,
+    pub invoice_number: String,
+    pub billing_period: String,
+    pub amount_cents: u64,
+    pub currency: String,
+    pub status: InvoiceStatus,
+    pub line_items: Vec<InvoiceLineItem>,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AuditEvent {
+    pub id: String,
+    pub org_id: Option<String>,
+    pub actor_id: String,
+    pub actor_email: String,
+    pub action: String,
+    pub resource_type: String,
+    pub resource_id: String,
+    pub details: String,
+    pub ip_address: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct WorkerMetrics {
+    pub active_workers: u32,
+    pub queue_depth: u32,
+    pub max_queue_capacity: u32,
+    pub processed_tasks: u64,
+    pub failed_tasks: u64,
+    pub avg_latency_ms: f64,
+    pub is_accepting_tasks: bool,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1419,7 +1737,37 @@ mod tests {
         assert_eq!(ReviewRating::from_u8(5), ReviewRating::Perfect);
 
         let app_info = AppInfo::default();
-        assert_eq!(app_info.stage, 7);
-        assert_eq!(app_info.stage_name, "Learning & Production Certification");
+        assert_eq!(app_info.stage, 8);
+        assert_eq!(app_info.stage_name, "Commercial & Enterprise Platform");
+    }
+
+    #[test]
+    fn test_stage_8_models_and_capabilities() {
+        let matrix = CapabilityMatrix::stage_8_active();
+        assert_eq!(matrix.dictionary, CapabilityState::Active);
+        assert_eq!(matrix.text_translation, CapabilityState::Active);
+        assert_eq!(matrix.streaming_asr, CapabilityState::Active);
+        assert_eq!(matrix.speech_synthesis, CapabilityState::Active);
+        assert_eq!(matrix.offline_models, CapabilityState::Active);
+        assert_eq!(matrix.live_conversation, CapabilityState::Active);
+        assert_eq!(matrix.media_subtitles, CapabilityState::Active);
+        assert_eq!(matrix.language_learning, CapabilityState::Active);
+        assert_eq!(matrix.enterprise_platform, CapabilityState::Active);
+
+        assert_eq!(AccountTier::Free.as_str(), "free");
+        assert_eq!(AccountTier::Pro.as_str(), "pro");
+        assert_eq!(AccountTier::Enterprise.as_str(), "enterprise");
+        assert_eq!(AccountTier::Free.max_monthly_words(), 10_000);
+        assert_eq!(AccountTier::Enterprise.max_devices(), 100);
+
+        assert!(OrgRole::Owner.can_manage_team());
+        assert!(OrgRole::Admin.can_manage_team());
+        assert!(!OrgRole::Member.can_manage_team());
+        assert!(OrgRole::LinguistEditor.can_edit_glossary());
+
+        assert_eq!(
+            UsageType::CloudTranslationWords.as_str(),
+            "cloud_translation_words"
+        );
     }
 }

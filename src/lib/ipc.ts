@@ -36,6 +36,19 @@ import type {
   ExportUserDataArchive,
   PurgeUserDataResult,
   PlatformReleaseStatus,
+  UserAccount,
+  AccountTier,
+  DeviceRegistration,
+  DeviceType,
+  ApiKeyRecord,
+  Organization,
+  OrgMember,
+  OrgGlossary,
+  OrgGlossaryTerm,
+  UsageSummary,
+  BillingInvoiceRecord,
+  AuditEvent,
+  WorkerMetrics,
 } from './types';
 
 // Check if running in a Tauri native environment
@@ -1040,5 +1053,331 @@ export async function getPlatformReleaseStatus(): Promise<PlatformReleaseStatus[
   if (!res.ok) throw new Error('Failed to fetch platform release status');
   const data = await res.json();
   return data.status;
+}
+
+// =========================================================================
+// Stage 8 IPC Helpers: Commercial & Enterprise Platform
+// =========================================================================
+
+export async function getEnterpriseAccount(accountId?: string): Promise<UserAccount> {
+  if (isTauri) {
+    const res = await invokeTauri<{ account: UserAccount }>(
+      'lingua_command_get_enterprise_account',
+      { request: accountId ? { account_id: accountId } : null }
+    );
+    return res.account;
+  }
+  const url = accountId
+    ? `${API_BASE}/enterprise/account?account_id=${encodeURIComponent(accountId)}`
+    : `${API_BASE}/enterprise/account`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to fetch enterprise account');
+  const data = await res.json();
+  return data.account;
+}
+
+export async function updateAccountTier(accountId: string, tier: AccountTier): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_update_account_tier', {
+      accountId,
+      tier,
+    });
+  }
+  const res = await fetch(`${API_BASE}/enterprise/account/tier`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ account_id: accountId, tier }),
+  });
+  return res.ok;
+}
+
+export async function registerDevice(
+  accountId: string,
+  deviceName: string,
+  deviceType: DeviceType,
+  publicKeyFingerprint: string
+): Promise<DeviceRegistration> {
+  if (isTauri) {
+    const res = await invokeTauri<{ device: DeviceRegistration }>(
+      'lingua_command_register_device',
+      {
+        request: {
+          account_id: accountId,
+          device_name: deviceName,
+          device_type: deviceType,
+          public_key_fingerprint: publicKeyFingerprint,
+        },
+      }
+    );
+    return res.device;
+  }
+  const res = await fetch(`${API_BASE}/enterprise/devices`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      account_id: accountId,
+      device_name: deviceName,
+      device_type: deviceType,
+      public_key_fingerprint: publicKeyFingerprint,
+    }),
+  });
+  if (!res.ok) throw new Error('Failed to register device');
+  const data = await res.json();
+  return data.device;
+}
+
+export async function listDevices(accountId?: string): Promise<DeviceRegistration[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ devices: DeviceRegistration[] }>(
+      'lingua_command_list_devices',
+      { accountId }
+    );
+    return res.devices;
+  }
+  const res = await fetch(`${API_BASE}/enterprise/devices`);
+  if (!res.ok) throw new Error('Failed to list devices');
+  const data = await res.json();
+  return data.devices;
+}
+
+export async function createApiKey(
+  userId: string,
+  name: string,
+  orgId?: string | null
+): Promise<{ record: ApiKeyRecord; rawKey: string }> {
+  if (isTauri) {
+    const res = await invokeTauri<{ api_key_record: ApiKeyRecord; raw_key: string }>(
+      'lingua_command_create_api_key',
+      {
+        request: { user_id: userId, org_id: orgId || null, name },
+      }
+    );
+    return { record: res.api_key_record, rawKey: res.raw_key };
+  }
+  const res = await fetch(`${API_BASE}/enterprise/keys`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, org_id: orgId || null, name }),
+  });
+  if (!res.ok) throw new Error('Failed to create API key');
+  const data = await res.json();
+  return { record: data.api_key_record, rawKey: data.raw_key };
+}
+
+export async function listApiKeys(userId?: string): Promise<ApiKeyRecord[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ api_keys: ApiKeyRecord[] }>(
+      'lingua_command_list_api_keys',
+      { userId }
+    );
+    return res.api_keys;
+  }
+  const res = await fetch(`${API_BASE}/enterprise/keys`);
+  if (!res.ok) throw new Error('Failed to list API keys');
+  const data = await res.json();
+  return data.api_keys;
+}
+
+export async function revokeApiKey(keyId: string): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_revoke_api_key', { keyId });
+  }
+  return true;
+}
+
+export async function getUsageSummary(accountId?: string): Promise<UsageSummary> {
+  if (isTauri) {
+    const res = await invokeTauri<{ summary: UsageSummary }>(
+      'lingua_command_get_usage_summary',
+      { accountId }
+    );
+    return res.summary;
+  }
+  const res = await fetch(`${API_BASE}/enterprise/usage`);
+  if (!res.ok) throw new Error('Failed to fetch usage summary');
+  const data = await res.json();
+  return data.summary;
+}
+
+export async function listInvoices(accountId?: string): Promise<BillingInvoiceRecord[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ invoices: BillingInvoiceRecord[] }>(
+      'lingua_command_list_invoices',
+      { accountId }
+    );
+    return res.invoices;
+  }
+  const res = await fetch(`${API_BASE}/enterprise/invoices`);
+  if (!res.ok) throw new Error('Failed to list invoices');
+  const data = await res.json();
+  return data.invoices;
+}
+
+export async function createOrganization(
+  name: string,
+  slug: string,
+  ownerId: string
+): Promise<Organization> {
+  if (isTauri) {
+    const res = await invokeTauri<{ organization: Organization }>(
+      'lingua_command_create_organization',
+      { request: { name, slug, owner_id: ownerId } }
+    );
+    return res.organization;
+  }
+  const res = await fetch(`${API_BASE}/enterprise/orgs`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name, slug, owner_id: ownerId }),
+  });
+  if (!res.ok) throw new Error('Failed to create organization');
+  const data = await res.json();
+  return data.organization;
+}
+
+export async function listOrgMembers(orgId: string): Promise<OrgMember[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ members: OrgMember[] }>(
+      'lingua_command_list_org_members',
+      { orgId }
+    );
+    return res.members;
+  }
+  const res = await fetch(`${API_BASE}/enterprise/orgs/${encodeURIComponent(orgId)}/members`);
+  if (!res.ok) throw new Error('Failed to list organization members');
+  const data = await res.json();
+  return data.members;
+}
+
+export async function addOrgMember(
+  orgId: string,
+  userId: string,
+  email: string,
+  displayName: string,
+  role: string
+): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_add_org_member', {
+      orgId,
+      userId,
+      email,
+      displayName,
+      role,
+    });
+  }
+  const res = await fetch(`${API_BASE}/enterprise/orgs/${encodeURIComponent(orgId)}/members`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ user_id: userId, email, display_name: displayName, role }),
+  });
+  return res.ok;
+}
+
+export async function listOrgGlossaries(orgId: string): Promise<OrgGlossary[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ glossaries: OrgGlossary[] }>(
+      'lingua_command_list_org_glossaries',
+      { orgId }
+    );
+    return res.glossaries;
+  }
+  const res = await fetch(`${API_BASE}/enterprise/orgs/${encodeURIComponent(orgId)}/glossaries`);
+  if (!res.ok) throw new Error('Failed to list organization glossaries');
+  const data = await res.json();
+  return data.glossaries;
+}
+
+export async function createOrgGlossary(
+  orgId: string,
+  name: string,
+  description: string,
+  sourceLang: LanguageCode,
+  targetLang: LanguageCode
+): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_create_org_glossary', {
+      request: {
+        org_id: orgId,
+        name,
+        description,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+      },
+    });
+  }
+  const res = await fetch(`${API_BASE}/enterprise/orgs/${encodeURIComponent(orgId)}/glossaries`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      org_id: orgId,
+      name,
+      description,
+      source_lang: sourceLang,
+      target_lang: targetLang,
+    }),
+  });
+  return res.ok;
+}
+
+export async function addOrgGlossaryTerm(
+  orgId: string,
+  glossaryId: string,
+  sourceTerm: string,
+  targetTerm: string,
+  notes?: string
+): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_add_org_glossary_term', {
+      glossaryId,
+      sourceTerm,
+      targetTerm,
+      notes,
+      caseSensitive: false,
+    });
+  }
+  const res = await fetch(
+    `${API_BASE}/enterprise/orgs/${encodeURIComponent(orgId)}/glossaries/${encodeURIComponent(glossaryId)}/terms`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        source_term: sourceTerm,
+        target_term: targetTerm,
+        notes,
+        case_sensitive: false,
+      }),
+    }
+  );
+  return res.ok;
+}
+
+export async function listAuditEvents(orgId?: string, limit = 50): Promise<AuditEvent[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ events: AuditEvent[] }>(
+      'lingua_command_list_audit_events',
+      { orgId, limit }
+    );
+    return res.events;
+  }
+  const url = orgId
+    ? `${API_BASE}/enterprise/audit?org_id=${encodeURIComponent(orgId)}&limit=${limit}`
+    : `${API_BASE}/enterprise/audit?limit=${limit}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Failed to list audit events');
+  const data = await res.json();
+  return data.events;
+}
+
+export async function getWorkerMetrics(): Promise<WorkerMetrics> {
+  if (isTauri) {
+    const res = await invokeTauri<{ metrics: WorkerMetrics }>(
+      'lingua_command_get_worker_metrics'
+    );
+    return res.metrics;
+  }
+  const res = await fetch(`${API_BASE}/enterprise/workers/metrics`);
+  if (!res.ok) throw new Error('Failed to fetch worker metrics');
+  const data = await res.json();
+  return data.metrics;
 }
 

@@ -623,6 +623,107 @@ pub struct GetPlatformReleaseStatusCmdResponse {
     pub status: Vec<crate::models::PlatformReleaseStatus>,
 }
 
+// =========================================================================
+// Stage 8 IPC Messages: Commercial & Enterprise Platform
+// =========================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GetAccountInfoCmdRequest {
+    pub account_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GetAccountInfoCmdResponse {
+    pub account: crate::models::UserAccount,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RegisterDeviceCmdRequest {
+    pub account_id: String,
+    pub device_name: String,
+    pub device_type: crate::models::DeviceType,
+    pub public_key_fingerprint: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RegisterDeviceCmdResponse {
+    pub device: crate::models::DeviceRegistration,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ListDevicesCmdResponse {
+    pub devices: Vec<crate::models::DeviceRegistration>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateApiKeyCmdRequest {
+    pub user_id: String,
+    pub org_id: Option<String>,
+    pub name: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateApiKeyCmdResponse {
+    pub api_key_record: crate::models::ApiKeyRecord,
+    pub raw_key: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ListApiKeysCmdResponse {
+    pub api_keys: Vec<crate::models::ApiKeyRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetUsageSummaryCmdResponse {
+    pub summary: crate::models::UsageSummary,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ListInvoicesCmdResponse {
+    pub invoices: Vec<crate::models::BillingInvoiceRecord>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateOrgCmdRequest {
+    pub name: String,
+    pub slug: String,
+    pub owner_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct OrgCmdResponse {
+    pub organization: crate::models::Organization,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ListOrgMembersCmdResponse {
+    pub members: Vec<crate::models::OrgMember>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ListOrgGlossariesCmdResponse {
+    pub glossaries: Vec<crate::models::OrgGlossary>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateOrgGlossaryCmdRequest {
+    pub org_id: String,
+    pub name: String,
+    pub description: String,
+    pub source_lang: crate::language::LanguageCode,
+    pub target_lang: crate::language::LanguageCode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ListAuditEventsCmdResponse {
+    pub events: Vec<crate::models::AuditEvent>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetWorkerMetricsCmdResponse {
+    pub metrics: crate::models::WorkerMetrics,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -3,6 +3,7 @@ use crate::dictionary_repo::{
     get_dictionary_entry, get_entry_by_exact_word, import_dictionary_entries, search_dictionary,
     seed_stage_1_dictionary,
 };
+use crate::enterprise_repo::EnterpriseRepository;
 use crate::history_repo::{
     add_favorite, clear_translation_history, list_favorites, list_translation_history,
     record_translation, remove_favorite,
@@ -700,6 +701,151 @@ impl StorageService {
         let repo = LearningRepository::new(self.conn.clone());
         repo.purge_all_user_data()
     }
+
+    // --- Enterprise & Commercial Platform Methods (Stage 8) ---
+    pub fn enterprise(&self) -> EnterpriseRepository {
+        EnterpriseRepository::new(self.conn.clone())
+    }
+
+    pub fn get_or_create_anonymous_account(&self) -> Result<lingua_core::UserAccount, LinguaError> {
+        self.enterprise().get_or_create_anonymous_account()
+    }
+
+    pub fn get_account(&self, id: &str) -> Result<lingua_core::UserAccount, LinguaError> {
+        self.enterprise().get_account(id)
+    }
+
+    pub fn update_account_tier(
+        &self,
+        id: &str,
+        tier: lingua_core::AccountTier,
+    ) -> Result<(), LinguaError> {
+        self.enterprise().update_account_tier(id, tier)
+    }
+
+    pub fn register_device(
+        &self,
+        device: &lingua_core::DeviceRegistration,
+    ) -> Result<(), LinguaError> {
+        self.enterprise().register_device(device)
+    }
+
+    pub fn list_devices(
+        &self,
+        user_id: &str,
+    ) -> Result<Vec<lingua_core::DeviceRegistration>, LinguaError> {
+        self.enterprise().list_devices(user_id)
+    }
+
+    pub fn create_api_key(&self, record: &lingua_core::ApiKeyRecord) -> Result<(), LinguaError> {
+        self.enterprise().create_api_key(record)
+    }
+
+    pub fn find_api_key_by_hash(
+        &self,
+        key_hash: &str,
+    ) -> Result<lingua_core::ApiKeyRecord, LinguaError> {
+        self.enterprise().find_api_key_by_hash(key_hash)
+    }
+
+    pub fn list_api_keys(
+        &self,
+        user_id: &str,
+    ) -> Result<Vec<lingua_core::ApiKeyRecord>, LinguaError> {
+        self.enterprise().list_api_keys(user_id)
+    }
+
+    pub fn revoke_api_key(&self, key_id: &str) -> Result<(), LinguaError> {
+        self.enterprise().revoke_api_key(key_id)
+    }
+
+    pub fn create_organization(
+        &self,
+        org: &lingua_core::Organization,
+        owner_id: &str,
+    ) -> Result<(), LinguaError> {
+        self.enterprise().create_organization(org, owner_id)
+    }
+
+    pub fn get_organization(&self, org_id: &str) -> Result<lingua_core::Organization, LinguaError> {
+        self.enterprise().get_organization(org_id)
+    }
+
+    pub fn add_org_member(&self, member: &lingua_core::OrgMember) -> Result<(), LinguaError> {
+        self.enterprise().add_org_member(member)
+    }
+
+    pub fn list_org_members(
+        &self,
+        org_id: &str,
+    ) -> Result<Vec<lingua_core::OrgMember>, LinguaError> {
+        self.enterprise().list_org_members(org_id)
+    }
+
+    pub fn create_org_glossary(
+        &self,
+        glossary: &lingua_core::OrgGlossary,
+    ) -> Result<(), LinguaError> {
+        self.enterprise().create_org_glossary(glossary)
+    }
+
+    pub fn add_org_glossary_term(
+        &self,
+        term: &lingua_core::OrgGlossaryTerm,
+    ) -> Result<(), LinguaError> {
+        self.enterprise().add_org_glossary_term(term)
+    }
+
+    pub fn list_org_glossaries(
+        &self,
+        org_id: &str,
+    ) -> Result<Vec<lingua_core::OrgGlossary>, LinguaError> {
+        self.enterprise().list_org_glossaries(org_id)
+    }
+
+    pub fn get_org_glossary_terms(
+        &self,
+        glossary_id: &str,
+    ) -> Result<Vec<lingua_core::OrgGlossaryTerm>, LinguaError> {
+        self.enterprise().get_org_glossary_terms(glossary_id)
+    }
+
+    pub fn record_usage(&self, record: &lingua_core::UsageRecord) -> Result<(), LinguaError> {
+        self.enterprise().record_usage(record)
+    }
+
+    pub fn get_usage_summary(
+        &self,
+        account_id: &str,
+    ) -> Result<lingua_core::UsageSummary, LinguaError> {
+        self.enterprise().get_usage_summary(account_id)
+    }
+
+    pub fn create_invoice(
+        &self,
+        invoice: &lingua_core::BillingInvoiceRecord,
+    ) -> Result<(), LinguaError> {
+        self.enterprise().create_invoice(invoice)
+    }
+
+    pub fn list_invoices(
+        &self,
+        account_id: &str,
+    ) -> Result<Vec<lingua_core::BillingInvoiceRecord>, LinguaError> {
+        self.enterprise().list_invoices(account_id)
+    }
+
+    pub fn record_audit_event(&self, event: &lingua_core::AuditEvent) -> Result<(), LinguaError> {
+        self.enterprise().record_audit_event(event)
+    }
+
+    pub fn list_audit_events(
+        &self,
+        org_id: Option<&str>,
+        limit: usize,
+    ) -> Result<Vec<lingua_core::AuditEvent>, LinguaError> {
+        self.enterprise().list_audit_events(org_id, limit)
+    }
 }
 
 fn default_data_dir() -> Result<PathBuf, LinguaError> {
@@ -1303,5 +1449,92 @@ mod tests {
 
         let archive = storage.export_all_user_data().expect("export failed");
         assert!(!archive.checksum_sha256.is_empty());
+    }
+
+    #[test]
+    fn test_stage_8_enterprise_persistence() {
+        let storage = StorageService::open_in_memory().expect("in-memory DB failed");
+
+        // 1. Anonymous account guarantee
+        let anon = storage
+            .get_or_create_anonymous_account()
+            .expect("anon failed");
+        assert!(anon.is_anonymous);
+        assert_eq!(anon.tier, lingua_core::AccountTier::Free);
+
+        // 2. Organization creation & membership
+        let org = lingua_core::Organization {
+            id: "org-test-1".into(),
+            name: "Enterprise Translation Org".into(),
+            slug: "ent-trans".into(),
+            max_seats: 50,
+            sso_enabled: true,
+            data_retention_days: 90,
+            enforce_zero_transcript_logging: true,
+            created_at: Utc::now(),
+        };
+        storage
+            .create_organization(&org, &anon.id)
+            .expect("create org failed");
+
+        let members = storage
+            .list_org_members("org-test-1")
+            .expect("list members failed");
+        assert_eq!(members.len(), 1);
+        assert_eq!(members[0].role, lingua_core::OrgRole::Owner);
+
+        // 3. Shared Glossary & Terms
+        let glossary = lingua_core::OrgGlossary {
+            id: "gloss-ent-1".into(),
+            org_id: "org-test-1".into(),
+            name: "Medical Terms".into(),
+            description: "Kannada medical terminology".into(),
+            source_lang: LanguageCode::EnUs,
+            target_lang: LanguageCode::KnIn,
+            status: lingua_core::OrgGlossaryStatus::Approved,
+            terms_count: 0,
+            created_at: Utc::now(),
+            updated_at: Utc::now(),
+        };
+        storage
+            .create_org_glossary(&glossary)
+            .expect("create glossary failed");
+
+        let term = lingua_core::OrgGlossaryTerm {
+            id: "gterm-1".into(),
+            glossary_id: "gloss-ent-1".into(),
+            source_term: "dialysis".into(),
+            target_term: "ಡಯಾಲಿಸಿಸ್".into(),
+            notes: Some("Kidney filtration".into()),
+            case_sensitive: false,
+        };
+        storage
+            .add_org_glossary_term(&term)
+            .expect("add term failed");
+
+        let glossaries = storage
+            .list_org_glossaries("org-test-1")
+            .expect("list glossaries failed");
+        assert_eq!(glossaries.len(), 1);
+        assert_eq!(glossaries[0].terms_count, 1);
+
+        // 4. Usage metering & summary
+        let usage = lingua_core::UsageRecord {
+            id: "use-1".into(),
+            account_id: anon.id.clone(),
+            org_id: Some("org-test-1".into()),
+            usage_type: lingua_core::UsageType::CloudTranslationWords,
+            quantity: 500,
+            billable_cents: 25,
+            was_successful: true,
+            timestamp: Utc::now(),
+        };
+        storage.record_usage(&usage).expect("record usage failed");
+
+        let summary = storage
+            .get_usage_summary(&anon.id)
+            .expect("get summary failed");
+        assert_eq!(summary.words_used, 500);
+        assert_eq!(summary.current_period_cents, 25);
     }
 }

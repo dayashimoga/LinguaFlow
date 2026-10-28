@@ -270,7 +270,7 @@ impl EngineRegistry {
     }
 
     pub fn get_capabilities(&self) -> CapabilityMatrix {
-        let mut matrix = CapabilityMatrix::stage_5_active();
+        let mut matrix = CapabilityMatrix::stage_8_active();
 
         if !self.translation_engines.is_empty() {
             matrix.text_translation = CapabilityState::Active;

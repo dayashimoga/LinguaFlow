@@ -73,7 +73,7 @@ mod tests {
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let caps: CapabilityMatrix = serde_json::from_slice(&body).unwrap();
-        assert_eq!(caps, CapabilityMatrix::stage_4_active());
+        assert_eq!(caps, CapabilityMatrix::stage_8_active());
 
         // Test /api/v1/models
         let response = app
@@ -493,5 +493,285 @@ mod tests {
         let rel_resp: lingua_core::GetPlatformReleaseStatusCmdResponse =
             serde_json::from_slice(&body).unwrap();
         assert_eq!(rel_resp.status.len(), 4);
+    }
+
+    #[tokio::test]
+    async fn test_stage_8_enterprise_endpoints() {
+        let storage = StorageService::open_in_memory().unwrap();
+        let engine = Arc::new(EngineRegistry::new_with_storage(storage.clone()));
+        let app_info = AppInfo::default();
+        let state = ServerState::new(storage.clone(), engine, app_info);
+        let app = create_router(state);
+
+        // 1. GET /api/v1/enterprise/account
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/enterprise/account")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let account_resp: lingua_core::GetAccountInfoCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(account_resp.account.id, "acc-anonymous-local");
+        assert!(account_resp.account.is_anonymous);
+        let user_id = account_resp.account.id.clone();
+
+        // 2. POST /api/v1/enterprise/devices
+        let reg_payload = serde_json::to_string(&lingua_core::RegisterDeviceCmdRequest {
+            account_id: user_id.clone(),
+            device_name: "MacBook Pro M3 Max".into(),
+            device_type: lingua_core::DeviceType::DesktopMac,
+            public_key_fingerprint: "SHA256:7b92abc".into(),
+        })
+        .unwrap();
+
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/enterprise/devices")
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(reg_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let reg_resp: lingua_core::RegisterDeviceCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(reg_resp.device.device_name, "MacBook Pro M3 Max");
+
+        // 3. GET /api/v1/enterprise/devices
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/enterprise/devices")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let devices_resp: lingua_core::ListDevicesCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(devices_resp.devices.len(), 1);
+
+        // 4. POST /api/v1/enterprise/keys
+        let key_payload = serde_json::to_string(&lingua_core::CreateApiKeyCmdRequest {
+            user_id: user_id.clone(),
+            org_id: None,
+            name: "CI/CD Pipeline Key".into(),
+        })
+        .unwrap();
+
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/enterprise/keys")
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(key_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let key_resp: lingua_core::CreateApiKeyCmdResponse = serde_json::from_slice(&body).unwrap();
+        assert!(key_resp.raw_key.starts_with("lf_live_"));
+
+        // 5. GET /api/v1/enterprise/keys
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/enterprise/keys")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let keys_resp: lingua_core::ListApiKeysCmdResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(keys_resp.api_keys.len(), 1);
+
+        // 6. GET /api/v1/enterprise/usage
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/enterprise/usage")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let usage_resp: lingua_core::GetUsageSummaryCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(usage_resp.summary.tier, lingua_core::AccountTier::Free);
+
+        // 7. GET /api/v1/enterprise/invoices
+        let test_invoice = lingua_core::BillingInvoiceRecord {
+            id: "inv-test-1".into(),
+            account_id: user_id.clone(),
+            org_id: None,
+            invoice_number: "INV-2026-0001".into(),
+            billing_period: "2026-10".into(),
+            amount_cents: 0,
+            currency: "USD".into(),
+            status: lingua_core::InvoiceStatus::Paid,
+            line_items: vec![],
+            created_at: chrono::Utc::now(),
+        };
+        storage.create_invoice(&test_invoice).unwrap();
+
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/enterprise/invoices")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let invoices_resp: lingua_core::ListInvoicesCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(invoices_resp.invoices.len(), 1);
+
+        // 8. POST /api/v1/enterprise/orgs
+        let org_payload = serde_json::to_string(&lingua_core::CreateOrgCmdRequest {
+            name: "Karnataka State Digital Governance".into(),
+            slug: "karnataka-gov".into(),
+            owner_id: user_id.clone(),
+        })
+        .unwrap();
+
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/enterprise/orgs")
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(org_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let org_resp: lingua_core::OrgCmdResponse = serde_json::from_slice(&body).unwrap();
+        assert_eq!(org_resp.organization.slug, "karnataka-gov");
+        let org_id = org_resp.organization.id;
+
+        // 9. GET /api/v1/enterprise/orgs/{id}/members
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!("/api/v1/enterprise/orgs/{org_id}/members"))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let members_resp: lingua_core::ListOrgMembersCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(members_resp.members.len(), 1);
+
+        // 10. POST /api/v1/enterprise/orgs/{id}/glossaries
+        let glos_payload = serde_json::to_string(&lingua_core::CreateOrgGlossaryCmdRequest {
+            org_id: org_id.clone(),
+            name: "Official Governance Dravidian Lexicon".into(),
+            description: "Standard terms for digital services".into(),
+            source_lang: lingua_core::LanguageCode::EnUs,
+            target_lang: lingua_core::LanguageCode::KnIn,
+        })
+        .unwrap();
+
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/v1/enterprise/orgs/{org_id}/glossaries"))
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(glos_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // 11. GET /api/v1/enterprise/orgs/{id}/glossaries
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!("/api/v1/enterprise/orgs/{org_id}/glossaries"))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let glos_resp: lingua_core::ListOrgGlossariesCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(glos_resp.glossaries.len(), 1);
+
+        // 12. GET /api/v1/enterprise/audit?org_id={org_id}
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!("/api/v1/enterprise/audit?org_id={org_id}"))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let audit_resp: lingua_core::ListAuditEventsCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert!(!audit_resp.events.is_empty());
+
+        // 13. GET /api/v1/enterprise/workers/metrics
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/enterprise/workers/metrics")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let metrics_resp: lingua_core::GetWorkerMetricsCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(metrics_resp.metrics.active_workers, 0);
+        assert_eq!(metrics_resp.metrics.queue_depth, 0);
     }
 }

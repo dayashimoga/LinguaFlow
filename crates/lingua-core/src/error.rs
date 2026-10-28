@@ -118,6 +118,48 @@ pub enum LinguaError {
     #[error("User data purge failed: {0}")]
     DataPurgeError(String),
 
+    #[error("Authentication failed: {0}")]
+    AuthenticationFailed(String),
+
+    #[error("Unauthorized request: {0}")]
+    Unauthorized(String),
+
+    #[error("Forbidden: insufficient permissions ({0})")]
+    Forbidden(String),
+
+    #[error("Usage quota exceeded for {usage_type}: current={current}, limit={limit}")]
+    QuotaExceeded {
+        usage_type: String,
+        limit: u64,
+        current: u64,
+    },
+
+    #[error(
+        "Rate limit exceeded: max {limit_per_minute} req/min. Retry after {retry_after_secs}s"
+    )]
+    RateLimitExceeded {
+        limit_per_minute: u32,
+        retry_after_secs: u32,
+    },
+
+    #[error("Organization '{0}' not found")]
+    OrganizationNotFound(String),
+
+    #[error("Workspace member '{0}' not found")]
+    WorkspaceMemberNotFound(String),
+
+    #[error("Shared glossary '{0}' not found")]
+    SharedGlossaryNotFound(String),
+
+    #[error("API key '{0}' not found or inactive")]
+    ApiKeyNotFound(String),
+
+    #[error("Worker capacity exceeded: {0}")]
+    WorkerCapacityExceeded(String),
+
+    #[error("Anonymous mode restriction: {0}")]
+    AnonymousModeRestriction(String),
+
     #[error("Internal system error: {0}")]
     Internal(String),
 }
@@ -161,6 +203,17 @@ impl LinguaError {
             LinguaError::PrivacyPolicyNotAccepted => "PRIVACY_POLICY_NOT_ACCEPTED",
             LinguaError::DataExportError(_) => "DATA_EXPORT_ERROR",
             LinguaError::DataPurgeError(_) => "DATA_PURGE_ERROR",
+            LinguaError::AuthenticationFailed(_) => "AUTHENTICATION_FAILED",
+            LinguaError::Unauthorized(_) => "UNAUTHORIZED",
+            LinguaError::Forbidden(_) => "FORBIDDEN",
+            LinguaError::QuotaExceeded { .. } => "QUOTA_EXCEEDED",
+            LinguaError::RateLimitExceeded { .. } => "RATE_LIMIT_EXCEEDED",
+            LinguaError::OrganizationNotFound(_) => "ORGANIZATION_NOT_FOUND",
+            LinguaError::WorkspaceMemberNotFound(_) => "WORKSPACE_MEMBER_NOT_FOUND",
+            LinguaError::SharedGlossaryNotFound(_) => "SHARED_GLOSSARY_NOT_FOUND",
+            LinguaError::ApiKeyNotFound(_) => "API_KEY_NOT_FOUND",
+            LinguaError::WorkerCapacityExceeded(_) => "WORKER_CAPACITY_EXCEEDED",
+            LinguaError::AnonymousModeRestriction(_) => "ANONYMOUS_MODE_RESTRICTION",
             LinguaError::Internal(_) => "INTERNAL_ERROR",
         }
     }
@@ -197,6 +250,17 @@ impl LinguaError {
                 | LinguaError::LearningDeckNotFound(_)
                 | LinguaError::LearningCardNotFound(_)
                 | LinguaError::PrivacyPolicyNotAccepted
+                | LinguaError::AuthenticationFailed(_)
+                | LinguaError::Unauthorized(_)
+                | LinguaError::Forbidden(_)
+                | LinguaError::QuotaExceeded { .. }
+                | LinguaError::RateLimitExceeded { .. }
+                | LinguaError::OrganizationNotFound(_)
+                | LinguaError::WorkspaceMemberNotFound(_)
+                | LinguaError::SharedGlossaryNotFound(_)
+                | LinguaError::ApiKeyNotFound(_)
+                | LinguaError::WorkerCapacityExceeded(_)
+                | LinguaError::AnonymousModeRestriction(_)
         )
     }
 }

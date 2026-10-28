@@ -1,7 +1,9 @@
 pub mod commands;
 
 use lingua_core::AppInfo;
-use lingua_engine::{ConversationOrchestrator, EngineRegistry, SpeechSessionCoordinator};
+use lingua_engine::{
+    ConversationOrchestrator, EngineRegistry, InferenceWorkerPool, SpeechSessionCoordinator,
+};
 use lingua_storage::StorageService;
 use std::sync::Arc;
 use tracing::info;
@@ -11,6 +13,7 @@ pub struct DesktopAppState {
     pub engine_registry: Arc<EngineRegistry>,
     pub speech_coordinator: Arc<SpeechSessionCoordinator>,
     pub conversation_orchestrator: Arc<ConversationOrchestrator>,
+    pub worker_pool: Arc<InferenceWorkerPool>,
     pub app_info: AppInfo,
 }
 
@@ -28,6 +31,7 @@ pub fn run() {
         engine_registry.tts_engine(),
         Some(storage.clone()),
     ));
+    let worker_pool = Arc::new(InferenceWorkerPool::new(16, 50));
     let app_info = AppInfo::default();
 
     let app_state = DesktopAppState {
@@ -35,6 +39,7 @@ pub fn run() {
         engine_registry,
         speech_coordinator,
         conversation_orchestrator,
+        worker_pool,
         app_info,
     };
 
@@ -116,6 +121,24 @@ pub fn run() {
             commands::lingua_command_export_user_data,
             commands::lingua_command_purge_user_data,
             commands::lingua_command_get_platform_release_status,
+            // Stage 8 commands
+            commands::lingua_command_get_enterprise_account,
+            commands::lingua_command_update_account_tier,
+            commands::lingua_command_register_device,
+            commands::lingua_command_list_devices,
+            commands::lingua_command_create_api_key,
+            commands::lingua_command_list_api_keys,
+            commands::lingua_command_revoke_api_key,
+            commands::lingua_command_get_usage_summary,
+            commands::lingua_command_list_invoices,
+            commands::lingua_command_create_organization,
+            commands::lingua_command_list_org_members,
+            commands::lingua_command_add_org_member,
+            commands::lingua_command_list_org_glossaries,
+            commands::lingua_command_create_org_glossary,
+            commands::lingua_command_add_org_glossary_term,
+            commands::lingua_command_list_audit_events,
+            commands::lingua_command_get_worker_metrics,
         ])
         .run(tauri::generate_context!())
         .expect("error while running LinguaFlow application");

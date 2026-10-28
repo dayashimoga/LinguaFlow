@@ -10,30 +10,37 @@ use axum::{
     Json, Router,
 };
 use lingua_core::{
-    detect_language, AddFavoriteCmdRequest, AppInfo, AssessPronunciationCmdRequest,
-    AssessPronunciationCmdResponse, CapabilityMatrix, CaptionFormat, CaptionSegment,
-    CreateGlossaryTermCmdRequest, DatabaseHealthInfo, DetectLanguageCmdRequest,
-    DetectLanguageCmdResponse, DictionaryEntry, DictionarySearchCmdResponse, DiskSpaceInfo,
-    DocumentJobStatus, DocumentTranslationJob, DomainGlossaryEntry, EvaluationReport,
-    ExportCaptionsCmdResponse, ExportSubtitlesCmdResponse, ExportUserDataCmdResponse, FavoriteItem,
-    FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse, GetCircuitBreakersCmdResponse,
+    detect_language, AccountTier, AddFavoriteCmdRequest, ApiKeyRecord, AppInfo,
+    AssessPronunciationCmdRequest, AssessPronunciationCmdResponse, AuditEvent, CapabilityMatrix,
+    CaptionFormat, CaptionSegment, CreateApiKeyCmdRequest, CreateApiKeyCmdResponse,
+    CreateGlossaryTermCmdRequest, CreateOrgCmdRequest, CreateOrgGlossaryCmdRequest,
+    DatabaseHealthInfo, DetectLanguageCmdRequest, DetectLanguageCmdResponse, DeviceRegistration,
+    DictionaryEntry, DictionarySearchCmdResponse, DiskSpaceInfo, DocumentJobStatus,
+    DocumentTranslationJob, DomainGlossaryEntry, EvaluationReport, ExportCaptionsCmdResponse,
+    ExportSubtitlesCmdResponse, ExportUserDataCmdResponse, FavoriteItem, FeedAudioChunkCmdRequest,
+    GetAccountInfoCmdResponse, GetAudioDevicesCmdResponse, GetCircuitBreakersCmdResponse,
     GetConversationTurnsCmdResponse, GetDataPrivacySettingsCmdResponse,
     GetGrammarTopicsCmdResponse, GetLearnerProgressCmdResponse, GetLearningDeckCardsCmdResponse,
     GetListeningChallengesCmdResponse, GetOverlaySettingsCmdResponse,
     GetPlatformReleaseStatusCmdResponse, GetSessionCaptionsCmdResponse, GetTtsVoicesCmdResponse,
-    IntelligenceTranslationRequest, IntelligenceTranslationResponse,
-    InterruptConversationCmdRequest, InterruptConversationCmdResponse, LanguageCode, LanguagePair,
-    ListGlossaryTermsCmdResponse, ListLearningDecksCmdResponse, ListMediaSegmentsCmdResponse,
-    MediaProgressStatus, MediaSession, MediaSubtitleExportFormat, MediaSubtitleSegment,
-    ModelPackDetailedInfo, ModelPackInfo, PauseSpeechSessionCmdRequest, PerformOcrCmdRequest,
-    PerformOcrCmdResponse, PurgeUserDataCmdRequest, PurgeUserDataCmdResponse,
-    ResumeSpeechSessionCmdRequest, ReviewCardCmdResponse, ReviewRating, RunEvaluationCmdResponse,
-    SaveDataPrivacySettingsCmdRequest, SaveOverlaySettingsCmdRequest, SetResourceProfileCmdRequest,
-    SpeechSession, StartConversationCmdRequest, StartConversationCmdResponse,
-    StartMediaTranscriptionCmdRequest, StartMediaTranscriptionCmdResponse,
-    StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse, StopConversationCmdRequest,
-    StopConversationCmdResponse, StopSpeechSessionCmdRequest, StopSpeechSessionCmdResponse,
-    SubmitTurnCmdRequest, SubmitTurnCmdResponse, SwitchSpeakerCmdRequest, SwitchSpeakerCmdResponse,
+    GetUsageSummaryCmdResponse, GetWorkerMetricsCmdResponse, IntelligenceTranslationRequest,
+    IntelligenceTranslationResponse, InterruptConversationCmdRequest,
+    InterruptConversationCmdResponse, LanguageCode, LanguagePair, ListApiKeysCmdResponse,
+    ListAuditEventsCmdResponse, ListDevicesCmdResponse, ListGlossaryTermsCmdResponse,
+    ListInvoicesCmdResponse, ListLearningDecksCmdResponse, ListMediaSegmentsCmdResponse,
+    ListOrgGlossariesCmdResponse, ListOrgMembersCmdResponse, MediaProgressStatus, MediaSession,
+    MediaSubtitleExportFormat, MediaSubtitleSegment, ModelPackDetailedInfo, ModelPackInfo,
+    OrgCmdResponse, OrgGlossary, OrgGlossaryStatus, OrgGlossaryTerm, OrgMember, OrgRole,
+    Organization, PauseSpeechSessionCmdRequest, PerformOcrCmdRequest, PerformOcrCmdResponse,
+    PurgeUserDataCmdRequest, PurgeUserDataCmdResponse, RegisterDeviceCmdRequest,
+    RegisterDeviceCmdResponse, ResumeSpeechSessionCmdRequest, ReviewCardCmdResponse, ReviewRating,
+    RunEvaluationCmdResponse, SaveDataPrivacySettingsCmdRequest, SaveOverlaySettingsCmdRequest,
+    SetResourceProfileCmdRequest, SpeechSession, StartConversationCmdRequest,
+    StartConversationCmdResponse, StartMediaTranscriptionCmdRequest,
+    StartMediaTranscriptionCmdResponse, StartSpeechSessionCmdRequest,
+    StartSpeechSessionCmdResponse, StopConversationCmdRequest, StopConversationCmdResponse,
+    StopSpeechSessionCmdRequest, StopSpeechSessionCmdResponse, SubmitTurnCmdRequest,
+    SubmitTurnCmdResponse, SwitchSpeakerCmdRequest, SwitchSpeakerCmdResponse,
     SynthesizeSpeechCmdRequest, SynthesizeSpeechCmdResponse, SystemAudioPermission,
     TranslateCmdRequest, TranslateCmdResponse, TranslateDocumentCmdRequest,
     TranslateDocumentCmdResponse, TranslateIntelligenceCmdRequest, TranslationRecord,
@@ -41,7 +48,7 @@ use lingua_core::{
     UpdateMediaSegmentCmdRequest, UserSettings, VerifyModelCmdResponse,
 };
 use lingua_engine::{
-    AudioCaptureManager, AuthenticOcrEngine, DocumentProcessor, GrammarKnowledgeBase,
+    ApiGateway, AudioCaptureManager, AuthenticOcrEngine, DocumentProcessor, GrammarKnowledgeBase,
     ListeningChallengeGenerator, LiveOverlayController, MediaTranscriptionPipeline, OcrEngine,
     PronunciationEvaluator, QualityEvaluator, SecurityAuditor, SpacedRepetitionSystem,
     TranslationRequest,
@@ -237,6 +244,43 @@ pub fn create_router(state: ServerState) -> Router {
         .route(
             "/api/v1/platform/release-status",
             get(get_platform_release_status_handler),
+        )
+        // Stage 8: Commercial & Enterprise Platform routes
+        .route(
+            "/api/v1/enterprise/account",
+            get(get_enterprise_account_handler),
+        )
+        .route(
+            "/api/v1/enterprise/account/tier",
+            post(update_account_tier_handler),
+        )
+        .route(
+            "/api/v1/enterprise/devices",
+            get(list_devices_handler).post(register_device_handler),
+        )
+        .route(
+            "/api/v1/enterprise/keys",
+            get(list_api_keys_handler).post(create_api_key_handler),
+        )
+        .route("/api/v1/enterprise/usage", get(get_usage_summary_handler))
+        .route("/api/v1/enterprise/invoices", get(list_invoices_handler))
+        .route("/api/v1/enterprise/orgs", post(create_organization_handler))
+        .route(
+            "/api/v1/enterprise/orgs/{id}/members",
+            get(list_org_members_handler).post(add_org_member_handler),
+        )
+        .route(
+            "/api/v1/enterprise/orgs/{id}/glossaries",
+            get(list_org_glossaries_handler).post(create_org_glossary_handler),
+        )
+        .route(
+            "/api/v1/enterprise/orgs/{id}/glossaries/{gid}/terms",
+            post(add_org_glossary_term_handler),
+        )
+        .route("/api/v1/enterprise/audit", get(list_audit_events_handler))
+        .route(
+            "/api/v1/enterprise/workers/metrics",
+            get(get_worker_metrics_handler),
         )
         .layer(cors)
         .layer(TraceLayer::new_for_http())
@@ -1501,4 +1545,308 @@ async fn purge_user_data_handler(
 async fn get_platform_release_status_handler() -> Json<GetPlatformReleaseStatusCmdResponse> {
     let status = SecurityAuditor::get_platform_release_status();
     Json(GetPlatformReleaseStatusCmdResponse { status })
+}
+
+// =========================================================================
+// Stage 8: Commercial & Enterprise Platform Handlers
+// =========================================================================
+
+#[derive(Debug, Deserialize)]
+pub struct UpdateAccountTierPayload {
+    pub account_id: String,
+    pub tier: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddOrgMemberPayload {
+    pub user_id: String,
+    pub email: String,
+    pub display_name: String,
+    pub role: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AddGlossaryTermPayload {
+    pub source_term: String,
+    pub target_term: String,
+    pub notes: Option<String>,
+    pub case_sensitive: Option<bool>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct AuditQueryParams {
+    pub org_id: Option<String>,
+    pub limit: Option<usize>,
+}
+
+async fn get_enterprise_account_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<GetAccountInfoCmdResponse>, (StatusCode, String)> {
+    match state.storage.get_or_create_anonymous_account() {
+        Ok(account) => Ok(Json(GetAccountInfoCmdResponse { account })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn update_account_tier_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<UpdateAccountTierPayload>,
+) -> StatusCode {
+    let tier = match payload.tier.to_lowercase().as_str() {
+        "pro" => AccountTier::Pro,
+        "enterprise" => AccountTier::Enterprise,
+        _ => AccountTier::Free,
+    };
+    match state.storage.update_account_tier(&payload.account_id, tier) {
+        Ok(()) => StatusCode::OK,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+async fn register_device_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<RegisterDeviceCmdRequest>,
+) -> Result<Json<RegisterDeviceCmdResponse>, (StatusCode, String)> {
+    let device = DeviceRegistration {
+        id: format!("dev-{}", uuid::Uuid::new_v4()),
+        user_id: payload.account_id,
+        device_name: payload.device_name,
+        device_type: payload.device_type,
+        public_key_fingerprint: payload.public_key_fingerprint,
+        registered_at: chrono::Utc::now(),
+        last_seen_at: chrono::Utc::now(),
+    };
+    match state.storage.register_device(&device) {
+        Ok(()) => Ok(Json(RegisterDeviceCmdResponse { device })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn list_devices_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<ListDevicesCmdResponse>, (StatusCode, String)> {
+    let anon = state
+        .storage
+        .get_or_create_anonymous_account()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    match state.storage.list_devices(&anon.id) {
+        Ok(devices) => Ok(Json(ListDevicesCmdResponse { devices })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn create_api_key_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<CreateApiKeyCmdRequest>,
+) -> Result<Json<CreateApiKeyCmdResponse>, (StatusCode, String)> {
+    let (raw_key, prefix, key_hash) = ApiGateway::generate_raw_api_key("live");
+    let record = ApiKeyRecord {
+        id: format!("key-{}", uuid::Uuid::new_v4()),
+        user_id: payload.user_id,
+        org_id: payload.org_id,
+        key_hash,
+        key_prefix: prefix,
+        name: payload.name,
+        rate_limit_per_min: 300,
+        is_active: true,
+        created_at: chrono::Utc::now(),
+        expires_at: None,
+    };
+    match state.storage.create_api_key(&record) {
+        Ok(()) => Ok(Json(CreateApiKeyCmdResponse {
+            api_key_record: record,
+            raw_key,
+        })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn list_api_keys_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<ListApiKeysCmdResponse>, (StatusCode, String)> {
+    let anon = state
+        .storage
+        .get_or_create_anonymous_account()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    match state.storage.list_api_keys(&anon.id) {
+        Ok(api_keys) => Ok(Json(ListApiKeysCmdResponse { api_keys })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn get_usage_summary_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<GetUsageSummaryCmdResponse>, (StatusCode, String)> {
+    let anon = state
+        .storage
+        .get_or_create_anonymous_account()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    match state.storage.get_usage_summary(&anon.id) {
+        Ok(summary) => Ok(Json(GetUsageSummaryCmdResponse { summary })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn list_invoices_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<ListInvoicesCmdResponse>, (StatusCode, String)> {
+    let anon = state
+        .storage
+        .get_or_create_anonymous_account()
+        .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
+
+    match state.storage.list_invoices(&anon.id) {
+        Ok(invoices) => Ok(Json(ListInvoicesCmdResponse { invoices })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn create_organization_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<CreateOrgCmdRequest>,
+) -> Result<Json<OrgCmdResponse>, (StatusCode, String)> {
+    let org = Organization {
+        id: format!("org-{}", uuid::Uuid::new_v4()),
+        name: payload.name,
+        slug: payload.slug,
+        max_seats: 25,
+        sso_enabled: false,
+        data_retention_days: 90,
+        enforce_zero_transcript_logging: true,
+        created_at: chrono::Utc::now(),
+    };
+    match state.storage.create_organization(&org, &payload.owner_id) {
+        Ok(()) => {
+            let audit_event = AuditEvent {
+                id: format!("audit-{}", uuid::Uuid::new_v4()),
+                org_id: Some(org.id.clone()),
+                actor_id: payload.owner_id.clone(),
+                actor_email: "admin@enterprise.local".into(),
+                action: "organization.created".into(),
+                resource_type: "organization".into(),
+                resource_id: org.id.clone(),
+                details: format!(
+                    "Created organization '{}' with slug '{}'",
+                    org.name, org.slug
+                ),
+                ip_address: "127.0.0.1".into(),
+                timestamp: chrono::Utc::now(),
+            };
+            let _ = state.storage.record_audit_event(&audit_event);
+            Ok(Json(OrgCmdResponse { organization: org }))
+        }
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn list_org_members_handler(
+    State(state): State<ServerState>,
+    Path(org_id): Path<String>,
+) -> Result<Json<ListOrgMembersCmdResponse>, (StatusCode, String)> {
+    match state.storage.list_org_members(&org_id) {
+        Ok(members) => Ok(Json(ListOrgMembersCmdResponse { members })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn add_org_member_handler(
+    State(state): State<ServerState>,
+    Path(org_id): Path<String>,
+    Json(payload): Json<AddOrgMemberPayload>,
+) -> StatusCode {
+    let role = match payload.role.to_lowercase().as_str() {
+        "admin" => OrgRole::Admin,
+        "linguist_editor" => OrgRole::LinguistEditor,
+        "viewer" => OrgRole::Viewer,
+        _ => OrgRole::Member,
+    };
+    let member = OrgMember {
+        id: format!("mem-{}", uuid::Uuid::new_v4()),
+        org_id,
+        user_id: payload.user_id,
+        email: payload.email,
+        display_name: payload.display_name,
+        role,
+        joined_at: chrono::Utc::now(),
+    };
+    match state.storage.add_org_member(&member) {
+        Ok(()) => StatusCode::OK,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+async fn list_org_glossaries_handler(
+    State(state): State<ServerState>,
+    Path(org_id): Path<String>,
+) -> Result<Json<ListOrgGlossariesCmdResponse>, (StatusCode, String)> {
+    match state.storage.list_org_glossaries(&org_id) {
+        Ok(glossaries) => Ok(Json(ListOrgGlossariesCmdResponse { glossaries })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn create_org_glossary_handler(
+    State(state): State<ServerState>,
+    Path(org_id): Path<String>,
+    Json(payload): Json<CreateOrgGlossaryCmdRequest>,
+) -> StatusCode {
+    let glossary = OrgGlossary {
+        id: format!("gloss-{}", uuid::Uuid::new_v4()),
+        org_id,
+        name: payload.name,
+        description: payload.description,
+        source_lang: payload.source_lang,
+        target_lang: payload.target_lang,
+        status: OrgGlossaryStatus::Approved,
+        terms_count: 0,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+    match state.storage.create_org_glossary(&glossary) {
+        Ok(()) => StatusCode::OK,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+async fn add_org_glossary_term_handler(
+    State(state): State<ServerState>,
+    Path((_org_id, gid)): Path<(String, String)>,
+    Json(payload): Json<AddGlossaryTermPayload>,
+) -> StatusCode {
+    let term = OrgGlossaryTerm {
+        id: format!("gterm-{}", uuid::Uuid::new_v4()),
+        glossary_id: gid,
+        source_term: payload.source_term,
+        target_term: payload.target_term,
+        notes: payload.notes,
+        case_sensitive: payload.case_sensitive.unwrap_or(false),
+    };
+    match state.storage.add_org_glossary_term(&term) {
+        Ok(()) => StatusCode::OK,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+async fn list_audit_events_handler(
+    State(state): State<ServerState>,
+    Query(params): Query<AuditQueryParams>,
+) -> Result<Json<ListAuditEventsCmdResponse>, (StatusCode, String)> {
+    let limit = params.limit.unwrap_or(50);
+    match state
+        .storage
+        .list_audit_events(params.org_id.as_deref(), limit)
+    {
+        Ok(events) => Ok(Json(ListAuditEventsCmdResponse { events })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn get_worker_metrics_handler(
+    State(state): State<ServerState>,
+) -> Json<GetWorkerMetricsCmdResponse> {
+    let metrics = state.worker_pool.get_metrics();
+    Json(GetWorkerMetricsCmdResponse { metrics })
 }

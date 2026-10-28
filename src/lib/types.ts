@@ -54,6 +54,8 @@ export interface CapabilityMatrix {
   offline_models: CapabilityState;
   live_conversation: CapabilityState;
   media_subtitles: CapabilityState;
+  language_learning: CapabilityState;
+  enterprise_platform: CapabilityState;
 }
 
 export interface ModelPackInfo {
@@ -824,5 +826,238 @@ export interface PurgeUserDataCmdResponse {
 
 export interface GetPlatformReleaseStatusCmdResponse {
   status: PlatformReleaseStatus[];
+}
+
+// =========================================================================
+// Stage 8 Types: Commercial & Enterprise Platform
+// =========================================================================
+
+export type AccountTier = 'free' | 'pro' | 'enterprise';
+export type AccountStatus = 'active' | 'suspended' | 'pending_verification';
+
+export interface UserAccount {
+  id: string;
+  email: string;
+  display_name: string;
+  tier: AccountTier;
+  is_anonymous: boolean;
+  status: AccountStatus;
+  created_at: string;
+}
+
+export type DeviceType =
+  | 'desktop_windows'
+  | 'desktop_mac'
+  | 'desktop_linux'
+  | 'mobile_android'
+  | 'mobile_ios'
+  | 'web_browser';
+
+export interface DeviceRegistration {
+  id: string;
+  user_id: string;
+  device_name: string;
+  device_type: DeviceType;
+  public_key_fingerprint: string;
+  registered_at: string;
+  last_seen_at: string;
+}
+
+export interface ApiKeyRecord {
+  id: string;
+  user_id: string;
+  org_id: string | null;
+  key_hash: string;
+  key_prefix: string;
+  name: string;
+  rate_limit_per_min: number;
+  is_active: boolean;
+  created_at: string;
+  expires_at: string | null;
+}
+
+export type OrgRole = 'owner' | 'admin' | 'linguist_editor' | 'member' | 'viewer';
+
+export interface Organization {
+  id: string;
+  name: string;
+  slug: string;
+  max_seats: number;
+  sso_enabled: boolean;
+  data_retention_days: number;
+  enforce_zero_transcript_logging: boolean;
+  created_at: string;
+}
+
+export interface OrgMember {
+  id: string;
+  org_id: string;
+  user_id: string;
+  email: string;
+  display_name: string;
+  role: OrgRole;
+  joined_at: string;
+}
+
+export type OrgGlossaryStatus = 'draft' | 'pending_review' | 'approved' | 'deprecated';
+
+export interface OrgGlossary {
+  id: string;
+  org_id: string;
+  name: string;
+  description: string;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  status: OrgGlossaryStatus;
+  terms_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface OrgGlossaryTerm {
+  id: string;
+  glossary_id: string;
+  source_term: string;
+  target_term: string;
+  notes: string | null;
+  case_sensitive: boolean;
+}
+
+export interface UsageSummary {
+  account_id: string;
+  tier: AccountTier;
+  words_used: number;
+  words_limit: number;
+  speech_seconds_used: number;
+  speech_seconds_limit: number;
+  ocr_pages_used: number;
+  ocr_pages_limit: number;
+  current_period_cents: number;
+  projected_month_end_cents: number;
+}
+
+export type InvoiceStatus = 'pending' | 'paid' | 'refunded';
+
+export interface InvoiceLineItem {
+  description: string;
+  quantity: number;
+  unit_price_cents: number;
+  total_cents: number;
+}
+
+export interface BillingInvoiceRecord {
+  id: string;
+  account_id: string;
+  org_id: string | null;
+  invoice_number: string;
+  billing_period: string;
+  amount_cents: number;
+  currency: string;
+  status: InvoiceStatus;
+  line_items: InvoiceLineItem[];
+  created_at: string;
+}
+
+export interface AuditEvent {
+  id: string;
+  org_id: string | null;
+  actor_id: string;
+  actor_email: string;
+  action: string;
+  resource_type: string;
+  resource_id: string;
+  details: string;
+  ip_address: string;
+  timestamp: string;
+}
+
+export interface WorkerMetrics {
+  active_workers: number;
+  queue_depth: number;
+  max_queue_capacity: number;
+  processed_tasks: number;
+  failed_tasks: number;
+  avg_latency_ms: number;
+  is_accepting_tasks: boolean;
+}
+
+export interface GetAccountInfoCmdRequest {
+  account_id?: string;
+}
+
+export interface GetAccountInfoCmdResponse {
+  account: UserAccount;
+}
+
+export interface RegisterDeviceCmdRequest {
+  account_id: string;
+  device_name: string;
+  device_type: DeviceType;
+  public_key_fingerprint: string;
+}
+
+export interface RegisterDeviceCmdResponse {
+  device: DeviceRegistration;
+}
+
+export interface ListDevicesCmdResponse {
+  devices: DeviceRegistration[];
+}
+
+export interface CreateApiKeyCmdRequest {
+  user_id: string;
+  org_id?: string | null;
+  name: string;
+}
+
+export interface CreateApiKeyCmdResponse {
+  api_key_record: ApiKeyRecord;
+  raw_key: string;
+}
+
+export interface ListApiKeysCmdResponse {
+  api_keys: ApiKeyRecord[];
+}
+
+export interface GetUsageSummaryCmdResponse {
+  summary: UsageSummary;
+}
+
+export interface ListInvoicesCmdResponse {
+  invoices: BillingInvoiceRecord[];
+}
+
+export interface CreateOrgCmdRequest {
+  name: string;
+  slug: string;
+  owner_id: string;
+}
+
+export interface OrgCmdResponse {
+  organization: Organization;
+}
+
+export interface ListOrgMembersCmdResponse {
+  members: OrgMember[];
+}
+
+export interface ListOrgGlossariesCmdResponse {
+  glossaries: OrgGlossary[];
+}
+
+export interface CreateOrgGlossaryCmdRequest {
+  org_id: string;
+  name: string;
+  description: string;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+}
+
+export interface ListAuditEventsCmdResponse {
+  events: AuditEvent[];
+}
+
+export interface GetWorkerMetricsCmdResponse {
+  metrics: WorkerMetrics;
 }
 

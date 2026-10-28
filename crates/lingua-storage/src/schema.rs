@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 8;
+pub const CURRENT_SCHEMA_VERSION: u32 = 9;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -54,6 +54,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 8 {
         apply_migration_008(conn)?;
+    }
+    if current_version < 9 {
+        apply_migration_009(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -733,5 +736,161 @@ fn apply_migration_008(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 008: {e}")))?;
 
     info!("Migration 008 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_009(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!("Applying LinguaFlow Database Migration 009 — Commercial & Enterprise Platform");
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    tx.execute_batch(
+        "
+        -- User accounts & entitlements (Phase 8.1)
+        CREATE TABLE IF NOT EXISTS user_accounts (
+            id TEXT PRIMARY KEY,
+            email TEXT UNIQUE NOT NULL,
+            display_name TEXT NOT NULL,
+            tier TEXT NOT NULL DEFAULT 'free',
+            is_anonymous INTEGER NOT NULL DEFAULT 1,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TEXT NOT NULL
+        );
+
+        -- Device registrations (Phase 8.1)
+        CREATE TABLE IF NOT EXISTS device_registrations (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES user_accounts(id) ON DELETE CASCADE,
+            device_name TEXT NOT NULL,
+            device_type TEXT NOT NULL,
+            public_key_fingerprint TEXT NOT NULL,
+            registered_at TEXT NOT NULL,
+            last_seen_at TEXT NOT NULL
+        );
+
+        -- Organizations & workspaces (Phase 8.3)
+        CREATE TABLE IF NOT EXISTS organizations (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            max_seats INTEGER NOT NULL DEFAULT 10,
+            sso_enabled INTEGER NOT NULL DEFAULT 0,
+            data_retention_days INTEGER NOT NULL DEFAULT 90,
+            enforce_zero_transcript_logging INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
+
+        -- Organization team members & RBAC (Phase 8.3)
+        CREATE TABLE IF NOT EXISTS org_members (
+            id TEXT PRIMARY KEY,
+            org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+            user_id TEXT NOT NULL REFERENCES user_accounts(id) ON DELETE CASCADE,
+            email TEXT NOT NULL,
+            display_name TEXT NOT NULL,
+            role TEXT NOT NULL DEFAULT 'member',
+            joined_at TEXT NOT NULL,
+            UNIQUE(org_id, user_id)
+        );
+
+        -- Developer API keys & HMAC credentials (Phase 8.4)
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL REFERENCES user_accounts(id) ON DELETE CASCADE,
+            org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+            key_hash TEXT NOT NULL UNIQUE,
+            key_prefix TEXT NOT NULL,
+            name TEXT NOT NULL,
+            rate_limit_per_min INTEGER NOT NULL DEFAULT 60,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL,
+            expires_at TEXT
+        );
+
+        -- Shared organization glossaries & term enforcement (Phase 8.3)
+        CREATE TABLE IF NOT EXISTS org_glossaries (
+            id TEXT PRIMARY KEY,
+            org_id TEXT NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+            name TEXT NOT NULL,
+            description TEXT NOT NULL,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'approved',
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS org_glossary_terms (
+            id TEXT PRIMARY KEY,
+            glossary_id TEXT NOT NULL REFERENCES org_glossaries(id) ON DELETE CASCADE,
+            source_term TEXT NOT NULL,
+            target_term TEXT NOT NULL,
+            notes TEXT,
+            case_sensitive INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(glossary_id, source_term)
+        );
+
+        -- Usage metering & cost tracking (Phase 8.2)
+        CREATE TABLE IF NOT EXISTS usage_records (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL REFERENCES user_accounts(id) ON DELETE CASCADE,
+            org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+            usage_type TEXT NOT NULL,
+            quantity INTEGER NOT NULL,
+            billable_cents INTEGER NOT NULL DEFAULT 0,
+            was_successful INTEGER NOT NULL DEFAULT 1,
+            timestamp TEXT NOT NULL
+        );
+
+        -- Billing invoices & payment records (Phase 8.2)
+        CREATE TABLE IF NOT EXISTS billing_invoices (
+            id TEXT PRIMARY KEY,
+            account_id TEXT NOT NULL REFERENCES user_accounts(id) ON DELETE CASCADE,
+            org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+            invoice_number TEXT NOT NULL UNIQUE,
+            billing_period TEXT NOT NULL,
+            amount_cents INTEGER NOT NULL,
+            currency TEXT NOT NULL DEFAULT 'USD',
+            status TEXT NOT NULL DEFAULT 'paid',
+            line_items_json TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        -- Auditable administrative actions & SOC2 log (Phase 8.3)
+        CREATE TABLE IF NOT EXISTS audit_events (
+            id TEXT PRIMARY KEY,
+            org_id TEXT REFERENCES organizations(id) ON DELETE CASCADE,
+            actor_id TEXT NOT NULL,
+            actor_email TEXT NOT NULL,
+            action TEXT NOT NULL,
+            resource_type TEXT NOT NULL,
+            resource_id TEXT NOT NULL,
+            details TEXT NOT NULL,
+            ip_address TEXT NOT NULL,
+            timestamp TEXT NOT NULL
+        );
+
+        -- Performance Indexes
+        CREATE INDEX IF NOT EXISTS idx_usage_records_account ON usage_records(account_id, timestamp);
+        CREATE INDEX IF NOT EXISTS idx_audit_events_org ON audit_events(org_id, timestamp);
+        CREATE INDEX IF NOT EXISTS idx_org_members_org ON org_members(org_id);
+        CREATE INDEX IF NOT EXISTS idx_org_glossary_terms ON org_glossary_terms(glossary_id, source_term);
+        CREATE INDEX IF NOT EXISTS idx_api_keys_hash ON api_keys(key_hash);
+
+        -- Pre-seed default anonymous local user account (Anonymous Offline Mode Guarantee - REQ-8.1-AUTH)
+        INSERT OR IGNORE INTO user_accounts (id, email, display_name, tier, is_anonymous, status, created_at)
+        VALUES ('acc-anonymous-local', 'anonymous@local.linguaflow', 'Local Anonymous User', 'free', 1, 'active', datetime('now'));
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (9, datetime('now'), 'Stage 8: Commercial & Enterprise Platform (Accounts, Devices, Orgs, Glossaries, Usage, Billing, Audit)');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 009: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 009: {e}")))?;
+
+    info!("Migration 009 applied successfully");
     Ok(())
 }

@@ -1,4 +1,4 @@
-# LinguaFlow — End-User Guide (Production Stage 7)
+# LinguaFlow — End-User Guide (Production Stage 8)
 
 ## 1. Overview
 LinguaFlow is an offline-capable, cross-platform communication and language learning platform designed for multilingual users. It delivers instant, authentic communication between **Kannada (`kn-IN`)**, **Tamil (`ta-IN`)**, and **English (`en-US`)** with zero nonfunctional placeholders or simulated responses.
@@ -15,8 +15,9 @@ You can navigate using the top header on desktop, bottom navigation bar on mobil
 - `Alt + 4`: **Conversation View** (Push-to-talk dual-speaker voice dialogue with 180° flippable face-to-face tabletop UI).
 - `Alt + 5`: **Media Studio** (Subtitle studio, Camera & OCR scanner, Document translator, Live caption overlay).
 - `Alt + 6`: **Learning Studio** (SM-2 Spaced Repetition flashcards, Pronunciation coach, Listening challenges, Grammar guide).
-- `Alt + 7`: **Model Packs View** (Offline neural package manager, SHA-256 integrity audit).
-- `Alt + 8`: **Settings View** (Themes, font scale, audio devices, data privacy export and purge).
+- `Alt + 7`: **Enterprise Studio** (Multi-tenant workspaces, RBAC, API keys, usage quotas, billing invoices, audit trails).
+- `Alt + 8`: **Model Packs View** (Offline neural package manager, SHA-256 integrity audit).
+- `Alt + 9`: **Settings View** (Themes, font scale, audio devices, data privacy export and purge).
 
 ---
 
@@ -89,3 +90,27 @@ You can navigate using the top header on desktop, bottom navigation bar on mobil
 ### 5.3 "Right to be Forgotten" (Atomic Purge)
 - If you wish to erase your activity permanently, click **Purge All User Data** in Settings or execute `lingua privacy purge`.
 - LinguaFlow executes an atomic SQLite transaction deleting all user records, vacuuming the database file, and resetting tables to default factory state.
+
+---
+
+## 6. Commercial & Enterprise Platform
+
+### 6.1 Anonymous Offline Guarantee
+- LinguaFlow functions completely offline with zero account requirements, zero cloud tokens, and zero network calls via pre-seeded local anonymous mode (`acc-anonymous-local`).
+- Upgrading to `Pro` or `Enterprise` tier enables cross-device synchronization and extended quotas while preserving 100% offline capabilities.
+
+### 6.2 Workspaces & Role-Based Access Control (RBAC)
+- **Workspaces**: Create isolated organization workspaces with dedicated shared glossaries and audit logging.
+- **Roles**:
+  - **Owner**: Full workspace authority, billing, deletion.
+  - **Admin**: Member management, glossary publishing, audit inspection.
+  - **Linguist**: Glossary editing and terminology approvals.
+  - **Member**: Standard read and translation access.
+
+### 6.3 Shared Dravidian Glossaries
+- Define brand and technical terms for Kannada and Tamil with guaranteed substitution across all workspace users.
+
+### 6.4 Developer API Keys & Usage Quotas
+- Generate cryptographic API keys (`lf_live_*`) with token bucket rate limiting.
+- **Fail-Safe Billing Contract**: If any billable operation encounters an execution error, reserved character and audio quotas are immediately refunded.
+

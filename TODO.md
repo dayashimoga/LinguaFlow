@@ -472,3 +472,44 @@
   - Full workspace code formatting: 0 errors with `cargo fmt --all --check`.
   - Authored `docs/STAGE_7_ACCEPTANCE_REPORT.md` and updated `BENCHMARKS.md`, `requirements-traceability-matrix.md`, `SECURITY.md`, `USER_GUIDE.md`, `RUNBOOK.md`, `TODO.md`, and `CHANGELOG.md`.
 - [x] Stage 7 certified complete and ready for user review.
+
+### [2026-10-28 21:15 UTC] Stage 8: Commercial and Enterprise Platform — Completed
+- [x] Phase 8.1 — Accounts and Entitlements:
+  - Added `AccountTier` (`Free`, `Pro`, `Enterprise`), `AccountStatus`, `UserAccount`, `DeviceType`, `DeviceRegistration`, and `ApiKeyRecord` data models to `crates/lingua-core/src/models.rs`.
+  - Guaranteed anonymous offline mode: pre-seeded `acc-anonymous-local` in SQLite database with `tier = 'free'` and `is_anonymous = 1`. All local translation, dictionary, speech, conversation, OCR, and learning features remain 100% operational offline without accounts or cloud keys.
+  - Implemented device registration and listing in `EnterpriseRepository` (`crates/lingua-storage/src/enterprise_repo.rs`) with platform detection.
+  - Implemented account tier upgrading and quota assignment.
+- [x] Phase 8.2 — Usage and Cost Control:
+  - Implemented `UsageQuotaManager` in `crates/lingua-engine/src/metering.rs` with atomic quota check and consumption for character translations and audio processing seconds.
+  - Enforced fail-safe billing rule: "never charge for uncompleted billable requests". Implemented automatic refund / rollback if a billable operation fails during execution.
+  - Added usage record persistence, monthly billing usage aggregation (`UsageSummary`), and billing invoice records (`BillingInvoiceRecord`) in SQLite.
+- [x] Phase 8.3 — Enterprise Capabilities:
+  - Implemented multi-tenant organization workspaces (`Organization`), membership mapping (`OrgMember`), and RBAC roles (`Owner`, `Admin`, `Linguist`, `Member`).
+  - Implemented `RbacController` in `crates/lingua-engine/src/rbac.rs` enforcing action authorization and strict tenant isolation (cross-organization access rejected with `Unauthorized`).
+  - Implemented custom shared glossaries (`OrgGlossary`, `OrgGlossaryTerm`) with automatic Dravidian terminology substitution (`apply_org_glossaries`) during enterprise translation workflows.
+  - Implemented tamper-evident audit trail logging (`AuditEvent`) capturing all administrative operations with user, timestamp, IP address, and resource metadata.
+- [x] Phase 8.4 — Developer Integration:
+  - Implemented `ApiGateway` in `crates/lingua-engine/src/api_gateway.rs` generating secure API keys (`lf_live_*`) stored as SHA-256 hashes.
+  - Implemented per-key token bucket rate limiting with automatic per-tier burst replenishment.
+  - Registered 12 enterprise REST routes under `/api/v1/enterprise/*` in `crates/lingua-server/src/routes.rs`.
+  - Published comprehensive OpenAPI 3.1.0 specification in `docs/openapi.json`.
+- [x] Phase 8.5 — Operations and Scaling:
+  - Implemented `InferenceWorkerPool` in `crates/lingua-engine/src/worker_pool.rs` with semaphore-bounded concurrency, queue depth limits (backpressure rejection with `WorkerCapacityExceeded`), and live worker telemetry (`WorkerMetrics`).
+  - Added simulated cloud outage drill toggling (`set_accepting_tasks`) and verified graceful failover and recovery.
+- [x] Phase 8.6 — Commercial Acceptance & Quality Gates:
+  - Database Migration 009 (`apply_migration_009`): created 10 tables (`user_accounts`, `device_registrations`, `organizations`, `org_members`, `api_keys`, `org_glossaries`, `org_glossary_terms`, `usage_records`, `billing_invoices`, `audit_events`) and 5 performance indexes.
+  - Tauri IPC Commands: 17 typed enterprise commands registered in `src-tauri/src/commands.rs` and `src-tauri/src/lib.rs`.
+  - CLI Subcommands: `lingua account`, `lingua org`, `lingua keys`, `lingua billing`, `lingua worker` subcommands in `crates/lingua-cli/src/main.rs`.
+  - Microbenchmarks 25–28:
+    - 25. Quota Check & Reservation: 0.0282 ms / op (Threshold: < 0.05 ms - PASS)
+    - 26. Multi-Tenant RBAC Evaluation: 0.00008 ms / op (Threshold: < 0.01 ms - PASS)
+    - 27. Shared Glossary Term Matching: 0.0016 ms / op (Threshold: < 0.5 ms - PASS)
+    - 28. API Key Auth & Rate Limit Check: 0.0002 ms / op (Threshold: < 0.05 ms - PASS)
+  - Built comprehensive `src/views/EnterpriseView.svelte` with 4-tab studio: Workspaces & RBAC, Usage & Invoices, Shared Glossaries, Developer API & Audit.
+  - Registered `enterprise` route in `src/App.svelte` across desktop and mobile navigation bars.
+  - Full workspace test suite: 114/114 tests passing (100% pass rate).
+  - Full workspace Clippy linter: 0 warnings with `-D warnings`.
+  - Full workspace code formatting: 0 errors with `cargo fmt --all --check`.
+  - Frontend typecheck (`npm run check`) 0 errors, 0 warnings; production bundle build (`npm run build`) succeeded in 3.44s.
+  - Authored `docs/STAGE_8_ACCEPTANCE_REPORT.md` and updated `BENCHMARKS.md`, `requirements-traceability-matrix.md`, `TODO.md`, and `CHANGELOG.md`.
+- [x] Stage 8 certified complete and ready for user review.

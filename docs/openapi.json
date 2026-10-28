@@ -1,0 +1,715 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "LinguaFlow Commercial & Enterprise Platform API",
+    "version": "1.0.0",
+    "description": "Production OpenAPI 3.1.0 specification for the LinguaFlow Multilingual Translator, Speech Platform, and Enterprise Gateway supporting Kannada (kn-IN), Tamil (ta-IN), and English (en-US).",
+    "contact": {
+      "name": "LinguaFlow Architecture Team",
+      "url": "https://linguaflow.internal"
+    },
+    "license": {
+      "name": "Apache-2.0 or MIT",
+      "url": "https://opensource.org/licenses/Apache-2.0"
+    }
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:3000",
+      "description": "Local Axum Gateway"
+    },
+    {
+      "url": "https://api.linguaflow.internal",
+      "description": "Production Edge Service"
+    }
+  ],
+  "security": [
+    {
+      "ApiKeyAuth": []
+    }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "API Key token prefixed with 'Bearer lf_live_...' or raw X-API-Key header"
+      }
+    },
+    "schemas": {
+      "CapabilityMatrix": {
+        "type": "object",
+        "properties": {
+          "dictionary": { "type": "string" },
+          "text_translation": { "type": "string" },
+          "streaming_asr": { "type": "string" },
+          "speech_synthesis": { "type": "string" },
+          "offline_models": { "type": "string" },
+          "live_conversation": { "type": "string" },
+          "media_subtitles": { "type": "string" },
+          "language_learning": { "type": "string" },
+          "enterprise_platform": { "type": "string" }
+        },
+        "required": [
+          "dictionary",
+          "text_translation",
+          "streaming_asr",
+          "speech_synthesis",
+          "offline_models",
+          "live_conversation",
+          "media_subtitles",
+          "language_learning",
+          "enterprise_platform"
+        ]
+      },
+      "AccountTier": {
+        "type": "string",
+        "enum": ["free", "pro", "enterprise"]
+      },
+      "UserAccount": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "email": { "type": "string" },
+          "tier": { "$ref": "#/components/schemas/AccountTier" },
+          "status": { "type": "string", "enum": ["active", "suspended", "pending_verification"] },
+          "is_anonymous": { "type": "boolean" },
+          "created_at": { "type": "integer", "format": "int64" },
+          "updated_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "email", "tier", "status", "is_anonymous", "created_at", "updated_at"]
+      },
+      "DeviceRegistration": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "account_id": { "type": "string" },
+          "device_name": { "type": "string" },
+          "device_type": { "type": "string", "enum": ["desktop_linux", "desktop_macos", "desktop_windows", "mobile_android", "mobile_ios", "web_browser"] },
+          "platform_details": { "type": "string" },
+          "last_active_at": { "type": "integer", "format": "int64" },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "account_id", "device_name", "device_type", "platform_details", "last_active_at", "created_at"]
+      },
+      "ApiKeyRecord": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "account_id": { "type": "string" },
+          "name": { "type": "string" },
+          "key_prefix": { "type": "string" },
+          "rate_limit_per_minute": { "type": "integer" },
+          "created_at": { "type": "integer", "format": "int64" },
+          "expires_at": { "type": ["integer", "null"], "format": "int64" },
+          "revoked": { "type": "boolean" }
+        },
+        "required": ["id", "account_id", "name", "key_prefix", "rate_limit_per_minute", "created_at", "revoked"]
+      },
+      "UsageSummary": {
+        "type": "object",
+        "properties": {
+          "account_id": { "type": "string" },
+          "billing_period": { "type": "string" },
+          "characters_translated": { "type": "integer", "format": "int64" },
+          "audio_seconds_processed": { "type": "number", "format": "double" },
+          "api_calls_count": { "type": "integer", "format": "int64" },
+          "total_cost_usd": { "type": "number", "format": "double" },
+          "char_quota_remaining": { "type": "integer", "format": "int64" },
+          "audio_quota_remaining_sec": { "type": "number", "format": "double" }
+        },
+        "required": [
+          "account_id",
+          "billing_period",
+          "characters_translated",
+          "audio_seconds_processed",
+          "api_calls_count",
+          "total_cost_usd",
+          "char_quota_remaining",
+          "audio_quota_remaining_sec"
+        ]
+      },
+      "BillingInvoiceRecord": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "account_id": { "type": "string" },
+          "invoice_number": { "type": "string" },
+          "billing_period": { "type": "string" },
+          "subtotal_usd": { "type": "number", "format": "double" },
+          "tax_usd": { "type": "number", "format": "double" },
+          "total_usd": { "type": "number", "format": "double" },
+          "status": { "type": "string", "enum": ["draft", "issued", "paid", "void", "refunded"] },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "account_id", "invoice_number", "billing_period", "subtotal_usd", "tax_usd", "total_usd", "status", "created_at"]
+      },
+      "Organization": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "slug": { "type": "string" },
+          "owner_id": { "type": "string" },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "name", "slug", "owner_id", "created_at"]
+      },
+      "OrgMember": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "org_id": { "type": "string" },
+          "account_id": { "type": "string" },
+          "role": { "type": "string", "enum": ["owner", "admin", "linguist", "member"] },
+          "joined_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "org_id", "account_id", "role", "joined_at"]
+      },
+      "OrgGlossary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "org_id": { "type": "string" },
+          "name": { "type": "string" },
+          "source_lang": { "type": "string" },
+          "target_lang": { "type": "string" },
+          "status": { "type": "string", "enum": ["draft", "published", "archived"] },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "org_id", "name", "source_lang", "target_lang", "status", "created_at"]
+      },
+      "OrgGlossaryTerm": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "glossary_id": { "type": "string" },
+          "source_term": { "type": "string" },
+          "target_term": { "type": "string" },
+          "notes": { "type": ["string", "null"] },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "glossary_id", "source_term", "target_term", "created_at"]
+      },
+      "AuditEvent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "org_id": { "type": ["string", "null"] },
+          "account_id": { "type": "string" },
+          "action": { "type": "string" },
+          "resource_type": { "type": "string" },
+          "resource_id": { "type": "string" },
+          "details": { "type": "string" },
+          "ip_address": { "type": ["string", "null"] },
+          "created_at": { "type": "integer", "format": "int64" }
+        },
+        "required": ["id", "account_id", "action", "resource_type", "resource_id", "details", "created_at"]
+      },
+      "WorkerMetrics": {
+        "type": "object",
+        "properties": {
+          "active_workers": { "type": "integer" },
+          "queued_tasks": { "type": "integer" },
+          "max_queue_capacity": { "type": "integer" },
+          "processed_tasks": { "type": "integer", "format": "int64" },
+          "failed_tasks": { "type": "integer", "format": "int64" },
+          "avg_latency_ms": { "type": "number", "format": "double" },
+          "is_accepting_tasks": { "type": "boolean" }
+        },
+        "required": [
+          "active_workers",
+          "queued_tasks",
+          "max_queue_capacity",
+          "processed_tasks",
+          "failed_tasks",
+          "avg_latency_ms",
+          "is_accepting_tasks"
+        ]
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "error": { "type": "string" },
+          "code": { "type": "string" },
+          "is_recoverable": { "type": "boolean" }
+        },
+        "required": ["error", "code", "is_recoverable"]
+      }
+    }
+  },
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "summary": "Check core service and database health",
+        "responses": {
+          "200": {
+            "description": "System health status"
+          }
+        }
+      }
+    },
+    "/api/v1/capabilities": {
+      "get": {
+        "summary": "Retrieve system capability matrix",
+        "responses": {
+          "200": {
+            "description": "Matrix of engine capabilities",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CapabilityMatrix"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/translate": {
+      "post": {
+        "summary": "Translate text across supported language pairs",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "text": { "type": "string" },
+                  "source_lang": { "type": "string" },
+                  "target_lang": { "type": "string" }
+                },
+                "required": ["text", "source_lang", "target_lang"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Translation result" },
+          "400": { "description": "Unsupported language pair or empty text" },
+          "429": { "description": "Quota or rate limit exceeded" }
+        }
+      }
+    },
+    "/api/v1/enterprise/account": {
+      "get": {
+        "summary": "Get current enterprise user account",
+        "responses": {
+          "200": {
+            "description": "User account info",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "account": { "$ref": "#/components/schemas/UserAccount" }
+                  },
+                  "required": ["account"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enterprise/account/tier": {
+      "post": {
+        "summary": "Upgrade or update account entitlement tier",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "tier": { "$ref": "#/components/schemas/AccountTier" }
+                },
+                "required": ["tier"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Tier updated successfully" }
+        }
+      }
+    },
+    "/api/v1/enterprise/devices": {
+      "get": {
+        "summary": "List registered devices for the account",
+        "responses": {
+          "200": {
+            "description": "List of registered devices",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "devices": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/DeviceRegistration" }
+                    }
+                  },
+                  "required": ["devices"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Register a new device",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "device_name": { "type": "string" },
+                  "device_type": { "type": "string" },
+                  "platform_details": { "type": "string" }
+                },
+                "required": ["device_name", "device_type", "platform_details"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Device successfully registered" }
+        }
+      }
+    },
+    "/api/v1/enterprise/keys": {
+      "get": {
+        "summary": "List API keys for current account",
+        "responses": {
+          "200": {
+            "description": "List of active and historical API keys",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "keys": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/ApiKeyRecord" }
+                    }
+                  },
+                  "required": ["keys"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Generate a new cryptographic API key",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "rate_limit_per_minute": { "type": "integer" },
+                  "expires_in_days": { "type": ["integer", "null"] }
+                },
+                "required": ["name"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "API key created. Raw key is returned only once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "key_record": { "$ref": "#/components/schemas/ApiKeyRecord" },
+                    "raw_key": { "type": "string" }
+                  },
+                  "required": ["key_record", "raw_key"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enterprise/usage": {
+      "get": {
+        "summary": "Retrieve current usage metrics and quota consumption",
+        "responses": {
+          "200": {
+            "description": "Usage summary and remaining quotas",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": { "$ref": "#/components/schemas/UsageSummary" }
+                  },
+                  "required": ["summary"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enterprise/invoices": {
+      "get": {
+        "summary": "List historical billing invoices",
+        "responses": {
+          "200": {
+            "description": "Billing invoice history",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "invoices": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/BillingInvoiceRecord" }
+                    }
+                  },
+                  "required": ["invoices"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enterprise/orgs": {
+      "post": {
+        "summary": "Create a new organization workspace",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "slug": { "type": "string" }
+                },
+                "required": ["name", "slug"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Organization created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "organization": { "$ref": "#/components/schemas/Organization" }
+                  },
+                  "required": ["organization"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enterprise/orgs/{id}/members": {
+      "get": {
+        "summary": "List workspace members and RBAC roles",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Workspace member list",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "members": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/OrgMember" }
+                    }
+                  },
+                  "required": ["members"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Add a member to workspace with RBAC role",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "account_id": { "type": "string" },
+                  "role": { "type": "string", "enum": ["owner", "admin", "linguist", "member"] }
+                },
+                "required": ["account_id", "role"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Member added successfully" }
+        }
+      }
+    },
+    "/api/v1/enterprise/orgs/{id}/glossaries": {
+      "get": {
+        "summary": "List custom shared glossaries for organization",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of shared glossaries",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "glossaries": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/OrgGlossary" }
+                    }
+                  },
+                  "required": ["glossaries"]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Create shared terminology glossary",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string" },
+                  "source_lang": { "type": "string" },
+                  "target_lang": { "type": "string" }
+                },
+                "required": ["name", "source_lang", "target_lang"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Glossary created" }
+        }
+      }
+    },
+    "/api/v1/enterprise/orgs/{id}/glossaries/{gid}/terms": {
+      "post": {
+        "summary": "Add a terminology entry to shared glossary",
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "gid", "in": "path", "required": true, "schema": { "type": "string" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "source_term": { "type": "string" },
+                  "target_term": { "type": "string" },
+                  "notes": { "type": ["string", "null"] }
+                },
+                "required": ["source_term", "target_term"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": { "description": "Term added" }
+        }
+      }
+    },
+    "/api/v1/enterprise/audit": {
+      "get": {
+        "summary": "Query tamper-evident administrative audit trail",
+        "parameters": [
+          { "name": "org_id", "in": "query", "required": false, "schema": { "type": "string" } },
+          { "name": "limit", "in": "query", "required": false, "schema": { "type": "integer" } }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of administrative audit events",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "events": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/AuditEvent" }
+                    }
+                  },
+                  "required": ["events"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/enterprise/workers/metrics": {
+      "get": {
+        "summary": "Query real-time inference worker telemetry and queue health",
+        "responses": {
+          "200": {
+            "description": "Inference worker metrics and backpressure telemetry",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "metrics": { "$ref": "#/components/schemas/WorkerMetrics" }
+                  },
+                  "required": ["metrics"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/ws": {
+      "get": {
+        "summary": "Bidirectional WebSocket endpoint for real-time streaming ASR, TTS, and conversation",
+        "responses": {
+          "101": { "description": "Switching Protocols to WebSocket" }
+        }
+      }
+    }
+  }
+}

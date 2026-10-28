@@ -1,28 +1,35 @@
 use crate::DesktopAppState;
 use lingua_core::{
-    detect_language, AddFavoriteCmdRequest, AppInfo, AssessPronunciationCmdRequest,
-    AssessPronunciationCmdResponse, CapabilityMatrix, CaptionSegment, ConversationSession,
-    ConversationTurnItem, CreateGlossaryTermCmdRequest, DatabaseHealthInfo,
-    DeleteGlossaryTermCmdRequest, DetectLanguageCmdRequest, DetectLanguageCmdResponse,
-    DictionaryEntry, DictionarySearchCmdRequest, DictionarySearchCmdResponse, DocumentJobStatus,
+    detect_language, AccountTier, AddFavoriteCmdRequest, ApiKeyRecord, AppInfo,
+    AssessPronunciationCmdRequest, AssessPronunciationCmdResponse, AuditEvent, CapabilityMatrix,
+    CaptionSegment, ConversationSession, ConversationTurnItem, CreateApiKeyCmdRequest,
+    CreateApiKeyCmdResponse, CreateGlossaryTermCmdRequest, CreateOrgCmdRequest,
+    CreateOrgGlossaryCmdRequest, DatabaseHealthInfo, DeleteGlossaryTermCmdRequest,
+    DetectLanguageCmdRequest, DetectLanguageCmdResponse, DeviceRegistration, DictionaryEntry,
+    DictionarySearchCmdRequest, DictionarySearchCmdResponse, DocumentJobStatus,
     DocumentTranslationJob, DomainGlossaryEntry, EvaluationReport, ExportCaptionsCmdRequest,
     ExportCaptionsCmdResponse, ExportSubtitlesCmdRequest, ExportSubtitlesCmdResponse,
-    ExportUserDataCmdResponse, FavoriteItem, FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse,
-    GetCircuitBreakersCmdResponse, GetConversationTurnsCmdRequest,
-    GetDataPrivacySettingsCmdResponse, GetGlobalShortcutsCmdResponse, GetGrammarTopicsCmdRequest,
-    GetGrammarTopicsCmdResponse, GetLearnerProgressCmdResponse, GetLearningDeckCardsCmdRequest,
-    GetLearningDeckCardsCmdResponse, GetListeningChallengesCmdRequest,
-    GetListeningChallengesCmdResponse, GetOverlaySettingsCmdResponse,
-    GetPlatformReleaseStatusCmdResponse, GetSessionCaptionsCmdRequest,
-    GetSessionCaptionsCmdResponse, GlobalShortcutConfig, IntelligenceTranslationRequest,
+    ExportUserDataCmdResponse, FavoriteItem, FeedAudioChunkCmdRequest, GetAccountInfoCmdRequest,
+    GetAccountInfoCmdResponse, GetAudioDevicesCmdResponse, GetCircuitBreakersCmdResponse,
+    GetConversationTurnsCmdRequest, GetDataPrivacySettingsCmdResponse,
+    GetGlobalShortcutsCmdResponse, GetGrammarTopicsCmdRequest, GetGrammarTopicsCmdResponse,
+    GetLearnerProgressCmdResponse, GetLearningDeckCardsCmdRequest, GetLearningDeckCardsCmdResponse,
+    GetListeningChallengesCmdRequest, GetListeningChallengesCmdResponse,
+    GetOverlaySettingsCmdResponse, GetPlatformReleaseStatusCmdResponse,
+    GetSessionCaptionsCmdRequest, GetSessionCaptionsCmdResponse, GetUsageSummaryCmdResponse,
+    GetWorkerMetricsCmdResponse, GlobalShortcutConfig, IntelligenceTranslationRequest,
     IntelligenceTranslationResponse, InterruptConversationCmdRequest,
     InterruptConversationCmdResponse, IpcResponse, LanguagePair, LinguaError,
-    ListGlossaryTermsCmdRequest, ListGlossaryTermsCmdResponse, ListLearningDecksCmdResponse,
-    ListMediaSegmentsCmdRequest, ListMediaSegmentsCmdResponse, MediaProgressStatus, MediaSession,
-    MediaSubtitleExportFormat, MediaSubtitleSegment, ModelPackInfo, PauseSpeechSessionCmdRequest,
-    PerformOcrCmdRequest, PerformOcrCmdResponse, PurgeUserDataCmdRequest, PurgeUserDataCmdResponse,
-    ResetCircuitBreakerCmdRequest, ResumeSpeechSessionCmdRequest, ReviewCardCmdRequest,
-    ReviewCardCmdResponse, ReviewRating, RunEvaluationCmdResponse,
+    ListApiKeysCmdResponse, ListAuditEventsCmdResponse, ListDevicesCmdResponse,
+    ListGlossaryTermsCmdRequest, ListGlossaryTermsCmdResponse, ListInvoicesCmdResponse,
+    ListLearningDecksCmdResponse, ListMediaSegmentsCmdRequest, ListMediaSegmentsCmdResponse,
+    ListOrgGlossariesCmdResponse, ListOrgMembersCmdResponse, MediaProgressStatus, MediaSession,
+    MediaSubtitleExportFormat, MediaSubtitleSegment, ModelPackInfo, OrgCmdResponse, OrgGlossary,
+    OrgGlossaryStatus, OrgGlossaryTerm, OrgMember, OrgRole, Organization,
+    PauseSpeechSessionCmdRequest, PerformOcrCmdRequest, PerformOcrCmdResponse,
+    PurgeUserDataCmdRequest, PurgeUserDataCmdResponse, RegisterDeviceCmdRequest,
+    RegisterDeviceCmdResponse, ResetCircuitBreakerCmdRequest, ResumeSpeechSessionCmdRequest,
+    ReviewCardCmdRequest, ReviewCardCmdResponse, ReviewRating, RunEvaluationCmdResponse,
     SaveDataPrivacySettingsCmdRequest, SaveGlobalShortcutsCmdRequest,
     SaveOverlaySettingsCmdRequest, SetResourceProfileCmdRequest, SpeechSession,
     StartConversationCmdRequest, StartMediaTranscriptionCmdRequest,
@@ -36,7 +43,7 @@ use lingua_core::{
     TtsVoiceInfo, UpdateMediaSegmentCmdRequest, UserSettings,
 };
 use lingua_engine::{
-    AudioCaptureManager, AuthenticOcrEngine, DocumentProcessor, GrammarKnowledgeBase,
+    ApiGateway, AudioCaptureManager, AuthenticOcrEngine, DocumentProcessor, GrammarKnowledgeBase,
     ListeningChallengeGenerator, LiveOverlayController, MediaTranscriptionPipeline, OcrEngine,
     PlatformIntegrationsCoordinator, PronunciationEvaluator, QualityEvaluator, SecurityAuditor,
     SpacedRepetitionSystem, TranslationRequest,
@@ -1253,4 +1260,339 @@ pub fn lingua_command_get_platform_release_status(
 ) -> IpcResponse<GetPlatformReleaseStatusCmdResponse> {
     let status = SecurityAuditor::get_platform_release_status();
     IpcResponse::ok("tauri-ipc", GetPlatformReleaseStatusCmdResponse { status })
+}
+
+// =========================================================================
+// Stage 8 Commands: Commercial & Enterprise Platform
+// =========================================================================
+
+#[tauri::command]
+pub fn lingua_command_get_enterprise_account(
+    state: State<'_, DesktopAppState>,
+    request: Option<GetAccountInfoCmdRequest>,
+) -> IpcResponse<GetAccountInfoCmdResponse> {
+    let account_id = request.and_then(|r| r.account_id);
+    let account_res = match account_id {
+        Some(ref id) => state.storage.get_account(id),
+        None => state.storage.get_or_create_anonymous_account(),
+    };
+
+    match account_res {
+        Ok(account) => IpcResponse::ok("tauri-ipc", GetAccountInfoCmdResponse { account }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_update_account_tier(
+    state: State<'_, DesktopAppState>,
+    account_id: String,
+    tier: AccountTier,
+) -> IpcResponse<bool> {
+    match state.storage.update_account_tier(&account_id, tier) {
+        Ok(()) => IpcResponse::ok("tauri-ipc", true),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_register_device(
+    state: State<'_, DesktopAppState>,
+    request: RegisterDeviceCmdRequest,
+) -> IpcResponse<RegisterDeviceCmdResponse> {
+    let device = DeviceRegistration {
+        id: format!("dev-{}", Uuid::new_v4()),
+        user_id: request.account_id,
+        device_name: request.device_name,
+        device_type: request.device_type,
+        public_key_fingerprint: request.public_key_fingerprint,
+        registered_at: chrono::Utc::now(),
+        last_seen_at: chrono::Utc::now(),
+    };
+
+    match state.storage.register_device(&device) {
+        Ok(()) => IpcResponse::ok("tauri-ipc", RegisterDeviceCmdResponse { device }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_list_devices(
+    state: State<'_, DesktopAppState>,
+    account_id: Option<String>,
+) -> IpcResponse<ListDevicesCmdResponse> {
+    let user_id = match account_id {
+        Some(id) => id,
+        None => match state.storage.get_or_create_anonymous_account() {
+            Ok(acc) => acc.id,
+            Err(e) => return IpcResponse::err("tauri-ipc", e),
+        },
+    };
+
+    match state.storage.list_devices(&user_id) {
+        Ok(devices) => IpcResponse::ok("tauri-ipc", ListDevicesCmdResponse { devices }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_create_api_key(
+    state: State<'_, DesktopAppState>,
+    request: CreateApiKeyCmdRequest,
+) -> IpcResponse<CreateApiKeyCmdResponse> {
+    let (raw_key, prefix, key_hash) = ApiGateway::generate_raw_api_key("live");
+    let record = ApiKeyRecord {
+        id: format!("key-{}", Uuid::new_v4()),
+        user_id: request.user_id,
+        org_id: request.org_id,
+        key_hash,
+        key_prefix: prefix,
+        name: request.name,
+        rate_limit_per_min: 300,
+        is_active: true,
+        created_at: chrono::Utc::now(),
+        expires_at: None,
+    };
+
+    match state.storage.create_api_key(&record) {
+        Ok(()) => IpcResponse::ok(
+            "tauri-ipc",
+            CreateApiKeyCmdResponse {
+                api_key_record: record,
+                raw_key,
+            },
+        ),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_list_api_keys(
+    state: State<'_, DesktopAppState>,
+    user_id: Option<String>,
+) -> IpcResponse<ListApiKeysCmdResponse> {
+    let uid = match user_id {
+        Some(id) => id,
+        None => match state.storage.get_or_create_anonymous_account() {
+            Ok(acc) => acc.id,
+            Err(e) => return IpcResponse::err("tauri-ipc", e),
+        },
+    };
+
+    match state.storage.list_api_keys(&uid) {
+        Ok(api_keys) => IpcResponse::ok("tauri-ipc", ListApiKeysCmdResponse { api_keys }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_revoke_api_key(
+    state: State<'_, DesktopAppState>,
+    key_id: String,
+) -> IpcResponse<bool> {
+    match state.storage.revoke_api_key(&key_id) {
+        Ok(()) => IpcResponse::ok("tauri-ipc", true),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_get_usage_summary(
+    state: State<'_, DesktopAppState>,
+    account_id: Option<String>,
+) -> IpcResponse<GetUsageSummaryCmdResponse> {
+    let uid = match account_id {
+        Some(id) => id,
+        None => match state.storage.get_or_create_anonymous_account() {
+            Ok(acc) => acc.id,
+            Err(e) => return IpcResponse::err("tauri-ipc", e),
+        },
+    };
+
+    match state.storage.get_usage_summary(&uid) {
+        Ok(summary) => IpcResponse::ok("tauri-ipc", GetUsageSummaryCmdResponse { summary }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_list_invoices(
+    state: State<'_, DesktopAppState>,
+    account_id: Option<String>,
+) -> IpcResponse<ListInvoicesCmdResponse> {
+    let uid = match account_id {
+        Some(id) => id,
+        None => match state.storage.get_or_create_anonymous_account() {
+            Ok(acc) => acc.id,
+            Err(e) => return IpcResponse::err("tauri-ipc", e),
+        },
+    };
+
+    match state.storage.list_invoices(&uid) {
+        Ok(invoices) => IpcResponse::ok("tauri-ipc", ListInvoicesCmdResponse { invoices }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_create_organization(
+    state: State<'_, DesktopAppState>,
+    request: CreateOrgCmdRequest,
+) -> IpcResponse<OrgCmdResponse> {
+    let org = Organization {
+        id: format!("org-{}", Uuid::new_v4()),
+        name: request.name,
+        slug: request.slug,
+        max_seats: 25,
+        sso_enabled: false,
+        data_retention_days: 90,
+        enforce_zero_transcript_logging: true,
+        created_at: chrono::Utc::now(),
+    };
+
+    match state.storage.create_organization(&org, &request.owner_id) {
+        Ok(()) => {
+            let event = AuditEvent {
+                id: format!("audit-{}", Uuid::new_v4()),
+                org_id: Some(org.id.clone()),
+                actor_id: request.owner_id,
+                actor_email: "admin@enterprise.local".into(),
+                action: "organization.created".into(),
+                resource_type: "organization".into(),
+                resource_id: org.id.clone(),
+                details: format!(
+                    "Created organization '{}' with slug '{}'",
+                    org.name, org.slug
+                ),
+                ip_address: "127.0.0.1".into(),
+                timestamp: chrono::Utc::now(),
+            };
+            let _ = state.storage.record_audit_event(&event);
+            IpcResponse::ok("tauri-ipc", OrgCmdResponse { organization: org })
+        }
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_list_org_members(
+    state: State<'_, DesktopAppState>,
+    org_id: String,
+) -> IpcResponse<ListOrgMembersCmdResponse> {
+    match state.storage.list_org_members(&org_id) {
+        Ok(members) => IpcResponse::ok("tauri-ipc", ListOrgMembersCmdResponse { members }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_add_org_member(
+    state: State<'_, DesktopAppState>,
+    org_id: String,
+    user_id: String,
+    email: String,
+    display_name: String,
+    role: String,
+) -> IpcResponse<bool> {
+    let org_role = match role.to_lowercase().as_str() {
+        "admin" => OrgRole::Admin,
+        "linguist_editor" => OrgRole::LinguistEditor,
+        "viewer" => OrgRole::Viewer,
+        _ => OrgRole::Member,
+    };
+
+    let member = OrgMember {
+        id: format!("mem-{}", Uuid::new_v4()),
+        org_id,
+        user_id,
+        email,
+        display_name,
+        role: org_role,
+        joined_at: chrono::Utc::now(),
+    };
+
+    match state.storage.add_org_member(&member) {
+        Ok(()) => IpcResponse::ok("tauri-ipc", true),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_list_org_glossaries(
+    state: State<'_, DesktopAppState>,
+    org_id: String,
+) -> IpcResponse<ListOrgGlossariesCmdResponse> {
+    match state.storage.list_org_glossaries(&org_id) {
+        Ok(glossaries) => IpcResponse::ok("tauri-ipc", ListOrgGlossariesCmdResponse { glossaries }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_create_org_glossary(
+    state: State<'_, DesktopAppState>,
+    request: CreateOrgGlossaryCmdRequest,
+) -> IpcResponse<bool> {
+    let glossary = OrgGlossary {
+        id: format!("gloss-{}", Uuid::new_v4()),
+        org_id: request.org_id,
+        name: request.name,
+        description: request.description,
+        source_lang: request.source_lang,
+        target_lang: request.target_lang,
+        status: OrgGlossaryStatus::Approved,
+        terms_count: 0,
+        created_at: chrono::Utc::now(),
+        updated_at: chrono::Utc::now(),
+    };
+
+    match state.storage.create_org_glossary(&glossary) {
+        Ok(()) => IpcResponse::ok("tauri-ipc", true),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_add_org_glossary_term(
+    state: State<'_, DesktopAppState>,
+    glossary_id: String,
+    source_term: String,
+    target_term: String,
+    notes: Option<String>,
+    case_sensitive: Option<bool>,
+) -> IpcResponse<bool> {
+    let term = OrgGlossaryTerm {
+        id: format!("gterm-{}", Uuid::new_v4()),
+        glossary_id,
+        source_term,
+        target_term,
+        notes,
+        case_sensitive: case_sensitive.unwrap_or(false),
+    };
+
+    match state.storage.add_org_glossary_term(&term) {
+        Ok(()) => IpcResponse::ok("tauri-ipc", true),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_list_audit_events(
+    state: State<'_, DesktopAppState>,
+    org_id: Option<String>,
+    limit: Option<usize>,
+) -> IpcResponse<ListAuditEventsCmdResponse> {
+    let lim = limit.unwrap_or(50);
+    match state.storage.list_audit_events(org_id.as_deref(), lim) {
+        Ok(events) => IpcResponse::ok("tauri-ipc", ListAuditEventsCmdResponse { events }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_get_worker_metrics(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<GetWorkerMetricsCmdResponse> {
+    let metrics = state.worker_pool.get_metrics();
+    IpcResponse::ok("tauri-ipc", GetWorkerMetricsCmdResponse { metrics })
 }

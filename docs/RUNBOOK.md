@@ -1,4 +1,4 @@
-# LinguaFlow — Operational Runbook (SRE & Operations - Production Stage 7)
+# LinguaFlow — Operational Runbook (SRE & Operations - Production Stage 8)
 
 ## 1. Service Operations
 
@@ -21,7 +21,7 @@ Expected output:
 {
   "status": "healthy",
   "path": ".../linguaflow.db",
-  "schema_version": 8,
+  "schema_version": 9,
   "settings_persisted": true,
   "error": null
 }
@@ -83,12 +83,12 @@ Because SQLite operates in WAL (Write-Ahead Logging) mode, backups can be perfor
 sqlite3 "%APPDATA%/LinguaFlow/linguaflow.db" ".backup '%APPDATA%/LinguaFlow/linguaflow_backup.db'"
 ```
 
-### 3.2 Integrity Verification & Schema 008 Check
+### 3.2 Integrity Verification & Schema 009 Check
 Run the comprehensive diagnostic tool:
 ```bash
 lingua doctor
 ```
-Ensures SQLite schema is at version 8, FTS5 indexes are synchronized, audio pipelines are functional, and all Stage 7 tables exist.
+Ensures SQLite schema is at version 9, FTS5 indexes are synchronized, audio pipelines are functional, and all Stage 8 enterprise tables exist.
 
 ---
 
@@ -99,7 +99,7 @@ Ensures SQLite schema is at version 8, FTS5 indexes are synchronized, audio pipe
   ```bash
   npm run build
   ```
-  Generates production assets in `dist/` (< 280 kB).
+  Generates production assets in `dist/` (< 350 kB).
 - Tauri Desktop Bundle:
   ```bash
   cargo tauri build
@@ -109,3 +109,43 @@ Ensures SQLite schema is at version 8, FTS5 indexes are synchronized, audio pipe
 - Windows (`.msi` / `.exe`): Verify Authenticode signature using `signtool verify /pa target\release\bundle\msi\*.msi`.
 - macOS (`.app` / `.dmg`): Verify code signature with `codesign --verify --deep --strict LinguaFlow.app`.
 - **Transparency Policy**: Unsigned development builds are explicitly marked `unsigned` in metadata and must never be distributed as signed releases.
+
+---
+
+## 5. Enterprise Scaling & Worker Operations
+
+### 5.1 Inference Worker Pool Telemetry
+Monitor active workers, queued tasks, and backpressure:
+```bash
+lingua worker metrics
+```
+Expected output:
+```
+Active Workers: 0/8
+Queued Tasks: 0/1000
+Processed Tasks: 1240
+Average Latency: 2.41 ms
+Accepting Tasks: true
+```
+
+### 5.2 Outage Simulation & Failover Drills
+To drill cloud worker outages and verify local offline fallback:
+```bash
+# Pause worker queue acceptance
+lingua worker pause
+
+# Verify fallback to local model or cache in client
+lingua translate "Hello" --from en --to kn
+
+# Resume worker queue acceptance
+lingua worker resume
+```
+
+### 5.3 Administrative Audit Trail Inspection
+Inspect enterprise administrative operations:
+```bash
+lingua org members --org-id default-org
+lingua keys list
+lingua billing usage
+```
+

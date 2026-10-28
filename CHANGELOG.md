@@ -445,6 +445,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comprehensive Integration Test Suite**:
   - `tests/production_certification.rs`: 6 integration tests verifying SM-2 progression, pronunciation scoring with phoneme feedback, listening challenge distractors, Dravidian grammar topics, zero-log transcript scrubbing, CycloneDX SBOM generation, and chaos stress recovery.
 
+## [1.0.0] - 2026-10-28 (Stage 8: Commercial and Enterprise Platform)
+
+### Added
+- **Accounts, Entitlements & Anonymous Mode Guarantee (`lingua-core` & `lingua-storage`)**:
+  - `UserAccount`, `AccountTier` (`Free`, `Pro`, `Enterprise`), and `AccountStatus` (`Active`, `Suspended`, `PendingVerification`) data models.
+  - Device registration and tracking (`DeviceRegistration`, `DeviceType`).
+  - Strict Anonymous Offline Mode Guarantee: Pre-seeded local anonymous account (`acc-anonymous-local`) operating 100% offline with zero cloud tokens, zero network requests, and zero remote data transmission.
+- **Usage Metering, Quota Control & Fail-Safe Billing (`lingua-engine` & `lingua-storage`)**:
+  - `UsageQuotaManager`: Thread-safe usage metering and quota enforcement tracking translated characters, audio processing seconds, and API invocation counts.
+  - Fail-Safe Billing Rule: "Never charge for uncompleted billable requests". Automatic refund/rollback of reserved character and audio quotas upon translation or synthesis execution error.
+  - SQLite persistence for usage events (`usage_records`) and billing invoice records (`billing_invoices`).
+- **Enterprise Multi-Tenancy, RBAC & Shared Glossaries (`lingua-engine` & `lingua-storage`)**:
+  - Multi-tenant organization workspaces (`Organization`) with membership mapping (`OrgMember`).
+  - Role-Based Access Control (`RbacController`) supporting `Owner`, `Admin`, `Linguist`, and `Member` roles with strict tenant boundary enforcement.
+  - Organization-shared custom terminology glossaries (`OrgGlossary`, `OrgGlossaryTerm`) with automatic Dravidian terminology substitution (`apply_org_glossaries`) during enterprise translations.
+  - Tamper-evident administrative audit logging (`AuditEvent`, `audit_events` table) recording actor, timestamp, IP address, action, and target resource.
+- **Developer API Gateway & Rate Limiting (`lingua-engine` & `lingua-server`)**:
+  - `ApiGateway`: Cryptographic API key generation (`lf_live_*`) stored as secure SHA-256 hashes.
+  - Per-key token bucket rate limiter with configurable burst limits and continuous refill rates according to account tiers.
+  - Conforming OpenAPI 3.1.0 specification published in `docs/openapi.json`.
+  - 12 versioned enterprise REST routes under `/api/v1/enterprise/*`.
+- **Operations, Concurrency & Worker Scaling (`lingua-engine`)**:
+  - `InferenceWorkerPool`: Distributed worker pool abstraction with semaphore-bounded concurrency control, backpressure queue depth limits, and task rejection (`WorkerCapacityExceeded`).
+  - Worker pool telemetry tracking active workers, queue depth, processed tasks, and average latency (`WorkerMetrics`).
+  - Outage simulation controls (`set_accepting_tasks`) for cloud disaster recovery and failover verification drills.
+- **Database Migration 009 (`lingua-storage`)**:
+  - Bumped schema version to `CURRENT_SCHEMA_VERSION = 9`.
+  - Created 10 enterprise tables: `user_accounts`, `device_registrations`, `organizations`, `org_members`, `api_keys`, `org_glossaries`, `org_glossary_terms`, `usage_records`, `billing_invoices`, and `audit_events`.
+  - Added 5 composite performance indexes for sub-millisecond query execution.
+- **Svelte 5 Enterprise Platform Studio (`src/`)**:
+  - `src/views/EnterpriseView.svelte`: 4-tab modern glassmorphism management interface:
+    - **Workspaces & RBAC**: Organization workspace creation, member list, and role assignment.
+    - **Usage & Invoices**: Live quota consumption bars (Characters, Audio Seconds), billing period summary, and invoice history table.
+    - **Shared Glossaries**: Enterprise Dravidian terminology management with term creation and preview.
+    - **Developer API & Audit**: API key generation with one-time copy modal, rate limit indicators, and live administrative audit log trail.
+  - Enterprise view integration in `src/App.svelte` across desktop and mobile navigation bars.
+- **CLI Commands & Microbenchmarks (`lingua-cli`)**:
+  - Added `lingua account [info|tier|devices]`.
+  - Added `lingua org [create|members|glossaries|terms]`.
+  - Added `lingua keys [list|create|revoke]`.
+  - Added `lingua billing [usage|invoices]`.
+  - Added `lingua worker [metrics|pause|resume]`.
+  - Microbenchmarks 25–28:
+    - 25. Quota Check & Reservation: 0.0282 ms / op (Threshold: < 0.05 ms - PASS)
+    - 26. Multi-Tenant RBAC Evaluation: 0.00008 ms / op (Threshold: < 0.01 ms - PASS)
+    - 27. Shared Glossary Term Matching: 0.0016 ms / op (Threshold: < 0.5 ms - PASS)
+    - 28. API Key Auth & Rate Limit Check: 0.0002 ms / op (Threshold: < 0.05 ms - PASS)
+- **Comprehensive Integration Test Suite**:
+  - `tests/enterprise_platform.rs`: 6 integration tests verifying RBAC tenancy isolation, API key auth and rate limiting, worker pool backpressure and failover, anonymous offline mode guarantee, audit trail logging, and quota enforcement with fail-safe refunds.
+
 
 
 

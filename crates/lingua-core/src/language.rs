@@ -133,6 +133,16 @@ impl LanguagePair {
     pub fn pair_key(&self) -> String {
         format!("{}_{}", self.source.as_bcp47(), self.target.as_bcp47())
     }
+
+    pub fn validate(&self) -> Result<(), LinguaError> {
+        if self.source == self.target {
+            return Err(LinguaError::IdenticalLanguagePair(
+                self.source.as_bcp47().to_string(),
+                self.target.as_bcp47().to_string(),
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl fmt::Display for LanguagePair {

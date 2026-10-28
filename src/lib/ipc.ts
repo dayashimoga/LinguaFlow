@@ -80,3 +80,113 @@ export async function checkDatabaseHealth(): Promise<DatabaseHealthInfo> {
   if (!res.ok) throw new Error('Failed to check database health');
   return res.json();
 }
+
+export async function translateText(req: {
+  source_language: string;
+  target_language: string;
+  text: string;
+  allow_cloud: boolean;
+}): Promise<import('./types').TranslateCmdResponse> {
+  if (isTauri) {
+    return invokeTauri<import('./types').TranslateCmdResponse>('lingua_command_translate', { request: req });
+  }
+  const res = await fetch(`${API_BASE}/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Translation failed');
+  }
+  return res.json();
+}
+
+export async function searchDictionary(
+  query: string,
+  language?: string | null,
+  limit: number = 20
+): Promise<import('./types').DictionarySearchCmdResponse> {
+  if (isTauri) {
+    return invokeTauri<import('./types').DictionarySearchCmdResponse>('lingua_command_dictionary_search', {
+      request: { query, language, limit },
+    });
+  }
+  const params = new URLSearchParams({ q: query, limit: limit.toString() });
+  if (language) params.append('lang', language);
+  const res = await fetch(`${API_BASE}/dictionary/search?${params}`);
+  if (!res.ok) throw new Error('Dictionary search failed');
+  return res.json();
+}
+
+export async function getDictionaryWord(id: string): Promise<import('./types').DictionaryEntry | null> {
+  if (isTauri) {
+    return invokeTauri<import('./types').DictionaryEntry | null>('lingua_command_get_dictionary_word', { id });
+  }
+  const res = await fetch(`${API_BASE}/dictionary/word/${encodeURIComponent(id)}`);
+  if (!res.ok) return null;
+  return res.json();
+}
+
+export async function detectLanguage(text: string): Promise<string | null> {
+  if (isTauri) {
+    const res = await invokeTauri<{ detected: string | null }>('lingua_command_detect_language', { request: { text } });
+    return res.detected;
+  }
+  const res = await fetch(`${API_BASE}/detect-language`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text }),
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data.detected;
+}
+
+export async function listTranslationHistory(limit: number = 50): Promise<import('./types').TranslationRecord[]> {
+  if (isTauri) {
+    return invokeTauri<import('./types').TranslationRecord[]>('lingua_command_list_translation_history', { limit });
+  }
+  const res = await fetch(`${API_BASE}/history?limit=${limit}`);
+  if (!res.ok) throw new Error('Failed to load history');
+  return res.json();
+}
+
+export async function clearTranslationHistory(): Promise<void> {
+  if (isTauri) {
+    return invokeTauri<void>('lingua_command_clear_translation_history');
+  }
+  const res = await fetch(`${API_BASE}/history`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to clear history');
+}
+
+export async function listFavorites(): Promise<import('./types').FavoriteItem[]> {
+  if (isTauri) {
+    return invokeTauri<import('./types').FavoriteItem[]>('lingua_command_list_favorites');
+  }
+  const res = await fetch(`${API_BASE}/favorites`);
+  if (!res.ok) throw new Error('Failed to load favorites');
+  return res.json();
+}
+
+export async function addFavorite(req: import('./types').AddFavoriteCmdRequest): Promise<import('./types').FavoriteItem> {
+  if (isTauri) {
+    return invokeTauri<import('./types').FavoriteItem>('lingua_command_add_favorite', { request: req });
+  }
+  const res = await fetch(`${API_BASE}/favorites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error('Failed to add favorite');
+  return res.json();
+}
+
+export async function removeFavorite(id: string): Promise<void> {
+  if (isTauri) {
+    return invokeTauri<void>('lingua_command_remove_favorite', { id });
+  }
+  const res = await fetch(`${API_BASE}/favorites/${encodeURIComponent(id)}`, { method: 'DELETE' });
+  if (!res.ok) throw new Error('Failed to remove favorite');
+}
+

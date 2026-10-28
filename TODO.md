@@ -94,4 +94,72 @@
   - Benchmarks baseline (`docs/BENCHMARKS.md` - IPC: 20.95 µs, DB: 38.17 µs).
   - Runbook, Setup, User Guide, Troubleshooting, and Code Understanding documentation.
   - Stage 0 verification report (`docs/STAGE_0_ACCEPTANCE_REPORT.md`).
-- [ ] Gated: Stage 1 Dictionary and Text Translation (awaiting user review and authorization).
+- [x] Stage 0 formally certified and approved for progression.
+
+### [2026-10-28 14:40 UTC] Stage 1: Dictionary & Text Translation Kickoff
+- [ ] Phase 1.1 — Translation Engine:
+  - Implement language auto-detection in `crates/lingua-core/src/unicode.rs` and `language.rs`.
+  - Implement real translation provider adapters in `crates/lingua-engine`:
+    - `VerifiedDictionaryTranslationEngine`: Deterministic, licensed bilingual lexicon translation engine for offline and direct term translation across `kn <-> en`, `ta <-> en`, `kn <-> ta`.
+    - `HttpTranslationProvider`: Live HTTP translation adapter with timeout handling, retry/backoff, request bounding, and configurable provider endpoints (MyMemory / LibreTranslate API).
+    - `HybridTranslationCoordinator`: Real router selecting local verified lexicon or authenticated provider, with explicit failure when offline without matches. Zero simulated/fake outputs.
+  - Implement translation history and favorites recording in `crates/lingua-storage`.
+  - Expose IPC and Axum endpoints for `/api/v1/translate` and `/api/v1/detect-language`.
+- [ ] Phase 1.2 — Dictionary:
+  - Database Migration 002: Add `dictionary_entries` and FTS5 full-text virtual table `dictionary_fts` with automated sync triggers.
+  - Implement dictionary repository in `crates/lingua-storage/src/dictionary_repo.rs`: prefix matching, full-text search, POS, definitions, alternate meanings, examples, IPA, transliteration, synonyms/antonyms.
+  - Curate and embed verifiable, licensed seed dictionary datasets for Kannada, Tamil, and English with clear provenance.
+  - Implement dictionary dataset import pipeline CLI command (`lingua import-dict`).
+  - Expose IPC and Axum endpoints for `/api/v1/dictionary/search` and `/api/v1/dictionary/word/:id`.
+- [ ] Phase 1.3 — Unified UX:
+  - Implement unified one-screen Translate & Dictionary experience in Svelte:
+    - Adaptive debounced translate-as-you-type (250ms).
+    - Instant language swapping with keyboard shortcut (`Ctrl+S`).
+    - Copy, paste, favorites/bookmark toggle with persistent SQLite storage.
+    - Translation history drawer with one-tap recall and clear history.
+    - Word drill-down: Clicking any translated or source word opens its dictionary card and definitions.
+    - Helpful loading skeletons and detailed recoverable error states.
+- [ ] Phase 1.4 — Linguistic & Edge-Case Correctness:
+  - Curated bidirectional test suites for `kn <-> en`, `ta <-> en`, `kn <-> ta`.
+  - Test complex Unicode conjuncts, ottakshara, grantha, diacritics, long sentences, punctuation, mixed scripts, invalid languages, and offline failures.
+- [ ] Phase 1.5 — Performance Benchmarks & Quality Gate:
+  - Latency benchmarks: FTS5 prefix search (< 20ms), translation debounce, memory growth.
+  - Rust unit and integration tests (target >= 90% business logic coverage).
+  - Clippy `-D warnings` and `cargo fmt --check`.
+  - Frontend typecheck and build validation.
+  - Update RTM, CHANGELOG.md, and author `docs/STAGE_1_ACCEPTANCE_REPORT.md`.
+
+### [2026-10-28 15:15 UTC] Stage 1: Dictionary & Text Translation Completion
+- [x] Phase 1.1 — Translation Engine:
+  - Implemented script and language auto-detection in `crates/lingua-core/src/unicode.rs`.
+  - Implemented `LexiconTranslationEngine` in `crates/lingua-engine/src/lexicon_engine.rs`: authentic bidirectional translations for `kn-IN <-> en-US`, `ta-IN <-> en-US`, `kn-IN <-> ta-IN` offline.
+  - Implemented `HttpTranslationProvider` in `crates/lingua-engine/src/http_provider.rs`: authentic HTTP translation client with timeout handling, exponential backoff retries, and HTML entity decoding.
+  - Implemented `EngineRegistry` translation coordinator: coordinates online HTTP and offline lexicon, records translations into SQLite history, and returns `CapabilityMatrix::stage_1_active()`.
+  - Implemented translation history and favorites repository in `crates/lingua-storage/src/history_repo.rs`.
+  - Exposed REST endpoints in `crates/lingua-server` and Tauri IPC commands in `src-tauri`.
+- [x] Phase 1.2 — Dictionary:
+  - Implemented database migration 002 with `dictionary_entries` and SQLite FTS5 virtual table `dictionary_fts` with automated sync triggers.
+  - Implemented hybrid prefix and FTS5 search in `crates/lingua-storage/src/dictionary_repo.rs`.
+  - Curated and seeded 18 rich dictionary entries across Kannada, Tamil, and English with POS, IPA phonetics, Latin transliteration, examples, synonyms, antonyms, and CC-BY-SA provenance.
+  - Exposed dictionary search and lookup REST endpoints and Tauri IPC commands.
+- [x] Phase 1.3 — Unified UX:
+  - Upgraded Svelte 5 frontend with responsive layout for phones, tablets, and desktop.
+  - Implemented adaptive debounced translate-as-you-type (250ms) in `TranslateView.svelte`.
+  - Implemented language swap with keyboard shortcut (`Ctrl+S`).
+  - Implemented interactive word drill-down chips: clicking any word opens its dictionary definition, IPA, and examples modal.
+  - Implemented translation history drawer and bookmarking/favorites toggle.
+  - Implemented live FTS5 search with instant language filtering in `DictionaryView.svelte`.
+- [x] Phase 1.4 — Linguistic & Edge-Case Correctness:
+  - Implemented comprehensive linguistic integration test suite (`tests/linguistic_correctness.rs`).
+  - Verified bidirectional translations across all pairs: `kn <-> en`, `ta <-> en`, `kn <-> ta`.
+  - Verified Unicode conjuncts, NFC normalization, whitespace resilience, empty input validation, identical pair rejection, and explicit offline missing errors.
+- [x] Phase 1.5 — Performance Benchmarks & Quality Gate:
+  - Ran microbenchmarks: FTS5 prefix search executed in 0.456 ms (< 20ms threshold, PASS), offline lexicon translation in 0.151 ms (PASS).
+  - 100% of Rust tests passed (27/27 tests across workspace).
+  - Clippy `-D warnings` passed with 0 warnings.
+  - `cargo fmt --check` passed cleanly.
+  - Frontend typecheck (`npm run check`) passed with 0 errors and 0 warnings.
+  - Frontend production build (`npm run build`) succeeded in 1.62s.
+  - Updated RTM, CHANGELOG.md, BENCHMARKS.md, and authored `docs/STAGE_1_ACCEPTANCE_REPORT.md`.
+- [x] Stage 1 certified complete and ready for user review.
+

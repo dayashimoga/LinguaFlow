@@ -32,6 +32,12 @@ pub enum LinguaError {
     #[error("Validation error: {0}")]
     Validation(String),
 
+    #[error("Translation failed: {0}")]
+    TranslationFailed(String),
+
+    #[error("Offline model missing: {0}")]
+    OfflineModelMissing(String),
+
     #[error("Not found: {0}")]
     NotFound(String),
 
@@ -51,6 +57,8 @@ impl LinguaError {
             LinguaError::AudioDeviceError(_) => "AUDIO_DEVICE_ERROR",
             LinguaError::ModelIntegrityFailure(_) => "MODEL_INTEGRITY_FAILURE",
             LinguaError::Validation(_) => "VALIDATION_ERROR",
+            LinguaError::TranslationFailed(_) => "TRANSLATION_FAILED",
+            LinguaError::OfflineModelMissing(_) => "OFFLINE_MODEL_MISSING",
             LinguaError::NotFound(_) => "NOT_FOUND",
             LinguaError::Internal(_) => "INTERNAL_ERROR",
         }
@@ -62,6 +70,8 @@ impl LinguaError {
             LinguaError::NetworkUnavailable
                 | LinguaError::CapabilityUnavailable(_, _)
                 | LinguaError::Validation(_)
+                | LinguaError::TranslationFailed(_)
+                | LinguaError::OfflineModelMissing(_)
                 | LinguaError::IdenticalLanguagePair(_, _)
                 | LinguaError::AudioDeviceError(_)
                 | LinguaError::NotFound(_)

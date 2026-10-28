@@ -68,9 +68,44 @@ pub fn detect_script(text: &str) -> DetectedScript {
     }
 }
 
+pub fn detect_language(text: &str) -> Option<crate::language::LanguageCode> {
+    let mut kn_count = 0usize;
+    let mut ta_count = 0usize;
+    let mut latin_count = 0usize;
+    let mut deva_count = 0usize;
+
+    for ch in text.chars() {
+        match ch as u32 {
+            0x0C80..=0x0CFF => kn_count += 1,
+            0x0B80..=0x0BFF => ta_count += 1,
+            0x0900..=0x097F => deva_count += 1,
+            0x0041..=0x005A | 0x0061..=0x007A => latin_count += 1,
+            _ => {}
+        }
+    }
+
+    let total = kn_count + ta_count + latin_count + deva_count;
+    if total == 0 {
+        return None;
+    }
+
+    if kn_count >= ta_count && kn_count >= latin_count && kn_count >= deva_count {
+        Some(crate::language::LanguageCode::KnIn)
+    } else if ta_count >= kn_count && ta_count >= latin_count && ta_count >= deva_count {
+        Some(crate::language::LanguageCode::TaIn)
+    } else if latin_count >= kn_count && latin_count >= ta_count && latin_count >= deva_count {
+        Some(crate::language::LanguageCode::EnUs)
+    } else if deva_count >= kn_count && deva_count >= ta_count && deva_count >= latin_count {
+        Some(crate::language::LanguageCode::HiIn)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::language::LanguageCode;
 
     #[test]
     fn test_script_detection() {
@@ -82,6 +117,17 @@ mod tests {
             detect_script("12345 !?"),
             DetectedScript::CommonOrPunctuation
         );
+    }
+
+    #[test]
+    fn test_detect_language() {
+        assert_eq!(detect_language("ನಮಸ್ಕಾರ ವಿಶ್ವವೇ"), Some(LanguageCode::KnIn));
+        assert_eq!(detect_language("வணக்கம் உலகம்"), Some(LanguageCode::TaIn));
+        assert_eq!(
+            detect_language("Hello LinguaFlow world!"),
+            Some(LanguageCode::EnUs)
+        );
+        assert_eq!(detect_language("12345 !?"), None);
     }
 
     #[test]

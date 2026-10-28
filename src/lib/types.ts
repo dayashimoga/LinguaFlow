@@ -97,3 +97,91 @@ export interface IpcResponse<T> {
     recoverable: boolean;
   } | null;
 }
+
+export interface DictionaryExample {
+  source: string;
+  target: string;
+}
+
+export interface DictionaryEntry {
+  id: string;
+  word: string;
+  normalized_word: string;
+  language: LanguageCode;
+  part_of_speech: string;
+  definition: string;
+  alternate_meanings: string[];
+  examples: DictionaryExample[];
+  pronunciation_ipa?: string | null;
+  transliteration?: string | null;
+  synonyms: string[];
+  antonyms: string[];
+  provenance: string;
+}
+
+export interface TranslationRecord {
+  id: string;
+  source_language: LanguageCode;
+  target_language: LanguageCode;
+  source_text: string;
+  translated_text: string;
+  engine_used: string;
+  latency_ms: number;
+  created_at: string;
+}
+
+export interface FavoriteItem {
+  id: string;
+  source_language: LanguageCode;
+  target_language: LanguageCode;
+  source_text: string;
+  translated_text: string;
+  notes?: string | null;
+  created_at: string;
+}
+
+export interface TranslateCmdRequest {
+  source_language: LanguageCode;
+  target_language: LanguageCode;
+  text: string;
+  allow_cloud: boolean;
+}
+
+export interface TranslateCmdResponse {
+  source_language: LanguageCode;
+  target_language: LanguageCode;
+  original_text: string;
+  translated_text: string;
+  engine_id: string;
+  is_offline: boolean;
+  latency_ms: number;
+}
+
+export interface DictionarySearchCmdRequest {
+  query: string;
+  language?: LanguageCode | null;
+  limit?: number;
+}
+
+export interface DictionarySearchCmdResponse {
+  entries: DictionaryEntry[];
+  query: string;
+  total_matches: number;
+}
+
+export interface DetectLanguageCmdRequest {
+  text: string;
+}
+
+export interface DetectLanguageCmdResponse {
+  detected: LanguageCode | null;
+}
+
+export interface AddFavoriteCmdRequest {
+  source_language: LanguageCode;
+  target_language: LanguageCode;
+  source_text: string;
+  translated_text: string;
+  notes?: string | null;
+}
+

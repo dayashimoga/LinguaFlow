@@ -112,6 +112,64 @@ impl CapabilityMatrix {
             media_subtitles: CapabilityState::ScheduledForStage(6),
         }
     }
+
+    pub fn stage_1_active() -> Self {
+        Self {
+            dictionary: CapabilityState::Active,
+            text_translation: CapabilityState::Active,
+            streaming_asr: CapabilityState::ScheduledForStage(3),
+            speech_synthesis: CapabilityState::ScheduledForStage(4),
+            offline_models: CapabilityState::ScheduledForStage(2),
+            live_conversation: CapabilityState::ScheduledForStage(4),
+            media_subtitles: CapabilityState::ScheduledForStage(6),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DictionaryExample {
+    pub source: String,
+    pub target: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DictionaryEntry {
+    pub id: String,
+    pub word: String,
+    pub normalized_word: String,
+    pub language: LanguageCode,
+    pub part_of_speech: String,
+    pub definition: String,
+    pub alternate_meanings: Vec<String>,
+    pub examples: Vec<DictionaryExample>,
+    pub pronunciation_ipa: Option<String>,
+    pub transliteration: Option<String>,
+    pub synonyms: Vec<String>,
+    pub antonyms: Vec<String>,
+    pub provenance: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TranslationRecord {
+    pub id: String,
+    pub source_language: LanguageCode,
+    pub target_language: LanguageCode,
+    pub source_text: String,
+    pub translated_text: String,
+    pub engine_used: String,
+    pub latency_ms: u64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct FavoriteItem {
+    pub id: String,
+    pub source_language: LanguageCode,
+    pub target_language: LanguageCode,
+    pub source_text: String,
+    pub translated_text: String,
+    pub notes: Option<String>,
+    pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -143,8 +201,8 @@ impl Default for AppInfo {
         Self {
             name: "LinguaFlow".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            stage: 0,
-            stage_name: "Foundation & Cross-Platform Host".into(),
+            stage: 1,
+            stage_name: "Dictionary & Text Translation".into(),
             platform: std::env::consts::OS.into(),
             arch: std::env::consts::ARCH.into(),
             build_profile: if cfg!(debug_assertions) {

@@ -102,6 +102,63 @@ pub struct DatabaseHealthInfo {
     pub error: Option<String>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TranslateCmdRequest {
+    pub source_language: crate::language::LanguageCode,
+    pub target_language: crate::language::LanguageCode,
+    pub text: String,
+    pub allow_cloud: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TranslateCmdResponse {
+    pub source_language: crate::language::LanguageCode,
+    pub target_language: crate::language::LanguageCode,
+    pub original_text: String,
+    pub translated_text: String,
+    pub engine_id: String,
+    pub is_offline: bool,
+    pub latency_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DictionarySearchCmdRequest {
+    pub query: String,
+    pub language: Option<crate::language::LanguageCode>,
+    pub limit: Option<usize>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DictionarySearchCmdResponse {
+    pub entries: Vec<crate::models::DictionaryEntry>,
+    pub query: String,
+    pub total_matches: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DetectLanguageCmdRequest {
+    pub text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DetectLanguageCmdResponse {
+    pub detected: Option<crate::language::LanguageCode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AddFavoriteCmdRequest {
+    pub source_language: crate::language::LanguageCode,
+    pub target_language: crate::language::LanguageCode,
+    pub source_text: String,
+    pub translated_text: String,
+    pub notes: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RemoveFavoriteCmdRequest {
+    pub id: String,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

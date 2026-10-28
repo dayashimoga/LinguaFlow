@@ -6,12 +6,17 @@ pub mod unicode;
 
 pub use error::LinguaError;
 pub use ipc::{
-    DatabaseHealthInfo, GetAppInfoResponse, GetCapabilitiesResponse, GetUserSettingsResponse,
-    IpcErrorPayload, IpcRequest, IpcResponse, ListModelPacksResponse, SaveUserSettingsRequest,
+    AddFavoriteCmdRequest, DatabaseHealthInfo, DetectLanguageCmdRequest, DetectLanguageCmdResponse,
+    DictionarySearchCmdRequest, DictionarySearchCmdResponse, GetAppInfoResponse,
+    GetCapabilitiesResponse, GetUserSettingsResponse, IpcErrorPayload, IpcRequest, IpcResponse,
+    ListModelPacksResponse, RemoveFavoriteCmdRequest, SaveUserSettingsRequest, TranslateCmdRequest,
+    TranslateCmdResponse,
 };
 pub use language::{LanguageCode, LanguagePair};
 pub use models::{
-    AppInfo, AudioSettings, CapabilityMatrix, CapabilityState, EnginePreference, ModelPackInfo,
-    ThemeMode, UserSettings,
+    AppInfo, AudioSettings, CapabilityMatrix, CapabilityState, DictionaryEntry, DictionaryExample,
+    EnginePreference, FavoriteItem, ModelPackInfo, ThemeMode, TranslationRecord, UserSettings,
 };
-pub use unicode::{detect_script, normalize_text_nfc, sanitize_translation_input, DetectedScript};
+pub use unicode::{
+    detect_language, detect_script, normalize_text_nfc, sanitize_translation_input, DetectedScript,
+};

@@ -156,7 +156,11 @@ async fn test_linguistic_edge_cases_and_error_handling() {
         .unwrap_err();
     match err_missing {
         LinguaError::OfflineModelMissing(msg) => {
-            assert!(msg.contains("offline dictionary"));
+            assert!(
+                msg.contains("offline storage")
+                    || msg.contains("Model Manager")
+                    || msg.contains("offline dictionary")
+            );
         }
         other => panic!("Expected OfflineModelMissing, got {:?}", other),
     }

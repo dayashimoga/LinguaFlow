@@ -124,6 +124,18 @@ impl CapabilityMatrix {
             media_subtitles: CapabilityState::ScheduledForStage(6),
         }
     }
+
+    pub fn stage_2_active() -> Self {
+        Self {
+            dictionary: CapabilityState::Active,
+            text_translation: CapabilityState::Active,
+            streaming_asr: CapabilityState::ScheduledForStage(3),
+            speech_synthesis: CapabilityState::ScheduledForStage(4),
+            offline_models: CapabilityState::Active,
+            live_conversation: CapabilityState::ScheduledForStage(4),
+            media_subtitles: CapabilityState::ScheduledForStage(6),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -172,6 +184,92 @@ pub struct FavoriteItem {
     pub created_at: DateTime<Utc>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "status", content = "detail")]
+pub enum ModelInstallState {
+    NotInstalled,
+    Downloading {
+        progress_pct: f32,
+        downloaded_bytes: u64,
+        total_bytes: u64,
+    },
+    Installed {
+        installed_at: DateTime<Utc>,
+        install_path: String,
+    },
+    Corrupted {
+        reason: String,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModelFileItem {
+    pub filename: String,
+    pub size_bytes: u64,
+    pub sha256: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ModelPackManifest {
+    pub id: String,
+    pub name: String,
+    pub version: String,
+    pub source_language: LanguageCode,
+    pub target_language: LanguageCode,
+    pub architecture: String,
+    pub size_bytes: u64,
+    pub sha256: String,
+    pub signature: String,
+    pub min_app_version: String,
+    pub files: Vec<ModelFileItem>,
+    pub vocab_size: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ModelPackDetailedInfo {
+    pub id: String,
+    pub name: String,
+    pub source: LanguageCode,
+    pub target: LanguageCode,
+    pub size_bytes: u64,
+    pub version: String,
+    pub sha256: String,
+    pub state: ModelInstallState,
+    pub architecture: String,
+    pub storage_path: Option<String>,
+    pub scheduled_stage: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DiskSpaceInfo {
+    pub available_bytes: u64,
+    pub total_bytes: u64,
+    pub models_dir: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CachedTranslation {
+    pub id: String,
+    pub source_language: LanguageCode,
+    pub target_language: LanguageCode,
+    pub source_text: String,
+    pub translated_text: String,
+    pub engine_id: String,
+    pub is_offline: bool,
+    pub created_at: DateTime<Utc>,
+    pub hit_count: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct MorphologyEntry {
+    pub id: String,
+    pub language: LanguageCode,
+    pub surface_form: String,
+    pub stem_form: String,
+    pub part_of_speech: Option<String>,
+    pub grammar_notes: Option<String>,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ModelPackInfo {
     pub id: String,
@@ -201,8 +299,8 @@ impl Default for AppInfo {
         Self {
             name: "LinguaFlow".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            stage: 1,
-            stage_name: "Dictionary & Text Translation".into(),
+            stage: 2,
+            stage_name: "Offline Translation".into(),
             platform: std::env::consts::OS.into(),
             arch: std::env::consts::ARCH.into(),
             build_profile: if cfg!(debug_assertions) {

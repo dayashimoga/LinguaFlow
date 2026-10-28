@@ -159,6 +159,45 @@ pub struct RemoveFavoriteCmdRequest {
     pub id: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DownloadModelCmdRequest {
+    pub model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CancelDownloadCmdRequest {
+    pub model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeleteModelCmdRequest {
+    pub model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VerifyModelCmdRequest {
+    pub model_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct VerifyModelCmdResponse {
+    pub model_id: String,
+    pub is_valid: bool,
+    pub details: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GetDiskSpaceCmdResponse {
+    pub available_bytes: u64,
+    pub total_bytes: u64,
+    pub models_path: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ListDetailedModelPacksResponse {
+    pub model_packs: Vec<crate::models::ModelPackDetailedInfo>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

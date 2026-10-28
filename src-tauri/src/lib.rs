@@ -43,6 +43,12 @@ pub fn run() {
             commands::lingua_command_list_favorites,
             commands::lingua_command_add_favorite,
             commands::lingua_command_remove_favorite,
+            commands::lingua_command_list_detailed_model_packs,
+            commands::lingua_command_get_detailed_model_pack,
+            commands::lingua_command_download_model_pack,
+            commands::lingua_command_verify_model_pack,
+            commands::lingua_command_delete_model_pack,
+            commands::lingua_command_get_disk_space,
         ])
         .run(tauri::generate_context!())
         .expect("error while running LinguaFlow application");

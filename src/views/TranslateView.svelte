@@ -22,6 +22,7 @@
 
   export let settings: UserSettings | null = null;
   export let onSaveSettings: (settings: UserSettings) => Promise<void>;
+  export let onNavigate: ((view: string) => void) | undefined = undefined;
 
   let sourceText = '';
   let sourceLang: LanguageCode = settings?.source_language ?? 'en-US';
@@ -350,7 +351,17 @@
         {#if translationResult}
           <div class="badge-group">
             <span class="badge {translationResult.is_offline ? 'badge-offline' : 'badge-online'}">
-              {translationResult.is_offline ? '⚡ Offline Lexicon' : '🌐 Cloud HTTP'}
+              {#if translationResult.is_offline}
+                {#if translationResult.engine_id.includes('cache')}
+                  ⚡ Offline Cache
+                {:else if translationResult.engine_id.includes('indictrans2') || translationResult.engine_id.includes('local')}
+                  ⚡ Local Neural Model
+                {:else}
+                  ⚡ Offline Lexicon
+                {/if}
+              {:else}
+                🌐 Cloud HTTP
+              {/if}
             </span>
             <span class="latency-badge">{translationResult.latency_ms} ms</span>
           </div>
@@ -367,13 +378,20 @@
           <div class="error-notice">
             <div class="error-icon">⚠️</div>
             <div class="error-body">
-              <h4>Translation Issue</h4>
+              <h4>Translation Notice</h4>
               <p>{translationError}</p>
-              {#if !allowCloud}
-                <button class="btn-primary-sm" on:click={() => { allowCloud = true; executeTranslation(); }}>
-                  Enable Cloud Provider
-                </button>
-              {/if}
+              <div class="error-actions" style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                {#if !allowCloud}
+                  <button class="btn-primary-sm" on:click={() => { allowCloud = true; executeTranslation(); }}>
+                    Enable Cloud Provider
+                  </button>
+                {/if}
+                {#if onNavigate}
+                  <button class="btn-primary-sm" style="background: #6366f1;" on:click={() => onNavigate?.('downloads')}>
+                    📦 Open Model Manager
+                  </button>
+                {/if}
+              </div>
             </div>
           </div>
         {:else if translationResult}

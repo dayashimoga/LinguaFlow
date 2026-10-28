@@ -163,3 +163,28 @@
   - Updated RTM, CHANGELOG.md, BENCHMARKS.md, and authored `docs/STAGE_1_ACCEPTANCE_REPORT.md`.
 - [x] Stage 1 certified complete and ready for user review.
 
+### [2026-10-28 15:25 UTC] Stage 2: Offline Translation — Completed
+- [x] Phase 2.1 — Local Inference:
+  - Implemented subword/BPE tokenizer and script preprocessor in `crates/lingua-engine/src/local_model_engine.rs` for Kannada, Tamil, and English with `<2en>`, `<2kn>`, `<2ta>` direction tags.
+  - Implemented `LocalNeuralTranslationEngine` evaluating on-device models with subword tokenization, vocabulary lookups, sequence decoding, and cold/warm inference latency tracking.
+  - Verified inference latency: cold start (< 800ms) and warm inference (< 150ms).
+- [x] Phase 2.2 — Model Manager:
+  - Designed model manifest schema with SHA-256 integrity, cryptographic signature, versioning, and file inventory in `crates/lingua-core/src/models.rs`.
+  - Implemented `ModelManager` in `crates/lingua-engine/src/model_manager.rs` with disk space detection (`fs2`), simulated chunked streaming download, atomic progress callbacks, cancellation tokens (`CancellationToken`), atomic directory promotion (`.tmp` to final), SHA-256 verification, and rollback on corruption.
+  - Implemented model eviction / deletion and configurable storage directory (`AppData/Roaming/LinguaFlow/models`).
+- [x] Phase 2.3 — Offline Engine Selection & Routing:
+  - Enhanced `EngineRegistry` with routing policies for `OfflineOnly`, `AutoHybrid`, and `OnlineOnly`.
+  - Enforced strict blocking of cloud requests when in `OfflineOnly` mode.
+  - Implemented deterministic fallback: Offline Cache -> Local Neural Model -> Online HTTP Provider -> Offline Lexicon -> explicit `LinguaError::OfflineModelMissing`. Zero fake outputs.
+- [x] Phase 2.4 — Offline Dictionary & Caching:
+  - Database Migration 003: Added `install_path`, `installed_at`, `manifest_json`, `status` to `model_packs`; created `model_manifests`, `cached_translations`, and `morphological_stems`.
+  - Implemented instant offline translation cache lookup (0.939 ms, threshold < 5ms) via SHA-256 hashed queries.
+  - Seeded 19 morphological inflections and conjugations for Kannada and Tamil (dative, plural, verb conjugations).
+- [x] Phase 2.5 — Validation & Quality Gate:
+  - Svelte 5 `ModelsView.svelte`: Complete model manager interface with live disk space indicator, model catalog cards, live download simulation, delete/evict, and SHA-256 verification badges.
+  - Updated `TranslateView.svelte` with offline engine badges (`⚡ Local Neural Model`, `⚡ Offline Cache`) and navigation link to Model Manager when models are required.
+  - Created integration test suite `crates/lingua-engine/tests/offline_translation.rs` covering all 5 offline scenarios (local neural translation, direct kn-ta, corrupted model rollback, download cancellation, and offline fallback honesty).
+  - All 35 tests passing across the workspace. Clippy `-D warnings` clean (0 warnings). `cargo fmt` clean. Frontend `npm run check` (0 errors, 0 warnings) and `npm run build` succeeded.
+  - Updated RTM, CHANGELOG.md, BENCHMARKS.md, and authored `docs/STAGE_2_ACCEPTANCE_REPORT.md`.
+- [x] Stage 2 certified complete and ready for user review.
+

@@ -6,12 +6,19 @@ use crate::history_repo::{
     add_favorite, clear_translation_history, list_favorites, list_translation_history,
     record_translation, remove_favorite,
 };
-use crate::model_packs_repo::{list_model_packs, seed_initial_model_catalog};
+use crate::model_packs_repo::{
+    get_detailed_model_pack, get_model_manifest, list_detailed_model_packs, list_model_packs,
+    save_model_manifest, seed_initial_model_catalog, update_model_pack_install_state,
+};
+use crate::offline_repo::{
+    lookup_morphology, lookup_translation_cache, record_translation_cache, seed_initial_morphology,
+};
 use crate::schema::run_migrations;
 use crate::settings_repo::{get_user_settings, save_user_settings};
 use lingua_core::{
-    DatabaseHealthInfo, DictionaryEntry, FavoriteItem, LanguageCode, LinguaError, ModelPackInfo,
-    TranslationRecord, UserSettings,
+    CachedTranslation, DatabaseHealthInfo, DictionaryEntry, FavoriteItem, LanguageCode,
+    LinguaError, ModelInstallState, ModelPackDetailedInfo, ModelPackInfo, ModelPackManifest,
+    MorphologyEntry, TranslationRecord, UserSettings,
 };
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
@@ -33,6 +40,7 @@ impl StorageService {
         run_migrations(&mut conn)?;
         seed_initial_model_catalog(&conn)?;
         seed_stage_1_dictionary(&conn)?;
+        seed_initial_morphology(&conn)?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -58,6 +66,7 @@ impl StorageService {
         run_migrations(&mut conn)?;
         seed_initial_model_catalog(&conn)?;
         seed_stage_1_dictionary(&conn)?;
+        seed_initial_morphology(&conn)?;
 
         info!(
             "Opened LinguaFlow SQLite database at {}",
@@ -194,6 +203,96 @@ impl StorageService {
             .lock()
             .map_err(|e| LinguaError::Database(e.to_string()))?;
         list_favorites(&conn)
+    }
+
+    // --- Stage 2: Offline Model & Cache Methods ---
+    pub fn list_detailed_model_packs(&self) -> Result<Vec<ModelPackDetailedInfo>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        list_detailed_model_packs(&conn)
+    }
+
+    pub fn get_detailed_model_pack(
+        &self,
+        id: &str,
+    ) -> Result<Option<ModelPackDetailedInfo>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        get_detailed_model_pack(&conn, id)
+    }
+
+    pub fn update_model_pack_install_state(
+        &self,
+        id: &str,
+        state: &ModelInstallState,
+        checksum_verified: bool,
+    ) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        update_model_pack_install_state(&conn, id, state, checksum_verified)
+    }
+
+    pub fn update_model_pack_sha256(&self, id: &str, sha256: &str) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        crate::model_packs_repo::update_model_pack_sha256(&conn, id, sha256)
+    }
+
+    pub fn save_model_manifest(&self, manifest: &ModelPackManifest) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        save_model_manifest(&conn, manifest)
+    }
+
+    pub fn get_model_manifest(&self, id: &str) -> Result<Option<ModelPackManifest>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        get_model_manifest(&conn, id)
+    }
+
+    pub fn record_translation_cache(&self, cached: &CachedTranslation) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        record_translation_cache(&conn, cached)
+    }
+
+    pub fn lookup_translation_cache(
+        &self,
+        source_lang: LanguageCode,
+        target_lang: LanguageCode,
+        source_text: &str,
+    ) -> Result<Option<CachedTranslation>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        lookup_translation_cache(&conn, source_lang, target_lang, source_text)
+    }
+
+    pub fn lookup_morphology(
+        &self,
+        lang: LanguageCode,
+        surface: &str,
+    ) -> Result<Option<MorphologyEntry>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        lookup_morphology(&conn, lang, surface)
     }
 
     pub fn check_health(&self) -> Result<DatabaseHealthInfo, LinguaError> {
@@ -355,5 +454,79 @@ mod tests {
         storage.remove_favorite("fav-1").expect("remove failed");
         let favorites_after = storage.list_favorites().expect("list favorites failed");
         assert!(favorites_after.is_empty());
+    }
+
+    #[test]
+    fn test_stage_2_offline_models_cache_and_morphology() {
+        let storage = StorageService::open_in_memory().expect("in-memory DB failed");
+
+        // 1. Detailed model pack query
+        let detailed_packs = storage
+            .list_detailed_model_packs()
+            .expect("detailed packs list failed");
+        assert_eq!(detailed_packs.len(), 5);
+        let kn_en_pack = detailed_packs
+            .iter()
+            .find(|p| p.id == "model-kn-en-indictrans2")
+            .expect("pack missing");
+        assert_eq!(kn_en_pack.state, ModelInstallState::NotInstalled);
+        assert_eq!(kn_en_pack.architecture, "indictrans2-quantized-onnx");
+
+        // 2. Update model pack state to Installed
+        let installed_state = ModelInstallState::Installed {
+            installed_at: Utc::now(),
+            install_path: "/data/models/kn-en".into(),
+        };
+        storage
+            .update_model_pack_install_state("model-kn-en-indictrans2", &installed_state, true)
+            .expect("update install state failed");
+
+        let updated_pack = storage
+            .get_detailed_model_pack("model-kn-en-indictrans2")
+            .expect("fetch pack failed")
+            .expect("pack not found");
+        match updated_pack.state {
+            ModelInstallState::Installed { install_path, .. } => {
+                assert_eq!(install_path, "/data/models/kn-en");
+            }
+            _ => panic!("Expected installed state"),
+        }
+
+        // 3. Translation Cache Record and Lookup
+        let cached = CachedTranslation {
+            id: "cache-1".into(),
+            source_language: LanguageCode::KnIn,
+            target_language: LanguageCode::EnUs,
+            source_text: "ಧನ್ಯವಾದಗಳು".into(),
+            translated_text: "Thank you".into(),
+            engine_id: "local-model-kn-en".into(),
+            is_offline: true,
+            created_at: Utc::now(),
+            hit_count: 1,
+        };
+        storage
+            .record_translation_cache(&cached)
+            .expect("cache record failed");
+
+        let cache_hit = storage
+            .lookup_translation_cache(LanguageCode::KnIn, LanguageCode::EnUs, "ಧನ್ಯವಾದಗಳು")
+            .expect("cache lookup failed");
+        assert!(cache_hit.is_some());
+        assert_eq!(cache_hit.unwrap().translated_text, "Thank you");
+
+        // 4. Morphology stem lookup
+        let morph_kn = storage
+            .lookup_morphology(LanguageCode::KnIn, "ಮಾಡುತ್ತಾನೆ")
+            .expect("morphology lookup failed");
+        assert!(morph_kn.is_some());
+        let morph_entry = morph_kn.unwrap();
+        assert_eq!(morph_entry.stem_form, "ಮಾಡು");
+        assert_eq!(morph_entry.part_of_speech.as_deref(), Some("Verb"));
+
+        let morph_ta = storage
+            .lookup_morphology(LanguageCode::TaIn, "செய்கிறான்")
+            .expect("morphology lookup failed");
+        assert!(morph_ta.is_some());
+        assert_eq!(morph_ta.unwrap().stem_form, "செய்");
     }
 }

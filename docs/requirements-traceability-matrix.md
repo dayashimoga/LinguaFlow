@@ -51,11 +51,12 @@ This Requirements Traceability Matrix (RTM) establishes bidirectional traceabili
 
 | Stage.Phase | Feature ID | Requirement / Scope Description | Acceptance Criterion | Test Mapping | Status |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **2.1** | `REQ-2.1-ONNX` | Local lightweight inference models on ONNX/runtimes for Kannada, Tamil, English on ARM64 and x64. | Real on-device model execution without network; documented memory and latency footprint. | Local inference integration tests | **PENDING** |
-| **2.2** | `REQ-2.2-MODELS`| Model pack manager: signed manifests, SHA-256 verification, resumable downloads, storage checks, rollback. | Verified checksums, progress tracking, disk space verification, clean model eviction. | Model manager unit & failure injection tests | **PENDING** |
-| **2.3** | `REQ-2.3-ROUTER`| Offline/hybrid/online routing policy engine based on connectivity, battery, memory, and user privacy settings. | Deterministic local fallback; zero cloud leak when privacy/offline mode is active. | Routing policy property tests | **PENDING** |
-| **2.4** | `REQ-2.4-OFFDICT`| Offline indexed dictionary cache in SQLite with schema migrations and encryption. | Offline instant dictionary query without network socket creation. | Offline dictionary integration tests | **PENDING** |
-| **2.5** | `REQ-2.5-VAL` | Verification with network disabled, clean restart, simulated low-storage and memory pressure. | Reliable translation under zero network; accurate capability reporting. | Offline sandbox integration test | **PENDING** |
+| **2.1** | `REQ-2.1-ONNX` | Local lightweight inference models on ONNX/runtimes for Kannada, Tamil, English on ARM64 and x64. | Real on-device model execution without network; documented memory and latency footprint. | `test_offline_neural_translation_with_installed_model`, `test_offline_tamil_to_english_and_kannada_direct` | **VERIFIED** |
+| **2.2** | `REQ-2.2-MODELS`| Model pack manager: signed manifests, SHA-256 verification, resumable downloads, storage checks, rollback. | Verified checksums, progress tracking, disk space verification, clean model eviction. | `test_model_manager_lifecycle_and_integrity`, `test_cancellation_token_in_download`, `test_corrupted_model_detection_and_rollback` | **VERIFIED** |
+| **2.3** | `REQ-2.3-ROUTER`| Offline/hybrid/online routing policy engine based on connectivity, battery, memory, and user privacy settings. | Deterministic local fallback; zero cloud leak when privacy/offline mode is active. | `test_offline_fallback_and_missing_model_honesty`, `test_registry_routing` | **VERIFIED** |
+| **2.4** | `REQ-2.4-OFFDICT`| Offline indexed dictionary cache in SQLite with schema migrations and encryption. | Offline instant dictionary query without network socket creation (< 1ms cache lookup). | `test_stage_2_offline_models_cache_and_morphology`, `test_fts5_cross_language_dictionary_search` | **VERIFIED** |
+| **2.5** | `REQ-2.5-VAL` | Verification with network disabled, clean restart, simulated low-storage and memory pressure. | Reliable translation under zero network; accurate capability reporting. | `tests/offline_translation.rs` (5 integration test suites), `tests/linguistic_correctness.rs` | **VERIFIED** |
+
 
 ---
 

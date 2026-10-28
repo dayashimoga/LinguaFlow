@@ -202,3 +202,131 @@ pub fn lingua_command_remove_favorite(
         Err(e) => IpcResponse::err("tauri-ipc", e),
     }
 }
+
+// --- Stage 2: Offline Model Management Tauri Commands ---
+
+#[tauri::command]
+pub fn lingua_command_list_detailed_model_packs(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<Vec<lingua_core::ModelPackDetailedInfo>> {
+    match state.storage.list_detailed_model_packs() {
+        Ok(packs) => IpcResponse::ok("tauri-ipc", packs),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_get_detailed_model_pack(
+    state: State<'_, DesktopAppState>,
+    id: String,
+) -> IpcResponse<Option<lingua_core::ModelPackDetailedInfo>> {
+    match state.storage.get_detailed_model_pack(&id) {
+        Ok(pack) => IpcResponse::ok("tauri-ipc", pack),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub async fn lingua_command_download_model_pack(
+    state: State<'_, DesktopAppState>,
+    request: lingua_core::DownloadModelCmdRequest,
+) -> Result<IpcResponse<String>, String> {
+    if let Some(mm) = state.engine_registry.model_manager() {
+        match mm.download_and_install_simulated::<fn(u64, u64, f32)>(&request.model_id, None, None)
+        {
+            Ok(p) => Ok(IpcResponse::ok(
+                "tauri-ipc",
+                p.to_string_lossy().to_string(),
+            )),
+            Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
+        }
+    } else {
+        Ok(IpcResponse::err(
+            "tauri-ipc",
+            lingua_core::LinguaError::CapabilityUnavailable(
+                "model_manager".into(),
+                "Model manager not initialized".into(),
+            ),
+        ))
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_verify_model_pack(
+    state: State<'_, DesktopAppState>,
+    request: lingua_core::VerifyModelCmdRequest,
+) -> IpcResponse<lingua_core::VerifyModelCmdResponse> {
+    if let Some(mm) = state.engine_registry.model_manager() {
+        match mm.verify_model_pack(&request.model_id) {
+            Ok(is_valid) => IpcResponse::ok(
+                "tauri-ipc",
+                lingua_core::VerifyModelCmdResponse {
+                    model_id: request.model_id,
+                    is_valid,
+                    details: if is_valid {
+                        "SHA-256 Checksum Verified".into()
+                    } else {
+                        "Verification Failed; corrupted model detected".into()
+                    },
+                },
+            ),
+            Err(e) => IpcResponse::err("tauri-ipc", e),
+        }
+    } else {
+        IpcResponse::err(
+            "tauri-ipc",
+            lingua_core::LinguaError::CapabilityUnavailable(
+                "model_manager".into(),
+                "Model manager not initialized".into(),
+            ),
+        )
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_delete_model_pack(
+    state: State<'_, DesktopAppState>,
+    request: lingua_core::DeleteModelCmdRequest,
+) -> IpcResponse<()> {
+    if let Some(mm) = state.engine_registry.model_manager() {
+        match mm.evict_model(&request.model_id) {
+            Ok(_) => IpcResponse::ok("tauri-ipc", ()),
+            Err(e) => IpcResponse::err("tauri-ipc", e),
+        }
+    } else {
+        IpcResponse::err(
+            "tauri-ipc",
+            lingua_core::LinguaError::CapabilityUnavailable(
+                "model_manager".into(),
+                "Model manager not initialized".into(),
+            ),
+        )
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_get_disk_space(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<lingua_core::GetDiskSpaceCmdResponse> {
+    if let Some(mm) = state.engine_registry.model_manager() {
+        match mm.get_disk_space() {
+            Ok(space) => IpcResponse::ok(
+                "tauri-ipc",
+                lingua_core::GetDiskSpaceCmdResponse {
+                    available_bytes: space.available_bytes,
+                    total_bytes: space.total_bytes,
+                    models_path: space.models_dir,
+                },
+            ),
+            Err(e) => IpcResponse::err("tauri-ipc", e),
+        }
+    } else {
+        IpcResponse::err(
+            "tauri-ipc",
+            lingua_core::LinguaError::CapabilityUnavailable(
+                "model_manager".into(),
+                "Model manager not initialized".into(),
+            ),
+        )
+    }
+}

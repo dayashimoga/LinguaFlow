@@ -12,8 +12,9 @@ use axum::{
 use lingua_core::{
     detect_language, AddFavoriteCmdRequest, AppInfo, CapabilityMatrix, DatabaseHealthInfo,
     DetectLanguageCmdRequest, DetectLanguageCmdResponse, DictionaryEntry,
-    DictionarySearchCmdResponse, FavoriteItem, LanguageCode, LanguagePair, ModelPackInfo,
-    TranslateCmdRequest, TranslateCmdResponse, TranslationRecord, UserSettings,
+    DictionarySearchCmdResponse, DiskSpaceInfo, FavoriteItem, LanguageCode, LanguagePair,
+    ModelPackDetailedInfo, ModelPackInfo, TranslateCmdRequest, TranslateCmdResponse,
+    TranslationRecord, UserSettings, VerifyModelCmdResponse,
 };
 use lingua_engine::TranslationRequest;
 use serde::Deserialize;
@@ -37,6 +38,14 @@ pub fn create_router(state: ServerState) -> Router {
             get(get_settings_handler).post(save_settings_handler),
         )
         .route("/api/v1/model-packs", get(model_packs_handler))
+        .route("/api/v1/models", get(list_models_handler))
+        .route(
+            "/api/v1/models/{id}",
+            get(get_model_handler).delete(delete_model_handler),
+        )
+        .route("/api/v1/models/download/{id}", post(download_model_handler))
+        .route("/api/v1/models/verify/{id}", post(verify_model_handler))
+        .route("/api/v1/models/disk-space", get(get_disk_space_handler))
         .route("/api/v1/translate", post(translate_handler))
         .route("/api/v1/dictionary/search", get(dictionary_search_handler))
         .route("/api/v1/dictionary/word/{id}", get(dictionary_word_handler))
@@ -98,6 +107,102 @@ async fn model_packs_handler(
     match state.storage.list_model_packs() {
         Ok(packs) => Ok(Json(packs)),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn list_models_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<Vec<ModelPackDetailedInfo>>, StatusCode> {
+    state
+        .storage
+        .list_detailed_model_packs()
+        .map(Json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+async fn get_model_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+) -> Result<Json<Option<ModelPackDetailedInfo>>, StatusCode> {
+    state
+        .storage
+        .get_detailed_model_pack(&id)
+        .map(Json)
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)
+}
+
+async fn download_model_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+) -> Result<Json<String>, (StatusCode, String)> {
+    if let Some(mm) = state.engine_registry.model_manager() {
+        match mm.download_and_install_simulated::<fn(u64, u64, f32)>(&id, None, None) {
+            Ok(path) => Ok(Json(path.to_string_lossy().to_string())),
+            Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+        }
+    } else {
+        Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Model manager not initialized".into(),
+        ))
+    }
+}
+
+async fn verify_model_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+) -> Result<Json<VerifyModelCmdResponse>, (StatusCode, String)> {
+    if let Some(mm) = state.engine_registry.model_manager() {
+        match mm.verify_model_pack(&id) {
+            Ok(is_valid) => Ok(Json(VerifyModelCmdResponse {
+                model_id: id,
+                is_valid,
+                details: if is_valid {
+                    "Checksum verified".into()
+                } else {
+                    "Verification failed".into()
+                },
+            })),
+            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        }
+    } else {
+        Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Model manager not initialized".into(),
+        ))
+    }
+}
+
+async fn delete_model_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+) -> Result<StatusCode, (StatusCode, String)> {
+    if let Some(mm) = state.engine_registry.model_manager() {
+        match mm.evict_model(&id) {
+            Ok(_) => Ok(StatusCode::NO_CONTENT),
+            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        }
+    } else {
+        Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Model manager not initialized".into(),
+        ))
+    }
+}
+
+async fn get_disk_space_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<DiskSpaceInfo>, (StatusCode, String)> {
+    if let Some(mm) = state.engine_registry.model_manager() {
+        match mm.get_disk_space() {
+            Ok(space) => Ok(Json(space)),
+            Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+        }
+    } else {
+        Err((
+            StatusCode::SERVICE_UNAVAILABLE,
+            "Model manager not initialized".into(),
+        ))
     }
 }
 

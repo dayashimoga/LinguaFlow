@@ -1,11 +1,14 @@
 use crate::http_provider::HttpTranslationProvider;
 use crate::lexicon_engine::LexiconTranslationEngine;
+use crate::local_model_engine::LocalNeuralTranslationEngine;
+use crate::model_manager::ModelManager;
 use crate::traits::{TranslationEngine, TranslationRequest, TranslationResponse};
 use chrono::Utc;
 use lingua_core::{
     normalize_text_nfc, CapabilityMatrix, CapabilityState, LinguaError, TranslationRecord,
 };
 use lingua_storage::StorageService;
+use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
 use uuid::Uuid;
@@ -13,6 +16,7 @@ use uuid::Uuid;
 pub struct EngineRegistry {
     translation_engines: Vec<Arc<dyn TranslationEngine>>,
     storage: Option<StorageService>,
+    model_manager: Option<Arc<ModelManager>>,
 }
 
 impl EngineRegistry {
@@ -20,23 +24,44 @@ impl EngineRegistry {
         Self {
             translation_engines: Vec::new(),
             storage: None,
+            model_manager: None,
         }
     }
 
     pub fn new_with_storage(storage: StorageService) -> Self {
+        Self::new_with_storage_and_models(storage, ModelManager::default_models_dir())
+    }
+
+    pub fn new_with_storage_and_models(storage: StorageService, models_dir: PathBuf) -> Self {
         let mut registry = Self {
             translation_engines: Vec::new(),
             storage: Some(storage.clone()),
+            model_manager: None,
         };
 
-        // Register authentic Lexicon Translation Engine (offline)
+        // Initialize ModelManager
+        if let Ok(mm) = ModelManager::new(storage.clone(), models_dir.clone()) {
+            registry.model_manager = Some(Arc::new(mm));
+        }
+
+        // 1. Register Local Neural Translation Engine (on-device offline model)
+        registry.register_translation_engine(Arc::new(LocalNeuralTranslationEngine::new(
+            storage.clone(),
+            models_dir,
+        )));
+
+        // 2. Register Authentic Lexicon Translation Engine (offline lexicon)
         registry
             .register_translation_engine(Arc::new(LexiconTranslationEngine::new(storage.clone())));
 
-        // Register authentic HTTP Translation Provider (online)
+        // 3. Register Authentic HTTP Translation Provider (online cloud)
         registry.register_translation_engine(Arc::new(HttpTranslationProvider::default()));
 
         registry
+    }
+
+    pub fn model_manager(&self) -> Option<Arc<ModelManager>> {
+        self.model_manager.clone()
     }
 
     pub fn register_translation_engine(&mut self, engine: Arc<dyn TranslationEngine>) {
@@ -49,7 +74,7 @@ impl EngineRegistry {
     }
 
     pub fn get_capabilities(&self) -> CapabilityMatrix {
-        let mut matrix = CapabilityMatrix::stage_1_active();
+        let mut matrix = CapabilityMatrix::stage_2_active();
 
         if !self.translation_engines.is_empty() {
             matrix.text_translation = CapabilityState::Active;
@@ -72,7 +97,43 @@ impl EngineRegistry {
             ));
         }
 
-        // 1. If online/cloud allowed, attempt HTTP provider first for arbitrary text
+        // 1. Check local translation cache for instant response
+        if let Some(ref storage) = self.storage {
+            if let Ok(Some(cached)) =
+                storage.lookup_translation_cache(req.pair.source, req.pair.target, &cleaned)
+            {
+                return Ok(TranslationResponse {
+                    pair: req.pair,
+                    original_text: cleaned,
+                    translated_text: cached.translated_text,
+                    engine_id: format!("{}:cache", cached.engine_id),
+                    is_offline: true,
+                    latency_ms: 1,
+                });
+            }
+        }
+
+        // 2. Check local on-device neural engine (if installed for this pair)
+        if let Some(local_engine) = self
+            .translation_engines
+            .iter()
+            .find(|e| e.id() == "local-neural-indictrans2" && e.supports_pair(&req.pair))
+        {
+            if local_engine.capability_state(&req.pair) == CapabilityState::Active {
+                match local_engine.translate(req.clone()).await {
+                    Ok(res) => {
+                        self.record_history(&res);
+                        return Ok(res);
+                    }
+                    Err(LinguaError::OfflineModelMissing(_)) => {
+                        // Fall through to other engines
+                    }
+                    Err(e) => return Err(e),
+                }
+            }
+        }
+
+        // 3. If online/cloud allowed, attempt HTTP provider for arbitrary sentences
         if req.allow_cloud {
             if let Some(http_engine) = self
                 .translation_engines
@@ -86,25 +147,45 @@ impl EngineRegistry {
                     }
                     Err(e) => {
                         info!(
-                            "HTTP translation failed ({}), attempting offline lexicon fallback",
+                            "HTTP translation failed ({}), falling back to offline engines",
                             e
                         );
-                        // Fall through to offline lexicon
                     }
                 }
             }
         }
 
-        // 2. Query offline engines (e.g. Lexicon or local models)
+        // 4. Query offline lexicon engine
+        if let Some(lexicon_engine) = self
+            .translation_engines
+            .iter()
+            .find(|e| e.id() == "verified-lexicon-engine" && e.supports_pair(&req.pair))
+        {
+            match lexicon_engine.translate(req.clone()).await {
+                Ok(res) => {
+                    self.record_history(&res);
+                    return Ok(res);
+                }
+                Err(LinguaError::OfflineModelMissing(_)) => {
+                    // Fall through
+                }
+                Err(e) => return Err(e),
+            }
+        }
+
+        // 5. Query any other registered offline engines
         for engine in &self.translation_engines {
-            if engine.id() != "http-rest-provider" && engine.supports_pair(&req.pair) {
+            if engine.id() != "http-rest-provider"
+                && engine.id() != "local-neural-indictrans2"
+                && engine.id() != "verified-lexicon-engine"
+                && engine.supports_pair(&req.pair)
+            {
                 match engine.translate(req.clone()).await {
                     Ok(res) => {
                         self.record_history(&res);
                         return Ok(res);
                     }
                     Err(LinguaError::OfflineModelMissing(_)) => {
-                        // Continue to other engines if any
                         continue;
                     }
                     Err(e) => return Err(e),
@@ -112,11 +193,12 @@ impl EngineRegistry {
             }
         }
 
-        // If cloud was not allowed and lexicon didn't contain the term
+        // If offline and term could not be translated
         if !req.allow_cloud {
+            let required_pack = LocalNeuralTranslationEngine::required_model_pack_id(&req.pair);
             return Err(LinguaError::OfflineModelMissing(format!(
-                "Text '{}' for pair {} is not available in the offline dictionary. Enable online translation or download additional models in Stage 2.",
-                cleaned, req.pair
+                "Text '{cleaned}' for pair {} is not available in offline storage. Install model pack '{required_pack}' in the Model Manager for full offline translation.",
+                req.pair
             )));
         }
 
@@ -209,7 +291,7 @@ mod tests {
         assert!(result.is_err());
         match result {
             Err(LinguaError::OfflineModelMissing(detail)) => {
-                assert!(detail.contains("offline dictionary"));
+                assert!(detail.contains("offline storage") || detail.contains("Model Manager"));
             }
             Err(LinguaError::CapabilityUnavailable(cap, detail)) => {
                 assert_eq!(cap, "text_translation");

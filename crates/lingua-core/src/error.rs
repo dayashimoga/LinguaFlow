@@ -38,6 +38,15 @@ pub enum LinguaError {
     #[error("Offline model missing: {0}")]
     OfflineModelMissing(String),
 
+    #[error("Model not found: {0}")]
+    ModelNotFound(String),
+
+    #[error("Download cancelled: {0}")]
+    DownloadCancelled(String),
+
+    #[error("Download failed: {0}")]
+    DownloadFailed(String),
+
     #[error("Not found: {0}")]
     NotFound(String),
 
@@ -59,6 +68,9 @@ impl LinguaError {
             LinguaError::Validation(_) => "VALIDATION_ERROR",
             LinguaError::TranslationFailed(_) => "TRANSLATION_FAILED",
             LinguaError::OfflineModelMissing(_) => "OFFLINE_MODEL_MISSING",
+            LinguaError::ModelNotFound(_) => "MODEL_NOT_FOUND",
+            LinguaError::DownloadCancelled(_) => "DOWNLOAD_CANCELLED",
+            LinguaError::DownloadFailed(_) => "DOWNLOAD_FAILED",
             LinguaError::NotFound(_) => "NOT_FOUND",
             LinguaError::Internal(_) => "INTERNAL_ERROR",
         }
@@ -74,6 +86,9 @@ impl LinguaError {
                 | LinguaError::OfflineModelMissing(_)
                 | LinguaError::IdenticalLanguagePair(_, _)
                 | LinguaError::AudioDeviceError(_)
+                | LinguaError::ModelNotFound(_)
+                | LinguaError::DownloadCancelled(_)
+                | LinguaError::DownloadFailed(_)
                 | LinguaError::NotFound(_)
         )
     }

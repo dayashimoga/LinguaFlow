@@ -73,7 +73,25 @@ mod tests {
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let caps: CapabilityMatrix = serde_json::from_slice(&body).unwrap();
-        assert_eq!(caps, CapabilityMatrix::stage_1_active());
+        assert_eq!(caps, CapabilityMatrix::stage_2_active());
+
+        // Test /api/v1/models
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/models")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let models: Vec<lingua_core::ModelPackDetailedInfo> =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(models.len(), 5);
 
         // Test /api/v1/translate
         let translate_payload = serde_json::to_string(&TranslateCmdRequest {

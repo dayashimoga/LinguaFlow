@@ -185,3 +185,42 @@ export interface AddFavoriteCmdRequest {
   notes?: string | null;
 }
 
+export type ModelInstallStatus =
+  | { status: 'NotInstalled' }
+  | { status: 'Downloading'; detail: { progress_pct: number; downloaded_bytes: number; total_bytes: number } }
+  | { status: 'Installed'; detail: { installed_at: string; install_path: string } }
+  | { status: 'Corrupted'; detail: { reason: string } };
+
+export interface ModelPackDetailedInfo {
+  id: string;
+  name: string;
+  source: LanguageCode;
+  target: LanguageCode;
+  size_bytes: number;
+  version: string;
+  sha256: string;
+  state: ModelInstallStatus;
+  architecture: string;
+  storage_path?: string | null;
+  scheduled_stage: number;
+}
+
+export interface DiskSpaceInfo {
+  available_bytes: number;
+  total_bytes: number;
+  models_dir: string;
+}
+
+export interface VerifyModelCmdResponse {
+  model_id: string;
+  is_valid: boolean;
+  details: string;
+}
+
+export interface GetDiskSpaceCmdResponse {
+  available_bytes: number;
+  total_bytes: number;
+  models_path: string;
+}
+
+

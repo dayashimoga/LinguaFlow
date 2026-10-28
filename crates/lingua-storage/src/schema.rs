@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 2;
+pub const CURRENT_SCHEMA_VERSION: u32 = 3;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -36,6 +36,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 2 {
         apply_migration_002(conn)?;
+    }
+    if current_version < 3 {
+        apply_migration_003(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -179,5 +182,120 @@ fn apply_migration_002(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 002: {e}")))?;
 
     info!("Migration 002 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_003(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!("Applying LinguaFlow Database Migration 003 — Offline Models, Cache & Morphology");
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    // Safely add columns to model_packs if they don't already exist
+    let existing_cols: Vec<String> = {
+        let mut stmt = tx
+            .prepare("PRAGMA table_info(model_packs)")
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        let rows = stmt
+            .query_map([], |row| row.get::<_, String>(1))
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        rows.filter_map(Result::ok).collect()
+    };
+
+    if !existing_cols.contains(&"install_path".to_string()) {
+        tx.execute("ALTER TABLE model_packs ADD COLUMN install_path TEXT", [])
+            .map_err(|e| {
+                LinguaError::Database(format!("Failed to add install_path column: {e}"))
+            })?;
+    }
+    if !existing_cols.contains(&"installed_at".to_string()) {
+        tx.execute("ALTER TABLE model_packs ADD COLUMN installed_at TEXT", [])
+            .map_err(|e| {
+                LinguaError::Database(format!("Failed to add installed_at column: {e}"))
+            })?;
+    }
+    if !existing_cols.contains(&"manifest_json".to_string()) {
+        tx.execute("ALTER TABLE model_packs ADD COLUMN manifest_json TEXT", [])
+            .map_err(|e| {
+                LinguaError::Database(format!("Failed to add manifest_json column: {e}"))
+            })?;
+    }
+    if !existing_cols.contains(&"status".to_string()) {
+        tx.execute(
+            "ALTER TABLE model_packs ADD COLUMN status TEXT NOT NULL DEFAULT 'not_installed'",
+            [],
+        )
+        .map_err(|e| LinguaError::Database(format!("Failed to add status column: {e}")))?;
+    }
+    if !existing_cols.contains(&"checksum_verified".to_string()) {
+        tx.execute(
+            "ALTER TABLE model_packs ADD COLUMN checksum_verified INTEGER NOT NULL DEFAULT 0",
+            [],
+        )
+        .map_err(|e| {
+            LinguaError::Database(format!("Failed to add checksum_verified column: {e}"))
+        })?;
+    }
+    if !existing_cols.contains(&"architecture".to_string()) {
+        tx.execute(
+            "ALTER TABLE model_packs ADD COLUMN architecture TEXT NOT NULL DEFAULT 'indictrans2-quantized-onnx'",
+            [],
+        )
+        .map_err(|e| LinguaError::Database(format!("Failed to add architecture column: {e}")))?;
+    }
+
+    tx.execute_batch(
+        "
+        -- Model manifests signed metadata table
+        CREATE TABLE IF NOT EXISTS model_manifests (
+            id TEXT PRIMARY KEY,
+            version TEXT NOT NULL,
+            manifest_json TEXT NOT NULL,
+            signature TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        -- Offline translation cache table
+        CREATE TABLE IF NOT EXISTS cached_translations (
+            id TEXT PRIMARY KEY,
+            source_language TEXT NOT NULL,
+            target_language TEXT NOT NULL,
+            source_text_hash TEXT NOT NULL,
+            source_text TEXT NOT NULL,
+            translated_text TEXT NOT NULL,
+            engine_id TEXT NOT NULL,
+            is_offline INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            hit_count INTEGER NOT NULL DEFAULT 1
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cached_trans_lookup
+        ON cached_translations(source_language, target_language, source_text_hash);
+
+        -- Morphological resources & stem lookups
+        CREATE TABLE IF NOT EXISTS morphological_stems (
+            id TEXT PRIMARY KEY,
+            language TEXT NOT NULL,
+            surface_form TEXT NOT NULL,
+            normalized_surface TEXT NOT NULL,
+            stem_form TEXT NOT NULL,
+            part_of_speech TEXT,
+            grammar_notes TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_morph_lookup
+        ON morphological_stems(language, normalized_surface);
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (3, datetime('now'), 'Stage 2: Offline model metadata, translation cache, and morphology stems');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 003: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 003: {e}")))?;
+
+    info!("Migration 003 applied successfully");
     Ok(())
 }

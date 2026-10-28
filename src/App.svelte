@@ -16,7 +16,7 @@
   } from './lib/types';
   import ConversationView from './views/ConversationView.svelte';
   import DictionaryView from './views/DictionaryView.svelte';
-  import DownloadsView from './views/DownloadsView.svelte';
+  import ModelsView from './views/ModelsView.svelte';
   import HomeView from './views/HomeView.svelte';
   import SettingsView from './views/SettingsView.svelte';
   import TranslateView from './views/TranslateView.svelte';
@@ -152,7 +152,7 @@
       <div class="logo-circle">LF</div>
       <div>
         <span class="brand-name">Lingua<span class="gradient-text">Flow</span></span>
-        <span class="brand-stage">Stage 0 Foundation</span>
+        <span class="brand-stage">Stage {appInfo?.stage ?? 2} {appInfo?.stage_name ?? 'Offline Translation'}</span>
       </div>
     </button>
 
@@ -221,13 +221,13 @@
       {#if currentView === 'home'}
         <HomeView {appInfo} {health} {capabilities} onNavigate={navigate} />
       {:else if currentView === 'translate'}
-        <TranslateView settings={userSettings} onSaveSettings={handleSaveSettings} />
+        <TranslateView settings={userSettings} onSaveSettings={handleSaveSettings} onNavigate={navigate} />
       {:else if currentView === 'dictionary'}
         <DictionaryView />
       {:else if currentView === 'conversation'}
         <ConversationView />
       {:else if currentView === 'downloads'}
-        <DownloadsView />
+        <ModelsView />
       {:else if currentView === 'settings'}
         <SettingsView settings={userSettings} onSaveSettings={handleSaveSettings} />
       {/if}

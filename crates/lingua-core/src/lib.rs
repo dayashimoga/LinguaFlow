@@ -6,16 +6,20 @@ pub mod unicode;
 
 pub use error::LinguaError;
 pub use ipc::{
-    AddFavoriteCmdRequest, DatabaseHealthInfo, DetectLanguageCmdRequest, DetectLanguageCmdResponse,
-    DictionarySearchCmdRequest, DictionarySearchCmdResponse, GetAppInfoResponse,
-    GetCapabilitiesResponse, GetUserSettingsResponse, IpcErrorPayload, IpcRequest, IpcResponse,
-    ListModelPacksResponse, RemoveFavoriteCmdRequest, SaveUserSettingsRequest, TranslateCmdRequest,
-    TranslateCmdResponse,
+    AddFavoriteCmdRequest, CancelDownloadCmdRequest, DatabaseHealthInfo, DeleteModelCmdRequest,
+    DetectLanguageCmdRequest, DetectLanguageCmdResponse, DictionarySearchCmdRequest,
+    DictionarySearchCmdResponse, DownloadModelCmdRequest, GetAppInfoResponse,
+    GetCapabilitiesResponse, GetDiskSpaceCmdResponse, GetUserSettingsResponse, IpcErrorPayload,
+    IpcRequest, IpcResponse, ListDetailedModelPacksResponse, ListModelPacksResponse,
+    RemoveFavoriteCmdRequest, SaveUserSettingsRequest, TranslateCmdRequest, TranslateCmdResponse,
+    VerifyModelCmdRequest, VerifyModelCmdResponse,
 };
 pub use language::{LanguageCode, LanguagePair};
 pub use models::{
-    AppInfo, AudioSettings, CapabilityMatrix, CapabilityState, DictionaryEntry, DictionaryExample,
-    EnginePreference, FavoriteItem, ModelPackInfo, ThemeMode, TranslationRecord, UserSettings,
+    AppInfo, AudioSettings, CachedTranslation, CapabilityMatrix, CapabilityState, DictionaryEntry,
+    DictionaryExample, DiskSpaceInfo, EnginePreference, FavoriteItem, ModelFileItem,
+    ModelInstallState, ModelPackDetailedInfo, ModelPackInfo, ModelPackManifest, MorphologyEntry,
+    ThemeMode, TranslationRecord, UserSettings,
 };
 pub use unicode::{
     detect_language, detect_script, normalize_text_nfc, sanitize_translation_input, DetectedScript,

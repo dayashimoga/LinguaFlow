@@ -190,3 +190,66 @@ export async function removeFavorite(id: string): Promise<void> {
   if (!res.ok) throw new Error('Failed to remove favorite');
 }
 
+export async function listDetailedModelPacks(): Promise<import('./types').ModelPackDetailedInfo[]> {
+  if (isTauri) {
+    return invokeTauri<import('./types').ModelPackDetailedInfo[]>('lingua_command_list_detailed_model_packs');
+  }
+  const res = await fetch(`${API_BASE}/models`);
+  if (!res.ok) throw new Error('Failed to load detailed model packs');
+  return res.json();
+}
+
+export async function getDetailedModelPack(id: string): Promise<import('./types').ModelPackDetailedInfo | null> {
+  if (isTauri) {
+    return invokeTauri<import('./types').ModelPackDetailedInfo | null>('lingua_command_get_detailed_model_pack', { id });
+  }
+  const res = await fetch(`${API_BASE}/models/${encodeURIComponent(id)}`);
+  if (!res.ok) throw new Error('Failed to get model pack');
+  return res.json();
+}
+
+export async function downloadModelPack(modelId: string): Promise<string> {
+  if (isTauri) {
+    return invokeTauri<string>('lingua_command_download_model_pack', { request: { model_id: modelId } });
+  }
+  const res = await fetch(`${API_BASE}/models/download/${encodeURIComponent(modelId)}`, { method: 'POST' });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Failed to download model pack');
+  }
+  return res.json();
+}
+
+export async function verifyModelPack(modelId: string): Promise<import('./types').VerifyModelCmdResponse> {
+  if (isTauri) {
+    return invokeTauri<import('./types').VerifyModelCmdResponse>('lingua_command_verify_model_pack', { request: { model_id: modelId } });
+  }
+  const res = await fetch(`${API_BASE}/models/verify/${encodeURIComponent(modelId)}`, { method: 'POST' });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Failed to verify model pack');
+  }
+  return res.json();
+}
+
+export async function deleteModelPack(modelId: string): Promise<void> {
+  if (isTauri) {
+    return invokeTauri<void>('lingua_command_delete_model_pack', { request: { model_id: modelId } });
+  }
+  const res = await fetch(`${API_BASE}/models/${encodeURIComponent(modelId)}`, { method: 'DELETE' });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Failed to delete model pack');
+  }
+}
+
+export async function getDiskSpace(): Promise<import('./types').GetDiskSpaceCmdResponse> {
+  if (isTauri) {
+    return invokeTauri<import('./types').GetDiskSpaceCmdResponse>('lingua_command_get_disk_space');
+  }
+  const res = await fetch(`${API_BASE}/models/disk-space`);
+  if (!res.ok) throw new Error('Failed to get disk space');
+  return res.json();
+}
+
+

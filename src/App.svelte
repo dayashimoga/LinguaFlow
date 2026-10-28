@@ -22,8 +22,9 @@
   import HomeView from './views/HomeView.svelte';
   import SettingsView from './views/SettingsView.svelte';
   import TranslateView from './views/TranslateView.svelte';
+  import MediaView from './views/MediaView.svelte';
 
-  type ViewType = 'home' | 'translate' | 'dictionary' | 'speech' | 'conversation' | 'intelligence' | 'downloads' | 'settings';
+  type ViewType = 'home' | 'translate' | 'dictionary' | 'speech' | 'conversation' | 'intelligence' | 'media' | 'downloads' | 'settings';
 
   let currentView: ViewType = 'home';
   let appInfo: AppInfo | null = null;
@@ -55,7 +56,7 @@
           speech_synthesis: 'Ready',
           offline_models: 'Ready',
           live_conversation: 'Ready',
-          media_subtitles: { ScheduledForStage: 6 },
+          media_subtitles: 'Ready',
         })),
         getUserSettings().catch(() => ({
           theme: 'system' as const,
@@ -198,6 +199,12 @@
         Intelligence
       </button>
       <button
+        class="nav-btn {currentView === 'media' ? 'active' : ''}"
+        on:click={() => navigate('media')}
+      >
+        Media & OCR
+      </button>
+      <button
         class="nav-btn {currentView === 'downloads' ? 'active' : ''}"
         on:click={() => navigate('downloads')}
       >
@@ -245,6 +252,8 @@
         <ConversationView />
       {:else if currentView === 'intelligence'}
         <IntelligenceView />
+      {:else if currentView === 'media'}
+        <MediaView />
       {:else if currentView === 'downloads'}
         <ModelsView />
       {:else if currentView === 'settings'}
@@ -296,6 +305,13 @@
     >
       <span class="m-icon">🧠</span>
       <span>Intel</span>
+    </button>
+    <button
+      class="mobile-nav-btn {currentView === 'media' ? 'active' : ''}"
+      on:click={() => navigate('media')}
+    >
+      <span class="m-icon">🎞️</span>
+      <span>Media</span>
     </button>
     <button
       class="mobile-nav-btn {currentView === 'downloads' ? 'active' : ''}"

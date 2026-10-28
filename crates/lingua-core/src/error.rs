@@ -74,6 +74,32 @@ pub enum LinguaError {
     #[error("Glossary term '{0}' not found")]
     GlossaryTermNotFound(String),
 
+    #[error("Media decoding error: {0}")]
+    MediaDecodingError(String),
+
+    #[error("Media session '{0}' not found")]
+    MediaSessionNotFound(String),
+
+    #[error("OCR extraction failed: {0}")]
+    OcrError(String),
+
+    #[error("Document parsing failed: {0}")]
+    DocumentParsingError(String),
+
+    #[error("Document translation job '{0}' not found")]
+    DocumentJobNotFound(String),
+
+    #[error(
+        "File size limit exceeded: file is {requested_bytes} bytes, limit is {limit_bytes} bytes"
+    )]
+    FileSizeLimitExceeded {
+        requested_bytes: u64,
+        limit_bytes: u64,
+    },
+
+    #[error("Permission denied: {0}")]
+    PermissionDenied(String),
+
     #[error("Internal system error: {0}")]
     Internal(String),
 }
@@ -104,6 +130,13 @@ impl LinguaError {
             LinguaError::SpeakerConflict(_) => "SPEAKER_CONFLICT",
             LinguaError::CircuitBreakerOpen(_) => "CIRCUIT_BREAKER_OPEN",
             LinguaError::GlossaryTermNotFound(_) => "GLOSSARY_TERM_NOT_FOUND",
+            LinguaError::MediaDecodingError(_) => "MEDIA_DECODING_ERROR",
+            LinguaError::MediaSessionNotFound(_) => "MEDIA_SESSION_NOT_FOUND",
+            LinguaError::OcrError(_) => "OCR_ERROR",
+            LinguaError::DocumentParsingError(_) => "DOCUMENT_PARSING_ERROR",
+            LinguaError::DocumentJobNotFound(_) => "DOCUMENT_JOB_NOT_FOUND",
+            LinguaError::FileSizeLimitExceeded { .. } => "FILE_SIZE_LIMIT_EXCEEDED",
+            LinguaError::PermissionDenied(_) => "PERMISSION_DENIED",
             LinguaError::Internal(_) => "INTERNAL_ERROR",
         }
     }
@@ -130,6 +163,13 @@ impl LinguaError {
                 | LinguaError::SpeakerConflict(_)
                 | LinguaError::CircuitBreakerOpen(_)
                 | LinguaError::GlossaryTermNotFound(_)
+                | LinguaError::MediaDecodingError(_)
+                | LinguaError::MediaSessionNotFound(_)
+                | LinguaError::OcrError(_)
+                | LinguaError::DocumentParsingError(_)
+                | LinguaError::DocumentJobNotFound(_)
+                | LinguaError::FileSizeLimitExceeded { .. }
+                | LinguaError::PermissionDenied(_)
         )
     }
 }

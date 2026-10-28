@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 6;
+pub const CURRENT_SCHEMA_VERSION: u32 = 7;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -48,6 +48,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 6 {
         apply_migration_006(conn)?;
+    }
+    if current_version < 7 {
+        apply_migration_007(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -481,5 +484,104 @@ fn apply_migration_006(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 006: {e}")))?;
 
     info!("Migration 006 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_007(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!(
+        "Applying LinguaFlow Database Migration 007 — Media, Subtitles, Overlay & Document Storage"
+    );
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    tx.execute_batch(
+        "
+        -- Media transcription sessions
+        CREATE TABLE IF NOT EXISTS media_sessions (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            file_name TEXT NOT NULL,
+            file_size_bytes INTEGER NOT NULL,
+            duration_ms INTEGER NOT NULL,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            format TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        -- Media subtitle segments
+        CREATE TABLE IF NOT EXISTS media_segments (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            seq_id INTEGER NOT NULL,
+            start_ms INTEGER NOT NULL,
+            end_ms INTEGER NOT NULL,
+            source_text TEXT NOT NULL,
+            translated_text TEXT NOT NULL,
+            FOREIGN KEY (session_id) REFERENCES media_sessions(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_media_segments_session_seq
+        ON media_segments(session_id, seq_id);
+
+        -- Live caption overlay settings
+        CREATE TABLE IF NOT EXISTS overlay_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            enabled INTEGER NOT NULL DEFAULT 1,
+            always_on_top INTEGER NOT NULL DEFAULT 1,
+            x INTEGER NOT NULL DEFAULT 100,
+            y INTEGER NOT NULL DEFAULT 100,
+            width INTEGER NOT NULL DEFAULT 700,
+            height INTEGER NOT NULL DEFAULT 140,
+            font_size INTEGER NOT NULL DEFAULT 22,
+            font_family TEXT NOT NULL,
+            text_color TEXT NOT NULL,
+            background_color TEXT NOT NULL,
+            opacity REAL NOT NULL DEFAULT 0.88,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            show_source INTEGER NOT NULL DEFAULT 1,
+            show_translated INTEGER NOT NULL DEFAULT 1,
+            updated_at TEXT NOT NULL
+        );
+
+        -- Document translation jobs
+        CREATE TABLE IF NOT EXISTS document_jobs (
+            id TEXT PRIMARY KEY,
+            file_name TEXT NOT NULL,
+            format TEXT NOT NULL,
+            file_size_bytes INTEGER NOT NULL,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            total_blocks INTEGER NOT NULL,
+            completed_blocks INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        -- Insert default overlay settings row
+        INSERT OR IGNORE INTO overlay_settings (
+            id, enabled, always_on_top, x, y, width, height, font_size,
+            font_family, text_color, background_color, opacity,
+            source_lang, target_lang, show_source, show_translated, updated_at
+        ) VALUES (
+            1, 1, 1, 100, 100, 700, 140, 22,
+            'Inter, Noto Sans Kannada, Noto Sans Tamil, sans-serif', '#ffffff', '#0a0d14', 0.88,
+            'en-US', 'kn-IN', 1, 1, datetime('now')
+        );
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (7, datetime('now'), 'Stage 6: Media Sessions, Subtitle Segments, Overlay Settings, and Document Jobs');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 007: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 007: {e}")))?;
+
+    info!("Migration 007 applied successfully");
     Ok(())
 }

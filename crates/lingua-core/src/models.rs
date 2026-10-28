@@ -173,6 +173,18 @@ impl CapabilityMatrix {
             media_subtitles: CapabilityState::ScheduledForStage(6),
         }
     }
+
+    pub fn stage_6_active() -> Self {
+        Self {
+            dictionary: CapabilityState::Active,
+            text_translation: CapabilityState::Active,
+            streaming_asr: CapabilityState::Active,
+            speech_synthesis: CapabilityState::Active,
+            offline_models: CapabilityState::Active,
+            live_conversation: CapabilityState::Active,
+            media_subtitles: CapabilityState::Active,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -722,8 +734,8 @@ impl Default for AppInfo {
         Self {
             name: "LinguaFlow".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            stage: 5,
-            stage_name: "Translation Intelligence & Optimization".into(),
+            stage: 6,
+            stage_name: "Media, Captions & Integrations".into(),
             platform: std::env::consts::OS.into(),
             arch: std::env::consts::ARCH.into(),
             build_profile: if cfg!(debug_assertions) {
@@ -731,6 +743,333 @@ impl Default for AppInfo {
             } else {
                 "release".into()
             },
+        }
+    }
+}
+
+// Stage 6 Models: Media, Live Overlay, OCR, Document Translation, Integrations
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum MediaFormat {
+    #[default]
+    Wav,
+    Mp3,
+    Mp4,
+    Webm,
+    Ogg,
+}
+
+impl MediaFormat {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Wav => "wav",
+            Self::Mp3 => "mp3",
+            Self::Mp4 => "mp4",
+            Self::Webm => "webm",
+            Self::Ogg => "ogg",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            "mp3" => Self::Mp3,
+            "mp4" => Self::Mp4,
+            "webm" => Self::Webm,
+            "ogg" => Self::Ogg,
+            _ => Self::Wav,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum MediaProgressStatus {
+    #[default]
+    Queued,
+    Processing,
+    Completed,
+    Cancelled,
+    Failed,
+}
+
+impl MediaProgressStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Queued => "queued",
+            Self::Processing => "processing",
+            Self::Completed => "completed",
+            Self::Cancelled => "cancelled",
+            Self::Failed => "failed",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            "processing" => Self::Processing,
+            "completed" => Self::Completed,
+            "cancelled" => Self::Cancelled,
+            "failed" => Self::Failed,
+            _ => Self::Queued,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MediaSubtitleSegment {
+    pub id: String,
+    pub session_id: String,
+    pub seq_id: u64,
+    pub start_ms: u64,
+    pub end_ms: u64,
+    pub source_text: String,
+    pub translated_text: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MediaSession {
+    pub id: String,
+    pub title: String,
+    pub file_name: String,
+    pub file_size_bytes: u64,
+    pub duration_ms: u64,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub format: MediaFormat,
+    pub status: MediaProgressStatus,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum MediaSubtitleExportFormat {
+    #[default]
+    Srt,
+    Vtt,
+    Txt,
+    Json,
+}
+
+impl MediaSubtitleExportFormat {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Srt => "srt",
+            Self::Vtt => "vtt",
+            Self::Txt => "txt",
+            Self::Json => "json",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            "vtt" => Self::Vtt,
+            "txt" => Self::Txt,
+            "json" => Self::Json,
+            _ => Self::Srt,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct MediaProcessingProgress {
+    pub session_id: String,
+    pub percent: f32,
+    pub current_time_ms: u64,
+    pub total_time_ms: u64,
+    pub status: MediaProgressStatus,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OverlaySettings {
+    pub enabled: bool,
+    pub always_on_top: bool,
+    pub x: i32,
+    pub y: i32,
+    pub width: u32,
+    pub height: u32,
+    pub font_size: u32,
+    pub font_family: String,
+    pub text_color: String,
+    pub background_color: String,
+    pub opacity: f32,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub show_source: bool,
+    pub show_translated: bool,
+}
+
+impl Default for OverlaySettings {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            always_on_top: true,
+            x: 100,
+            y: 100,
+            width: 700,
+            height: 140,
+            font_size: 22,
+            font_family: "Inter, Noto Sans Kannada, Noto Sans Tamil, sans-serif".into(),
+            text_color: "#ffffff".into(),
+            background_color: "#0a0d14".into(),
+            opacity: 0.88,
+            source_lang: LanguageCode::EnUs,
+            target_lang: LanguageCode::KnIn,
+            show_source: true,
+            show_translated: true,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum SystemAudioPermission {
+    #[default]
+    NotDetermined,
+    Granted,
+    Denied,
+    Restricted,
+}
+
+impl SystemAudioPermission {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::NotDetermined => "not_determined",
+            Self::Granted => "granted",
+            Self::Denied => "denied",
+            Self::Restricted => "restricted",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OcrBoundingBox {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OcrTextBlock {
+    pub id: String,
+    pub text: String,
+    pub confidence: f32,
+    pub bounding_box: OcrBoundingBox,
+    pub line_number: u32,
+    pub translated_text: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct OcrResult {
+    pub blocks: Vec<OcrTextBlock>,
+    pub detected_language: LanguageCode,
+    pub full_text: String,
+    pub translated_full_text: Option<String>,
+    pub processing_time_ms: f64,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum DocumentFormat {
+    #[default]
+    Txt,
+    Markdown,
+    Pdf,
+    Csv,
+    Html,
+}
+
+impl DocumentFormat {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Txt => "txt",
+            Self::Markdown => "markdown",
+            Self::Pdf => "pdf",
+            Self::Csv => "csv",
+            Self::Html => "html",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            "md" | "markdown" => Self::Markdown,
+            "pdf" => Self::Pdf,
+            "csv" | "tsv" => Self::Csv,
+            "html" | "htm" => Self::Html,
+            _ => Self::Txt,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DocumentBlock {
+    pub index: usize,
+    pub block_type: String,
+    pub source_text: String,
+    pub translated_text: String,
+    pub page_number: Option<u32>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum DocumentJobStatus {
+    #[default]
+    Queued,
+    Processing,
+    Completed,
+    Failed,
+    Cancelled,
+}
+
+impl DocumentJobStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Queued => "queued",
+            Self::Processing => "processing",
+            Self::Completed => "completed",
+            Self::Failed => "failed",
+            Self::Cancelled => "cancelled",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s.to_ascii_lowercase().as_str() {
+            "processing" => Self::Processing,
+            "completed" => Self::Completed,
+            "failed" => Self::Failed,
+            "cancelled" => Self::Cancelled,
+            _ => Self::Queued,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DocumentTranslationJob {
+    pub id: String,
+    pub file_name: String,
+    pub format: DocumentFormat,
+    pub file_size_bytes: u64,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub total_blocks: usize,
+    pub completed_blocks: usize,
+    pub status: DocumentJobStatus,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GlobalShortcutConfig {
+    pub quick_translate: String,
+    pub overlay_toggle: String,
+    pub enabled: bool,
+}
+
+impl Default for GlobalShortcutConfig {
+    fn default() -> Self {
+        Self {
+            quick_translate: "CommandOrControl+Shift+L".into(),
+            overlay_toggle: "CommandOrControl+Shift+C".into(),
+            enabled: true,
         }
     }
 }
@@ -826,5 +1165,41 @@ mod tests {
         let parsed = SpeakerId::from_str("SpeakerB").unwrap();
         assert_eq!(parsed, SpeakerId::SpeakerB);
         assert_eq!(parsed.other(), SpeakerId::SpeakerA);
+    }
+
+    #[test]
+    fn test_capability_matrix_stage_6() {
+        let matrix = CapabilityMatrix::stage_6_active();
+        assert_eq!(matrix.dictionary, CapabilityState::Active);
+        assert_eq!(matrix.text_translation, CapabilityState::Active);
+        assert_eq!(matrix.streaming_asr, CapabilityState::Active);
+        assert_eq!(matrix.speech_synthesis, CapabilityState::Active);
+        assert_eq!(matrix.offline_models, CapabilityState::Active);
+        assert_eq!(matrix.live_conversation, CapabilityState::Active);
+        assert_eq!(matrix.media_subtitles, CapabilityState::Active);
+    }
+
+    #[test]
+    fn test_stage_6_models() {
+        assert_eq!(MediaFormat::parse("MP4"), MediaFormat::Mp4);
+        assert_eq!(MediaFormat::Wav.as_str(), "wav");
+
+        assert_eq!(
+            MediaSubtitleExportFormat::parse("vtt"),
+            MediaSubtitleExportFormat::Vtt
+        );
+        assert_eq!(MediaSubtitleExportFormat::Srt.as_str(), "srt");
+
+        assert_eq!(DocumentFormat::parse("pdf"), DocumentFormat::Pdf);
+        assert_eq!(DocumentFormat::parse("md"), DocumentFormat::Markdown);
+        assert_eq!(DocumentFormat::Txt.as_str(), "txt");
+
+        let overlay = OverlaySettings::default();
+        assert!(overlay.enabled);
+        assert_eq!(overlay.font_size, 22);
+
+        let shortcuts = GlobalShortcutConfig::default();
+        assert!(shortcuts.enabled);
+        assert_eq!(shortcuts.quick_translate, "CommandOrControl+Shift+L");
     }
 }

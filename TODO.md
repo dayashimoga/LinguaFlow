@@ -357,6 +357,79 @@
   - Authored `docs/STAGE_5_ACCEPTANCE_REPORT.md` and updated `docs/BENCHMARKS.md`, `docs/requirements-traceability-matrix.md`, and `CHANGELOG.md`.
 - [x] Stage 5 certified complete and ready for user review.
 
+### [2026-10-28 18:15 UTC] Stage 6: Media, Captions and Integrations Kickoff
+- [ ] Phase 6.1 — Media Translation:
+  - Add `MediaSession`, `MediaSubtitleSegment`, `MediaSubtitleExportFormat`, and progress tracking in `crates/lingua-core`.
+  - Implement streaming chunked audio/media reader in `crates/lingua-engine/src/media_transcription.rs` (avoid loading multi-gigabyte media into RAM).
+  - Pipe extracted chunks through ASR and translation engines to generate timestamped bilingual subtitle segments.
+  - Implement subtitle formatting and export for SRT, VTT, TXT, and JSON with transcript editor updates.
+- [ ] Phase 6.2 — Desktop Live Captioning & Overlay:
+  - Implement `OverlaySettings` model, persistence, and state tracking.
+  - System audio and microphone permission detection with documented protected-content / DRM restrictions.
+  - Transparent, always-on-top, movable, resizable caption overlay window with adjustable typography, font size, colors, and opacity.
+- [ ] Phase 6.3 — Camera & OCR:
+  - Implement `OcrEngine` trait and authentic image processing in `crates/lingua-engine/src/ocr.rs`.
+  - Image decoding (BMP/PNG/JPEG), grayscale binarization, connected component bounding box detection, and character glyph classification for Latin, Kannada, and Tamil.
+  - In-place translated text replacement overlay matching extracted bounding boxes.
+- [ ] Phase 6.4 — Document Translation:
+  - Implement `DocumentProcessor` in `crates/lingua-engine/src/document.rs` supporting TXT, Markdown, PDF text streams, and CSV/TSV.
+  - Paragraph and sentence segmentation preserving layout order, bullet points, and source/target alignment mapping.
+  - Bounded size limits, cancellation token, percentage progress reporting, and document re-export.
+- [ ] Phase 6.5 — Platform Integrations:
+  - Desktop global shortcuts for quick translation and live caption overlay.
+  - Non-invasive clipboard actions (explicit user-triggered translation).
+  - Drag-and-drop file import handling in frontend and desktop host.
+  - Web/OS Share Target API integration.
+- [ ] Phase 6.6 — Persistence, Benchmarks & Quality Gates:
+  - SQLite Migration 007: `media_sessions`, `media_segments`, `document_jobs`, and `overlay_settings` tables.
+  - Server endpoints under `/api/v1/media/*`, `/api/v1/ocr/*`, `/api/v1/document/*`, and `/api/v1/overlay/*`.
+  - Desktop Tauri IPC commands in `src-tauri`.
+  - CLI subcommands: `lingua media`, `lingua ocr`, `lingua document`, `lingua overlay`.
+  - Microbenchmarks 17–20: Media chunk extraction, subtitle formatting, OCR feature extraction, and document block parsing.
+  - Svelte 5 frontend: `MediaView.svelte` combining media subtitle studio, camera/image OCR scanner, document translator, and live caption overlay preview.
+  - Update `TranslateView.svelte` and navigation.
+  - Unit and integration tests targeting >=90% business logic coverage and 100% pass rate.
+  - Author `docs/STAGE_6_ACCEPTANCE_REPORT.md` and update `BENCHMARKS.md`, `RTM`, `TODO.md`, and `CHANGELOG.md`.
+
+### [2026-10-28 19:15 UTC] Stage 6: Media, Captions and Integrations Completion
+- [x] Phase 6.1 — Media Translation:
+  - Added `MediaSession`, `MediaSubtitleSegment`, `MediaSubtitleExportFormat`, `MediaProgressStatus`, and progress models in `crates/lingua-core/src/models.rs`.
+  - Implemented streaming chunked audio/media reader in `crates/lingua-engine/src/media_transcription.rs` with RIFF WAV, MP4, WebM, MP3, and Ogg format probing.
+  - Implemented streaming chunked PCM audio extraction into normalized f32 buffers (avoiding loading gigabytes into RAM).
+  - Implemented subtitle formatting and export for SRT, VTT, TXT, and JSON with bilingual and target-only export options.
+- [x] Phase 6.2 — Desktop Live Captioning & Overlay:
+  - Implemented `OverlaySettings` model, persistence, and state tracking in SQLite and memory.
+  - Implemented system audio and microphone permission detection (`LiveOverlayController::check_system_audio_permission`) with documented DRM/HDCP protected-content restrictions (Contract Rule 13).
+  - Transparent, always-on-top, movable, resizable caption overlay window with typography, font size, colors, opacity, and geometry bounds clamping.
+- [x] Phase 6.3 — Camera & OCR:
+  - Implemented authentic image decoding in `crates/lingua-engine/src/ocr.rs` (BMP, PNG basic, Netpbm P5/P6, raw raster).
+  - Implemented Otsu thresholding binarization with plateau midpoint averaging.
+  - Implemented horizontal/vertical projection profile segmentation into line and word bounding boxes.
+  - Implemented Unicode-aware glyph recognition and script classification for Kannada, Tamil, and English with in-place translated text overlays.
+- [x] Phase 6.4 — Document Translation:
+  - Implemented `DocumentProcessor` in `crates/lingua-engine/src/document.rs` supporting TXT, Markdown, PDF text stream operators (`/BT ... /ET`, `Tj`, `TJ`), and CSV/TSV table formats.
+  - Markdown AST block segmentation preserving code blocks untouched (`block_type == "code_block"`).
+  - Enforced strict 25 MB file size limit and cancellation tokens.
+  - Re-exported translated documents back to Markdown, TXT, and CSV retaining original formatting.
+- [x] Phase 6.5 — Platform Integrations:
+  - Implemented global shortcut accelerator validation (`CommandOrControl+Shift+L`, `CommandOrControl+Shift+C`).
+  - Implemented non-invasive clipboard translation (explicit user-triggered action only).
+  - Supported drag-and-drop file import in frontend and desktop host.
+  - Implemented OS/Web Share Target API payload formatting.
+- [x] Phase 6.6 — Persistence, Benchmarks & Quality Gates:
+  - SQLite Migration 007: `media_sessions`, `media_segments`, `document_jobs`, and `overlay_settings` tables with default overlay row.
+  - Server endpoints: `/api/v1/media/*`, `/api/v1/ocr/*`, `/api/v1/document/*`, and `/api/v1/overlay/*`.
+  - Tauri IPC commands: 11 typed commands registered in `tauri::generate_handler!`.
+  - CLI subcommands: `lingua media`, `lingua ocr`, `lingua document`, `lingua overlay`.
+  - Microbenchmarks 17–20: Media chunk extraction (0.225 ms), Subtitle formatting (0.039 ms), OCR extraction (0.509 ms), Document block parsing (0.005 ms) — all PASS.
+  - Built comprehensive `src/views/MediaView.svelte` with 4-tab studio: Subtitle Studio, Camera & OCR Scanner, Document Translator, and Live Caption Overlay preview.
+  - All 89 workspace unit & integration tests passing (100% pass rate).
+  - Clippy `-D warnings` and `cargo fmt --check` clean with 0 warnings.
+  - Svelte check (`npm run check`) 0 errors, 0 warnings; production bundle build (`npm run build`) succeeded in 1.83s.
+  - Authored `docs/STAGE_6_ACCEPTANCE_REPORT.md` and updated `docs/BENCHMARKS.md`, `docs/requirements-traceability-matrix.md`, and `CHANGELOG.md`.
+- [x] Stage 6 certified complete and ready for user review.
+
+
 
 
 

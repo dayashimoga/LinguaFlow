@@ -499,6 +499,114 @@ impl StorageService {
         repo.list_circuit_breaker_metrics()
     }
 
+    // --- Stage 6: Media Sessions, Subtitle Segments, Overlay & Document Methods ---
+
+    pub fn create_media_session(
+        &self,
+        session: &lingua_core::MediaSession,
+    ) -> Result<(), LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.create_media_session(session)
+    }
+
+    pub fn get_media_session(
+        &self,
+        id: &str,
+    ) -> Result<Option<lingua_core::MediaSession>, LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.get_media_session(id)
+    }
+
+    pub fn list_media_sessions(&self) -> Result<Vec<lingua_core::MediaSession>, LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.list_media_sessions()
+    }
+
+    pub fn update_media_session_status(
+        &self,
+        id: &str,
+        status: lingua_core::MediaProgressStatus,
+        duration_ms: u64,
+    ) -> Result<(), LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.update_media_session_status(id, status, duration_ms)
+    }
+
+    pub fn add_media_segment(
+        &self,
+        segment: &lingua_core::MediaSubtitleSegment,
+    ) -> Result<(), LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.add_media_segment(segment)
+    }
+
+    pub fn add_media_segments_batch(
+        &self,
+        segments: &[lingua_core::MediaSubtitleSegment],
+    ) -> Result<(), LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.add_media_segments_batch(segments)
+    }
+
+    pub fn list_media_segments(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<lingua_core::MediaSubtitleSegment>, LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.list_media_segments(session_id)
+    }
+
+    pub fn update_media_segment(
+        &self,
+        id: &str,
+        source_text: &str,
+        translated_text: &str,
+        start_ms: u64,
+        end_ms: u64,
+    ) -> Result<(), LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.update_media_segment(id, source_text, translated_text, start_ms, end_ms)
+    }
+
+    pub fn get_overlay_settings(&self) -> Result<lingua_core::OverlaySettings, LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.get_overlay_settings()
+    }
+
+    pub fn save_overlay_settings(
+        &self,
+        settings: &lingua_core::OverlaySettings,
+    ) -> Result<(), LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.save_overlay_settings(settings)
+    }
+
+    pub fn create_document_job(
+        &self,
+        job: &lingua_core::DocumentTranslationJob,
+    ) -> Result<(), LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.create_document_job(job)
+    }
+
+    pub fn get_document_job(
+        &self,
+        id: &str,
+    ) -> Result<Option<lingua_core::DocumentTranslationJob>, LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.get_document_job(id)
+    }
+
+    pub fn update_document_job_progress(
+        &self,
+        id: &str,
+        completed_blocks: usize,
+        status: lingua_core::DocumentJobStatus,
+    ) -> Result<(), LinguaError> {
+        let repo = crate::media_repo::MediaRepository::new(Arc::clone(&self.conn));
+        repo.update_document_job_progress(id, completed_blocks, status)
+    }
+
     pub fn check_health(&self) -> Result<DatabaseHealthInfo, LinguaError> {
         let conn = self
             .conn
@@ -1018,5 +1126,91 @@ mod tests {
         assert_eq!(metrics.len(), 1);
         assert_eq!(metrics[0].provider_id, "mymemory-http");
         assert_eq!(metrics[0].state, lingua_core::CircuitState::Closed);
+    }
+
+    #[test]
+    fn test_stage_6_media_overlay_and_documents() {
+        let storage = StorageService::open_in_memory().expect("open storage failed");
+
+        // 1. Media Session
+        let session = lingua_core::MediaSession {
+            id: "media-sess-1".into(),
+            title: "Tamil Tech Talk".into(),
+            file_name: "talk.mp4".into(),
+            file_size_bytes: 5242880,
+            duration_ms: 60000,
+            source_lang: LanguageCode::TaIn,
+            target_lang: LanguageCode::EnUs,
+            format: lingua_core::MediaFormat::Mp4,
+            status: lingua_core::MediaProgressStatus::Completed,
+            created_at: Utc::now(),
+        };
+        storage
+            .create_media_session(&session)
+            .expect("create media session failed");
+
+        let fetched = storage
+            .get_media_session("media-sess-1")
+            .expect("fetch failed")
+            .expect("missing");
+        assert_eq!(fetched.title, "Tamil Tech Talk");
+        assert_eq!(fetched.format, lingua_core::MediaFormat::Mp4);
+
+        // 2. Subtitle Segments
+        let seg = lingua_core::MediaSubtitleSegment {
+            id: "mseg-1".into(),
+            session_id: "media-sess-1".into(),
+            seq_id: 1,
+            start_ms: 1000,
+            end_ms: 4000,
+            source_text: "வணக்கம் நண்பர்களே".into(),
+            translated_text: "Hello friends".into(),
+        };
+        storage.add_media_segment(&seg).expect("add segment failed");
+
+        let segments = storage
+            .list_media_segments("media-sess-1")
+            .expect("list failed");
+        assert_eq!(segments.len(), 1);
+        assert_eq!(segments[0].source_text, "வணக்கம் நண்பர்களே");
+
+        // 3. Overlay Settings
+        let overlay = storage.get_overlay_settings().expect("get overlay failed");
+        assert!(overlay.enabled);
+        assert_eq!(overlay.font_size, 22);
+
+        let mut mod_overlay = overlay;
+        mod_overlay.font_size = 26;
+        storage
+            .save_overlay_settings(&mod_overlay)
+            .expect("save overlay failed");
+        let reloaded = storage.get_overlay_settings().expect("reloaded failed");
+        assert_eq!(reloaded.font_size, 26);
+
+        // 4. Document Job
+        let job = lingua_core::DocumentTranslationJob {
+            id: "djob-1".into(),
+            file_name: "manual.md".into(),
+            format: lingua_core::DocumentFormat::Markdown,
+            file_size_bytes: 4096,
+            source_lang: LanguageCode::EnUs,
+            target_lang: LanguageCode::KnIn,
+            total_blocks: 10,
+            completed_blocks: 10,
+            status: lingua_core::DocumentJobStatus::Completed,
+            created_at: Utc::now(),
+        };
+        storage
+            .create_document_job(&job)
+            .expect("create doc job failed");
+        let fetched_job = storage
+            .get_document_job("djob-1")
+            .expect("fetch failed")
+            .expect("missing");
+        assert_eq!(fetched_job.file_name, "manual.md");
+        assert_eq!(
+            fetched_job.status,
+            lingua_core::DocumentJobStatus::Completed
+        );
     }
 }

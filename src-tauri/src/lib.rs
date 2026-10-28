@@ -91,6 +91,18 @@ pub fn run() {
             commands::lingua_command_run_evaluation,
             commands::lingua_command_get_latest_evaluation_report,
             commands::lingua_command_set_resource_profile,
+            // Stage 6 commands
+            commands::lingua_command_start_media_transcription,
+            commands::lingua_command_list_media_segments,
+            commands::lingua_command_update_media_segment,
+            commands::lingua_command_export_subtitles,
+            commands::lingua_command_perform_ocr,
+            commands::lingua_command_translate_document,
+            commands::lingua_command_get_overlay_settings,
+            commands::lingua_command_save_overlay_settings,
+            commands::lingua_command_get_overlay_permission,
+            commands::lingua_command_get_global_shortcuts,
+            commands::lingua_command_save_global_shortcuts,
         ])
         .run(tauri::generate_context!())
         .expect("error while running LinguaFlow application");

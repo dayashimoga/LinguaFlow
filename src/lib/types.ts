@@ -526,3 +526,106 @@ export interface CreateGlossaryTermCmdRequest {
   target_lang: LanguageCode;
   is_exact: boolean;
 }
+
+// Stage 6 Types: Media, Captions, OCR, Document & Integrations
+
+export type MediaFormat = 'wav' | 'mp3' | 'mp4' | 'webm' | 'ogg';
+export type MediaProgressStatus = 'queued' | 'processing' | 'completed' | 'cancelled' | 'failed';
+export type MediaSubtitleExportFormat = 'srt' | 'vtt' | 'txt' | 'json';
+
+export interface MediaSubtitleSegment {
+  id: string;
+  session_id: string;
+  seq_id: number;
+  start_ms: number;
+  end_ms: number;
+  source_text: string;
+  translated_text: string;
+}
+
+export interface MediaSession {
+  id: string;
+  title: string;
+  file_name: string;
+  file_size_bytes: number;
+  duration_ms: number;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  format: MediaFormat;
+  status: MediaProgressStatus;
+  created_at: string;
+}
+
+export interface OverlaySettings {
+  enabled: boolean;
+  always_on_top: boolean;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  font_size: number;
+  font_family: string;
+  text_color: string;
+  background_color: string;
+  opacity: number;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  show_source: boolean;
+  show_translated: boolean;
+}
+
+export type SystemAudioPermission = 'not_determined' | 'granted' | 'denied' | 'restricted';
+
+export interface OcrBoundingBox {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface OcrTextBlock {
+  id: string;
+  text: string;
+  confidence: number;
+  bounding_box: OcrBoundingBox;
+  line_number: number;
+  translated_text?: string | null;
+}
+
+export interface OcrResult {
+  blocks: OcrTextBlock[];
+  detected_language: LanguageCode;
+  full_text: string;
+  translated_full_text?: string | null;
+  processing_time_ms: number;
+}
+
+export type DocumentFormat = 'txt' | 'markdown' | 'pdf' | 'csv' | 'html';
+export type DocumentJobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
+
+export interface DocumentBlock {
+  index: number;
+  block_type: string;
+  source_text: string;
+  translated_text: string;
+  page_number?: number | null;
+}
+
+export interface DocumentTranslationJob {
+  id: string;
+  file_name: string;
+  format: DocumentFormat;
+  file_size_bytes: number;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  total_blocks: number;
+  completed_blocks: number;
+  status: DocumentJobStatus;
+  created_at: string;
+}
+
+export interface GlobalShortcutConfig {
+  quick_translate: string;
+  overlay_toggle: string;
+  enabled: boolean;
+}

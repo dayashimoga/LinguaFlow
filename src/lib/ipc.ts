@@ -14,6 +14,16 @@ import type {
   ResourceProfile,
   TransliterationResponse,
   UserSettings,
+  MediaSession,
+  MediaSubtitleSegment,
+  MediaSubtitleExportFormat,
+  OverlaySettings,
+  SystemAudioPermission,
+  OcrResult,
+  DocumentFormat,
+  DocumentTranslationJob,
+  DocumentBlock,
+  GlobalShortcutConfig,
 } from './types';
 
 // Check if running in a Tauri native environment
@@ -673,4 +683,169 @@ export async function setResourceProfile(profile: ResourceProfile): Promise<bool
     body: JSON.stringify({ profile }),
   });
   return res.ok;
+}
+
+// Stage 6 IPC Wrappers: Media, Subtitles, OCR, Document & Overlay
+
+export async function startMediaTranscription(req: {
+  file_name: string;
+  file_bytes: number[];
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  title?: string;
+}): Promise<{ session: MediaSession; segments: MediaSubtitleSegment[] }> {
+  if (isTauri) {
+    return invokeTauri<{ session: MediaSession; segments: MediaSubtitleSegment[] }>(
+      'lingua_command_start_media_transcription',
+      { request: req }
+    );
+  }
+  const res = await fetch(`${API_BASE}/media/transcribe`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error('Failed to transcribe media file');
+  return res.json();
+}
+
+export async function listMediaSegments(sessionId: string): Promise<MediaSubtitleSegment[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ segments: MediaSubtitleSegment[] }>(
+      'lingua_command_list_media_segments',
+      { request: { session_id: sessionId } }
+    );
+    return res.segments;
+  }
+  const res = await fetch(`${API_BASE}/media/${sessionId}/segments`);
+  if (!res.ok) throw new Error('Failed to list media segments');
+  const data = await res.json();
+  return data.segments;
+}
+
+export async function updateMediaSegment(segment: {
+  segment_id: string;
+  source_text: string;
+  translated_text: string;
+  start_ms: number;
+  end_ms: number;
+}): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_update_media_segment', { request: segment });
+  }
+  const res = await fetch(`${API_BASE}/media/segments/${segment.segment_id}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(segment),
+  });
+  return res.ok;
+}
+
+export async function exportSubtitles(
+  sessionId: string,
+  format: MediaSubtitleExportFormat,
+  targetOnly: boolean = false
+): Promise<{ content: string; file_name: string }> {
+  if (isTauri) {
+    return invokeTauri<{ content: string; file_name: string }>(
+      'lingua_command_export_subtitles',
+      { request: { session_id: sessionId, format, target_only: targetOnly } }
+    );
+  }
+  const res = await fetch(`${API_BASE}/media/${sessionId}/export?format=${format}&target_only=${targetOnly}`);
+  if (!res.ok) throw new Error('Failed to export subtitles');
+  return res.json();
+}
+
+export async function performOcr(req: {
+  image_bytes: number[];
+  mime_type: string;
+  source_lang?: LanguageCode | null;
+  target_lang?: LanguageCode | null;
+}): Promise<OcrResult> {
+  if (isTauri) {
+    const res = await invokeTauri<{ result: OcrResult }>('lingua_command_perform_ocr', { request: req });
+    return res.result;
+  }
+  const res = await fetch(`${API_BASE}/ocr/scan`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error('Failed to perform OCR scan');
+  const data = await res.json();
+  return data.result;
+}
+
+export async function translateDocument(req: {
+  file_name: string;
+  content: number[];
+  format: DocumentFormat;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+}): Promise<{ job: DocumentTranslationJob; blocks: DocumentBlock[]; exported_content: string }> {
+  if (isTauri) {
+    return invokeTauri<{ job: DocumentTranslationJob; blocks: DocumentBlock[]; exported_content: string }>(
+      'lingua_command_translate_document',
+      { request: req }
+    );
+  }
+  const res = await fetch(`${API_BASE}/document/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error('Failed to translate document');
+  return res.json();
+}
+
+export async function getOverlaySettings(): Promise<OverlaySettings> {
+  if (isTauri) {
+    const res = await invokeTauri<{ settings: OverlaySettings }>('lingua_command_get_overlay_settings');
+    return res.settings;
+  }
+  const res = await fetch(`${API_BASE}/overlay/settings`);
+  if (!res.ok) throw new Error('Failed to fetch overlay settings');
+  const data = await res.json();
+  return data.settings;
+}
+
+export async function saveOverlaySettings(settings: OverlaySettings): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_save_overlay_settings', { request: { settings } });
+  }
+  const res = await fetch(`${API_BASE}/overlay/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ settings }),
+  });
+  return res.ok;
+}
+
+export async function getOverlayPermission(): Promise<SystemAudioPermission> {
+  if (isTauri) {
+    return invokeTauri<SystemAudioPermission>('lingua_command_get_overlay_permission');
+  }
+  const res = await fetch(`${API_BASE}/overlay/permission`);
+  if (!res.ok) return 'granted';
+  return res.json();
+}
+
+export async function getGlobalShortcuts(): Promise<GlobalShortcutConfig> {
+  if (isTauri) {
+    const res = await invokeTauri<{ config: GlobalShortcutConfig }>('lingua_command_get_global_shortcuts');
+    return res.config;
+  }
+  return {
+    quick_translate: 'CommandOrControl+Shift+L',
+    overlay_toggle: 'CommandOrControl+Shift+C',
+    enabled: true,
+  };
+}
+
+export async function saveGlobalShortcuts(config: GlobalShortcutConfig): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_save_global_shortcuts', { request: { config } });
+  }
+  return true;
 }

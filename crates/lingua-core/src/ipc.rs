@@ -432,6 +432,105 @@ pub struct SetResourceProfileCmdRequest {
     pub profile: crate::models::ResourceProfile,
 }
 
+// Stage 6 IPC Payloads: Media, Captions, OCR, Document & Platform Integrations
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StartMediaTranscriptionCmdRequest {
+    pub file_name: String,
+    pub file_bytes: Vec<u8>,
+    pub source_lang: crate::language::LanguageCode,
+    pub target_lang: crate::language::LanguageCode,
+    pub title: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct StartMediaTranscriptionCmdResponse {
+    pub session: crate::models::MediaSession,
+    pub segments: Vec<crate::models::MediaSubtitleSegment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ListMediaSegmentsCmdRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ListMediaSegmentsCmdResponse {
+    pub segments: Vec<crate::models::MediaSubtitleSegment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct UpdateMediaSegmentCmdRequest {
+    pub segment_id: String,
+    pub source_text: String,
+    pub translated_text: String,
+    pub start_ms: u64,
+    pub end_ms: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ExportSubtitlesCmdRequest {
+    pub session_id: String,
+    pub format: crate::models::MediaSubtitleExportFormat,
+    pub target_only: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ExportSubtitlesCmdResponse {
+    pub content: String,
+    pub file_name: String,
+    pub format: crate::models::MediaSubtitleExportFormat,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetOverlaySettingsCmdResponse {
+    pub settings: crate::models::OverlaySettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SaveOverlaySettingsCmdRequest {
+    pub settings: crate::models::OverlaySettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PerformOcrCmdRequest {
+    pub image_bytes: Vec<u8>,
+    pub mime_type: String,
+    pub source_lang: Option<crate::language::LanguageCode>,
+    pub target_lang: Option<crate::language::LanguageCode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PerformOcrCmdResponse {
+    pub result: crate::models::OcrResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TranslateDocumentCmdRequest {
+    pub file_name: String,
+    pub content: Vec<u8>,
+    pub format: crate::models::DocumentFormat,
+    pub source_lang: crate::language::LanguageCode,
+    pub target_lang: crate::language::LanguageCode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TranslateDocumentCmdResponse {
+    pub job: crate::models::DocumentTranslationJob,
+    pub blocks: Vec<crate::models::DocumentBlock>,
+    pub exported_content: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetGlobalShortcutsCmdResponse {
+    pub config: crate::models::GlobalShortcutConfig,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SaveGlobalShortcutsCmdRequest {
+    pub config: crate::models::GlobalShortcutConfig,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 5;
+pub const CURRENT_SCHEMA_VERSION: u32 = 6;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -45,6 +45,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 5 {
         apply_migration_005(conn)?;
+    }
+    if current_version < 6 {
+        apply_migration_006(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -408,5 +411,75 @@ fn apply_migration_005(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 005: {e}")))?;
 
     info!("Migration 005 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_006(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!("Applying LinguaFlow Database Migration 006 — Translation Intelligence, Glossaries & Circuit Breakers");
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    tx.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS domain_glossaries (
+            id TEXT PRIMARY KEY,
+            domain TEXT NOT NULL,
+            source_term TEXT NOT NULL,
+            target_term TEXT NOT NULL,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            is_exact INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_glossary_domain_lang
+        ON domain_glossaries(domain, source_lang, target_lang);
+
+        CREATE INDEX IF NOT EXISTS idx_glossary_source_term
+        ON domain_glossaries(source_term);
+
+        CREATE TABLE IF NOT EXISTS evaluation_reports (
+            id TEXT PRIMARY KEY,
+            report_json TEXT NOT NULL,
+            mean_chrf REAL NOT NULL,
+            mean_wer REAL NOT NULL,
+            mean_cer REAL NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS circuit_breaker_metrics (
+            provider_id TEXT PRIMARY KEY,
+            state TEXT NOT NULL,
+            failure_count INTEGER NOT NULL DEFAULT 0,
+            success_count INTEGER NOT NULL DEFAULT 0,
+            total_requests INTEGER NOT NULL DEFAULT 0,
+            last_failure_ms INTEGER,
+            updated_at TEXT NOT NULL
+        );
+
+        -- Seed initial technical and polite greeting domain glossary terms
+        INSERT OR IGNORE INTO domain_glossaries (id, domain, source_term, target_term, source_lang, target_lang, is_exact, created_at)
+        VALUES
+            ('glossary-tech-kn-1', 'technology', 'computer', 'ಗಣಕಯಂತ್ರ', 'en-US', 'kn-IN', 1, datetime('now')),
+            ('glossary-tech-kn-2', 'technology', 'software', 'ತಂತ್ರಾಂಶ', 'en-US', 'kn-IN', 1, datetime('now')),
+            ('glossary-tech-kn-3', 'technology', 'database', 'ದತ್ತಸಂಚಯ', 'en-US', 'kn-IN', 1, datetime('now')),
+            ('glossary-tech-ta-1', 'technology', 'computer', 'கணினி', 'en-US', 'ta-IN', 1, datetime('now')),
+            ('glossary-tech-ta-2', 'technology', 'software', 'மென்பொருள்', 'en-US', 'ta-IN', 1, datetime('now')),
+            ('glossary-tech-ta-3', 'technology', 'database', 'தரவுத்தளம்', 'en-US', 'ta-IN', 1, datetime('now')),
+            ('glossary-med-kn-1', 'medical', 'hospital', 'ಆಸ್ಪತ್ರೆ', 'en-US', 'kn-IN', 1, datetime('now')),
+            ('glossary-med-ta-1', 'medical', 'hospital', 'மருத்துவமனை', 'en-US', 'ta-IN', 1, datetime('now'));
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (6, datetime('now'), 'Stage 5: Translation Intelligence, Glossaries, Evaluation Reports and Circuit Breakers');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 006: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 006: {e}")))?;
+
+    info!("Migration 006 applied successfully");
     Ok(())
 }

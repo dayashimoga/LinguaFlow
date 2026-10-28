@@ -359,6 +359,79 @@ pub struct SynthesizeSpeechCmdResponse {
     pub response: crate::models::TtsSynthesizeResponse,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TranslateIntelligenceCmdRequest {
+    pub text: String,
+    pub source_lang: Option<crate::language::LanguageCode>,
+    pub target_lang: crate::language::LanguageCode,
+    pub formality: crate::models::FormalityMode,
+    pub enable_transliteration: bool,
+    pub domain_glossary: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TranslateIntelligenceCmdResponse {
+    pub response: crate::models::IntelligenceTranslationResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TransliterateCmdRequest {
+    pub text: String,
+    pub target_lang: crate::language::LanguageCode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TransliterateCmdResponse {
+    pub response: crate::models::TransliterationResponse,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetCircuitBreakersCmdResponse {
+    pub circuit_breakers: Vec<crate::models::CircuitBreakerStatus>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ResetCircuitBreakerCmdRequest {
+    pub provider_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ListGlossaryTermsCmdRequest {
+    pub domain: Option<String>,
+    pub source_lang: Option<crate::language::LanguageCode>,
+    pub target_lang: Option<crate::language::LanguageCode>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ListGlossaryTermsCmdResponse {
+    pub terms: Vec<crate::models::DomainGlossaryEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct CreateGlossaryTermCmdRequest {
+    pub domain: String,
+    pub source_term: String,
+    pub target_term: String,
+    pub source_lang: crate::language::LanguageCode,
+    pub target_lang: crate::language::LanguageCode,
+    pub is_exact: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DeleteGlossaryTermCmdRequest {
+    pub id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct RunEvaluationCmdResponse {
+    pub report: crate::models::EvaluationReport,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SetResourceProfileCmdRequest {
+    pub profile: crate::models::ResourceProfile,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

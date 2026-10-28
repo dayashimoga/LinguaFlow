@@ -1,21 +1,144 @@
 use crate::audio_capture::AudioCaptureManager;
+use crate::context_nlp::ContextNlpProcessor;
+use crate::evaluation::QualityEvaluator;
 use crate::http_provider::HttpTranslationProvider;
 use crate::lexicon_engine::LexiconTranslationEngine;
 use crate::local_model_engine::LocalNeuralTranslationEngine;
+use crate::lru_cache::BoundedLruCache;
 use crate::model_manager::ModelManager;
 use crate::traits::{
     TextToSpeechEngine, TranslationEngine, TranslationRequest, TranslationResponse,
 };
+use crate::transliteration::TransliterationEngine;
 use crate::tts_engine::AuthenticTtsEngine;
 use chrono::Utc;
 use lingua_core::{
-    normalize_text_nfc, CapabilityMatrix, CapabilityState, LinguaError, TranslationRecord,
+    normalize_text_nfc, CapabilityMatrix, CapabilityState, CircuitBreakerStatus, CircuitState,
+    FallbackStep, IntelligenceTranslationMetadata, IntelligenceTranslationRequest,
+    IntelligenceTranslationResponse, LanguageCode, LanguagePair, LinguaError, ResourceProfile,
+    TranslationRecord,
 };
 use lingua_storage::StorageService;
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::info;
 use uuid::Uuid;
+
+#[derive(Clone)]
+pub struct CircuitBreaker {
+    provider_id: String,
+    state: Arc<std::sync::Mutex<CircuitState>>,
+    failure_count: Arc<std::sync::Mutex<u32>>,
+    success_count: Arc<std::sync::Mutex<u32>>,
+    total_requests: Arc<std::sync::Mutex<u64>>,
+    last_failure_instant: Arc<std::sync::Mutex<Option<std::time::Instant>>>,
+    failure_threshold: u32,
+    reset_timeout: std::time::Duration,
+}
+
+impl CircuitBreaker {
+    pub fn new(provider_id: &str, failure_threshold: u32, reset_timeout_secs: u64) -> Self {
+        Self {
+            provider_id: provider_id.to_string(),
+            state: Arc::new(std::sync::Mutex::new(CircuitState::Closed)),
+            failure_count: Arc::new(std::sync::Mutex::new(0)),
+            success_count: Arc::new(std::sync::Mutex::new(0)),
+            total_requests: Arc::new(std::sync::Mutex::new(0)),
+            last_failure_instant: Arc::new(std::sync::Mutex::new(None)),
+            failure_threshold,
+            reset_timeout: std::time::Duration::from_secs(reset_timeout_secs),
+        }
+    }
+
+    pub fn can_execute(&self) -> bool {
+        let mut state = self.state.lock().unwrap();
+        match *state {
+            CircuitState::Closed => true,
+            CircuitState::Open => {
+                if let Some(last_fail) = *self.last_failure_instant.lock().unwrap() {
+                    if last_fail.elapsed() >= self.reset_timeout {
+                        *state = CircuitState::HalfOpen;
+                        info!(
+                            "Circuit breaker for '{}' transitioned from Open to HalfOpen",
+                            self.provider_id
+                        );
+                        return true;
+                    }
+                }
+                false
+            }
+            CircuitState::HalfOpen => true,
+        }
+    }
+
+    pub fn record_success(&self) {
+        if let Ok(mut st) = self.state.lock() {
+            *st = CircuitState::Closed;
+        }
+        if let Ok(mut fc) = self.failure_count.lock() {
+            *fc = 0;
+        }
+        if let Ok(mut sc) = self.success_count.lock() {
+            *sc += 1;
+        }
+        if let Ok(mut tr) = self.total_requests.lock() {
+            *tr += 1;
+        }
+    }
+
+    pub fn record_failure(&self) {
+        let mut fc = self.failure_count.lock().unwrap();
+        *fc += 1;
+        if let Ok(mut tr) = self.total_requests.lock() {
+            *tr += 1;
+        }
+        if let Ok(mut lf) = self.last_failure_instant.lock() {
+            *lf = Some(std::time::Instant::now());
+        }
+
+        if *fc >= self.failure_threshold {
+            if let Ok(mut st) = self.state.lock() {
+                *st = CircuitState::Open;
+                tracing::warn!(
+                    "Circuit breaker for '{}' TRIPPED to Open state after {} consecutive failures",
+                    self.provider_id,
+                    *fc
+                );
+            }
+        }
+    }
+
+    pub fn reset(&self) {
+        if let Ok(mut st) = self.state.lock() {
+            *st = CircuitState::Closed;
+        }
+        if let Ok(mut fc) = self.failure_count.lock() {
+            *fc = 0;
+        }
+    }
+
+    pub fn status(&self) -> CircuitBreakerStatus {
+        let state = *self.state.lock().unwrap();
+        let failure_count = *self.failure_count.lock().unwrap();
+        let success_count = *self.success_count.lock().unwrap();
+        let total_requests = *self.total_requests.lock().unwrap();
+        let last_failure_ms = self
+            .last_failure_instant
+            .lock()
+            .unwrap()
+            .map(|t| t.elapsed().as_millis() as u64);
+
+        CircuitBreakerStatus {
+            provider_id: self.provider_id.clone(),
+            state,
+            failure_count,
+            success_count,
+            last_failure_ms,
+            total_requests,
+        }
+    }
+}
 
 pub struct EngineRegistry {
     translation_engines: Vec<Arc<dyn TranslationEngine>>,
@@ -23,16 +146,30 @@ pub struct EngineRegistry {
     model_manager: Option<Arc<ModelManager>>,
     audio_capture: Arc<AudioCaptureManager>,
     tts_engine: Arc<dyn TextToSpeechEngine>,
+    transliteration: Arc<TransliterationEngine>,
+    lru_cache: BoundedLruCache<String, TranslationResponse>,
+    circuit_breakers: HashMap<String, Arc<CircuitBreaker>>,
+    resource_profile: Arc<std::sync::Mutex<ResourceProfile>>,
 }
 
 impl EngineRegistry {
     pub fn new() -> Self {
+        let mut cbs = HashMap::new();
+        cbs.insert(
+            "http-rest-provider".to_string(),
+            Arc::new(CircuitBreaker::new("http-rest-provider", 3, 15)),
+        );
+
         Self {
             translation_engines: Vec::new(),
             storage: None,
             model_manager: None,
             audio_capture: Arc::new(AudioCaptureManager::default()),
             tts_engine: Arc::new(AuthenticTtsEngine::new()),
+            transliteration: Arc::new(TransliterationEngine::default()),
+            lru_cache: BoundedLruCache::new(2000),
+            circuit_breakers: cbs,
+            resource_profile: Arc::new(std::sync::Mutex::new(ResourceProfile::Balanced)),
         }
     }
 
@@ -41,12 +178,22 @@ impl EngineRegistry {
     }
 
     pub fn new_with_storage_and_models(storage: StorageService, models_dir: PathBuf) -> Self {
+        let mut cbs = HashMap::new();
+        cbs.insert(
+            "http-rest-provider".to_string(),
+            Arc::new(CircuitBreaker::new("http-rest-provider", 3, 15)),
+        );
+
         let mut registry = Self {
             translation_engines: Vec::new(),
             storage: Some(storage.clone()),
             model_manager: None,
             audio_capture: Arc::new(AudioCaptureManager::default()),
             tts_engine: Arc::new(AuthenticTtsEngine::new()),
+            transliteration: Arc::new(TransliterationEngine::default()),
+            lru_cache: BoundedLruCache::new(2000),
+            circuit_breakers: cbs,
+            resource_profile: Arc::new(std::sync::Mutex::new(ResourceProfile::Balanced)),
         };
 
         // Initialize ModelManager
@@ -82,6 +229,37 @@ impl EngineRegistry {
         Arc::clone(&self.tts_engine)
     }
 
+    pub fn transliteration(&self) -> Arc<TransliterationEngine> {
+        Arc::clone(&self.transliteration)
+    }
+
+    pub fn circuit_breakers(&self) -> Vec<CircuitBreakerStatus> {
+        self.circuit_breakers
+            .values()
+            .map(|cb| cb.status())
+            .collect()
+    }
+
+    pub fn reset_circuit_breaker(&self, provider_id: &str) -> bool {
+        if let Some(cb) = self.circuit_breakers.get(provider_id) {
+            cb.reset();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn resource_profile(&self) -> ResourceProfile {
+        *self.resource_profile.lock().unwrap()
+    }
+
+    pub fn set_resource_profile(&self, profile: ResourceProfile) {
+        if let Ok(mut current) = self.resource_profile.lock() {
+            *current = profile;
+        }
+        self.lru_cache.set_capacity(profile.max_cache_entries());
+    }
+
     pub fn register_translation_engine(&mut self, engine: Arc<dyn TranslationEngine>) {
         info!(
             "Registering translation engine: {} ({})",
@@ -92,7 +270,7 @@ impl EngineRegistry {
     }
 
     pub fn get_capabilities(&self) -> CapabilityMatrix {
-        let mut matrix = CapabilityMatrix::stage_4_active();
+        let mut matrix = CapabilityMatrix::stage_5_active();
 
         if !self.translation_engines.is_empty() {
             matrix.text_translation = CapabilityState::Active;
@@ -151,25 +329,38 @@ impl EngineRegistry {
             }
         }
 
-        // 3. If online/cloud allowed, attempt HTTP provider for arbitrary sentences
+        // 3. If online/cloud allowed, attempt HTTP provider for arbitrary sentences with circuit breaker
         if req.allow_cloud {
-            if let Some(http_engine) = self
-                .translation_engines
-                .iter()
-                .find(|e| e.id() == "http-rest-provider" && e.supports_pair(&req.pair))
-            {
-                match http_engine.translate(req.clone()).await {
-                    Ok(res) => {
-                        self.record_history(&res);
-                        return Ok(res);
-                    }
-                    Err(e) => {
-                        info!(
-                            "HTTP translation failed ({}), falling back to offline engines",
-                            e
-                        );
+            let cb_opt = self.circuit_breakers.get("http-rest-provider");
+            let can_run = cb_opt.map(|cb| cb.can_execute()).unwrap_or(true);
+
+            if can_run {
+                if let Some(http_engine) = self
+                    .translation_engines
+                    .iter()
+                    .find(|e| e.id() == "http-rest-provider" && e.supports_pair(&req.pair))
+                {
+                    match http_engine.translate(req.clone()).await {
+                        Ok(res) => {
+                            if let Some(cb) = cb_opt {
+                                cb.record_success();
+                            }
+                            self.record_history(&res);
+                            return Ok(res);
+                        }
+                        Err(e) => {
+                            if let Some(cb) = cb_opt {
+                                cb.record_failure();
+                            }
+                            info!(
+                                "HTTP translation failed ({}), circuit breaker updated, falling back to offline engines",
+                                e
+                            );
+                        }
                     }
                 }
+            } else {
+                info!("Circuit breaker OPEN for http-rest-provider; bypassing to offline fallback");
             }
         }
 
@@ -231,6 +422,186 @@ impl EngineRegistry {
         ))
     }
 
+    /// Enhanced intelligent translation coordinating transliteration, entity protection,
+    /// domain glossaries, circuit breakers, and formality adaptation.
+    pub async fn translate_with_intelligence(
+        &self,
+        req: IntelligenceTranslationRequest,
+    ) -> Result<IntelligenceTranslationResponse, LinguaError> {
+        let mut fallback_trail = Vec::new();
+
+        // 1. Script detection and auto transliteration if requested
+        let mut working_text = req.text.trim().to_string();
+        let mut transliterated_input = None;
+
+        let detected = lingua_core::detect_language(&working_text);
+        let mut src_lang = req.source_lang.or(detected).unwrap_or(LanguageCode::EnUs);
+
+        if req.enable_transliteration {
+            let translit_target = if src_lang == LanguageCode::KnIn {
+                Some(LanguageCode::KnIn)
+            } else if src_lang == LanguageCode::TaIn {
+                Some(LanguageCode::TaIn)
+            } else if req.target_lang == LanguageCode::KnIn {
+                Some(LanguageCode::KnIn)
+            } else if req.target_lang == LanguageCode::TaIn {
+                Some(LanguageCode::TaIn)
+            } else {
+                // Romanized input targeting English (e.g. "namaskara" or "vanakkam")
+                let res_kn = self
+                    .transliteration
+                    .transliterate(&working_text, LanguageCode::KnIn);
+                if let Ok(res) = res_kn {
+                    if res.transliterated != working_text
+                        && lingua_core::detect_language(&res.transliterated)
+                            == Some(LanguageCode::KnIn)
+                    {
+                        Some(LanguageCode::KnIn)
+                    } else {
+                        Some(LanguageCode::TaIn)
+                    }
+                } else {
+                    Some(LanguageCode::KnIn)
+                }
+            };
+
+            if let Some(target) = translit_target {
+                if let Ok(translit_res) = self.transliteration.transliterate(&working_text, target)
+                {
+                    if !translit_res.transliterated.is_empty()
+                        && translit_res.transliterated != working_text
+                    {
+                        transliterated_input = Some(translit_res.transliterated.clone());
+                        working_text = translit_res.transliterated;
+                        if req.source_lang.is_none() {
+                            src_lang = target;
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Protect named entities
+        let (masked_text, protected_entities) =
+            ContextNlpProcessor::protect_named_entities(&working_text);
+
+        // 3. Domain glossaries pre-fetch
+        let mut glossary_entries = Vec::new();
+        if let Some(ref storage) = self.storage {
+            if let Ok(entries) = storage.list_glossary_entries(
+                req.domain_glossary.as_deref(),
+                Some(src_lang),
+                Some(req.target_lang),
+            ) {
+                glossary_entries = entries;
+            }
+        }
+
+        // 4. Try LRU In-Memory Cache
+        let lru_key = format!(
+            "{}:{}:{}",
+            src_lang.as_bcp47(),
+            req.target_lang.as_bcp47(),
+            masked_text
+        );
+
+        let lru_start = std::time::Instant::now();
+        let (translated_text, engine_selected) =
+            if let Some(cached_resp) = self.lru_cache.get(&lru_key) {
+                fallback_trail.push(FallbackStep {
+                    engine_id: "in_memory_lru_cache".into(),
+                    attempt: 1,
+                    success: true,
+                    latency_ms: lru_start.elapsed().as_secs_f64() * 1000.0,
+                    reason: Some("Instant memory cache hit".into()),
+                });
+                (
+                    cached_resp.translated_text,
+                    "in_memory_lru_cache".to_string(),
+                )
+            } else {
+                fallback_trail.push(FallbackStep {
+                    engine_id: "in_memory_lru_cache".into(),
+                    attempt: 1,
+                    success: false,
+                    latency_ms: lru_start.elapsed().as_secs_f64() * 1000.0,
+                    reason: Some("Cache miss".into()),
+                });
+
+                // 5. Query via core translate
+                let pair = LanguagePair::new(src_lang, req.target_lang)?;
+                let trans_req = TranslationRequest {
+                    pair,
+                    text: masked_text.clone(),
+                    allow_cloud: true,
+                };
+
+                let trans_start = std::time::Instant::now();
+                match self.translate(trans_req).await {
+                    Ok(resp) => {
+                        fallback_trail.push(FallbackStep {
+                            engine_id: resp.engine_id.clone(),
+                            attempt: 2,
+                            success: true,
+                            latency_ms: trans_start.elapsed().as_secs_f64() * 1000.0,
+                            reason: Some("Translation successful".into()),
+                        });
+                        let out_text = resp.translated_text.clone();
+                        let out_eng = resp.engine_id.clone();
+                        self.lru_cache.insert(lru_key, resp);
+                        (out_text, out_eng)
+                    }
+                    Err(e) => {
+                        fallback_trail.push(FallbackStep {
+                            engine_id: "primary_engines".into(),
+                            attempt: 2,
+                            success: false,
+                            latency_ms: trans_start.elapsed().as_secs_f64() * 1000.0,
+                            reason: Some(e.to_string()),
+                        });
+                        return Err(e);
+                    }
+                }
+            };
+
+        // 6. Restore named entities
+        let restored_text =
+            ContextNlpProcessor::restore_named_entities(&translated_text, &protected_entities);
+
+        // 7. Apply domain glossaries
+        let (glossary_applied_text, terms_applied) = ContextNlpProcessor::apply_domain_glossary(
+            &restored_text,
+            src_lang,
+            req.target_lang,
+            &glossary_entries,
+        );
+
+        // 8. Adapt formality
+        let final_text = ContextNlpProcessor::adapt_formality(
+            &glossary_applied_text,
+            req.target_lang,
+            req.formality,
+        );
+
+        // 9. Estimate chrF quality score
+        let chrf_est = QualityEvaluator::compute_chrf(&final_text, &glossary_applied_text) as f32;
+
+        Ok(IntelligenceTranslationResponse {
+            source_text: req.text,
+            translated_text: final_text,
+            detected_lang: src_lang,
+            target_lang: req.target_lang,
+            metadata: IntelligenceTranslationMetadata {
+                engine_selected,
+                formality: req.formality,
+                glossary_terms_applied: terms_applied,
+                transliterated_input,
+                fallback_trail,
+                chrf_estimated: Some(chrf_est),
+            },
+        })
+    }
+
     fn record_history(&self, res: &TranslationResponse) {
         if let Some(ref storage) = self.storage {
             let record = TranslationRecord {
@@ -260,7 +631,7 @@ impl Default for EngineRegistry {
 mod tests {
     use super::*;
     use async_trait::async_trait;
-    use lingua_core::{LanguageCode, LanguagePair};
+    use lingua_core::{FormalityMode, LanguageCode, LanguagePair};
 
     // Unit test double strictly isolated inside test module per contract rule 1
     struct TestDummyEngine;
@@ -360,5 +731,48 @@ mod tests {
         assert_eq!(history.len(), 1);
         assert_eq!(history[0].source_text, "ನಮಸ್ಕಾರ");
         assert_eq!(history[0].translated_text, "Hello");
+    }
+
+    #[test]
+    fn test_circuit_breaker_trip_and_reset() {
+        let cb = CircuitBreaker::new("test-provider", 2, 60);
+        assert!(cb.can_execute());
+        assert_eq!(cb.status().state, CircuitState::Closed);
+
+        cb.record_failure();
+        assert!(cb.can_execute());
+        assert_eq!(cb.status().failure_count, 1);
+
+        cb.record_failure(); // Tripped!
+        assert_eq!(cb.status().state, CircuitState::Open);
+        assert!(!cb.can_execute());
+
+        cb.reset();
+        assert_eq!(cb.status().state, CircuitState::Closed);
+        assert!(cb.can_execute());
+    }
+
+    #[tokio::test]
+    async fn test_translate_with_intelligence_flow() {
+        let storage = StorageService::open_in_memory().unwrap();
+        let registry = EngineRegistry::new_with_storage(storage.clone());
+
+        // Test with Romanized Kannada input (Kanglish) + formality adaptation
+        let req = IntelligenceTranslationRequest {
+            text: "namaskara".into(),
+            source_lang: None,
+            target_lang: LanguageCode::EnUs,
+            formality: FormalityMode::Formal,
+            enable_transliteration: true,
+            domain_glossary: None,
+        };
+
+        let res = registry.translate_with_intelligence(req).await.unwrap();
+        assert_eq!(res.source_text, "namaskara");
+        assert!(!res.translated_text.is_empty());
+        assert_eq!(res.metadata.formality, FormalityMode::Formal);
+        assert!(res.metadata.transliterated_input.is_some());
+        assert_eq!(res.metadata.transliterated_input.as_deref(), Some("ನಮಸ್ಕಾರ"));
+        assert!(!res.metadata.fallback_trail.is_empty());
     }
 }

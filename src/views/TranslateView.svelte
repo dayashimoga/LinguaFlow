@@ -8,9 +8,12 @@
     type DictionaryEntry,
     type TranslationRecord,
     type FavoriteItem,
+    type FormalityMode,
+    type IntelligenceTranslationMetadata,
   } from '../lib/types';
   import {
     translateText,
+    translateWithIntelligence,
     searchDictionary,
     detectLanguage,
     listTranslationHistory,
@@ -34,6 +37,12 @@
   let translationError: string | null = null;
   let copied = false;
   let isFavorited = false;
+
+  // Stage 5 Intelligence & Optimization State
+  let formality: FormalityMode = 'neutral';
+  let enableTransliteration = true;
+  let selectedGlossary = 'none';
+  let intelligenceMetadata: IntelligenceTranslationMetadata | null = null;
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -113,18 +122,46 @@
     translationError = null;
 
     try {
-      const res = await translateText({
-        source_language: sourceLang,
-        target_language: targetLang,
+      const intelRes = await translateWithIntelligence({
         text,
-        allow_cloud: allowCloud,
+        source_lang: sourceLang,
+        target_lang: targetLang,
+        formality,
+        enable_transliteration: enableTransliteration,
+        domain_glossary: selectedGlossary === 'none' ? null : selectedGlossary,
       });
-      translationResult = res;
+
+      translationResult = {
+        source_language: intelRes.detected_lang,
+        target_language: intelRes.target_lang,
+        original_text: intelRes.source_text,
+        translated_text: intelRes.translated_text,
+        engine_id: intelRes.metadata.engine_selected,
+        is_offline: intelRes.metadata.engine_selected !== 'cloud-deep-translator',
+        latency_ms: intelRes.metadata.fallback_trail && intelRes.metadata.fallback_trail.length > 0
+          ? Math.round(intelRes.metadata.fallback_trail.reduce((acc, s) => acc + s.latency_ms, 0))
+          : 1,
+      };
+      intelligenceMetadata = intelRes.metadata;
       checkIfFavorited();
       await refreshHistoryAndFavorites();
-    } catch (e: any) {
-      translationResult = null;
-      translationError = e?.message || 'Translation failed';
+    } catch (_intelErr) {
+      // Graceful fallback to core translateText
+      try {
+        const res = await translateText({
+          source_language: sourceLang,
+          target_language: targetLang,
+          text,
+          allow_cloud: allowCloud,
+        });
+        translationResult = res;
+        intelligenceMetadata = null;
+        checkIfFavorited();
+        await refreshHistoryAndFavorites();
+      } catch (e: any) {
+        translationResult = null;
+        translationError = e?.message || 'Translation failed';
+      }
     } finally {
       isTranslating = false;
     }
@@ -247,6 +284,30 @@
           {#each SUPPORTED_LANGUAGES as lang}
             <option value={lang.code}>{lang.native} ({lang.name})</option>
           {/each}
+        </select>
+      </div>
+
+      <!-- Stage 5 Intelligence Bar -->
+      <div class="intelligence-controls">
+        <button
+          class="btn-toggle-chip {enableTransliteration ? 'active' : ''}"
+          on:click={() => { enableTransliteration = !enableTransliteration; executeTranslation(); }}
+          title="Phonetic transliteration for Romanized Kannada & Tamil (Kanglish / Tanglish)"
+        >
+          🔤 Transliterate {enableTransliteration ? 'ON' : 'OFF'}
+        </button>
+
+        <select bind:value={formality} on:change={executeTranslation} class="mini-select" title="Formality adaptation">
+          <option value="neutral">Neutral Tone</option>
+          <option value="formal">Formal / Respectful</option>
+          <option value="colloquial">Colloquial / Casual</option>
+        </select>
+
+        <select bind:value={selectedGlossary} on:change={executeTranslation} class="mini-select" title="Domain Glossary">
+          <option value="none">No Glossary</option>
+          <option value="tech">Tech Glossary</option>
+          <option value="medical">Medical Glossary</option>
+          <option value="general">General Glossary</option>
         </select>
       </div>
 
@@ -398,6 +459,24 @@
           <div class="result-text indic-text">
             {translationResult.translated_text}
           </div>
+
+          <!-- Stage 5 Metadata pills & Fallback trail -->
+          {#if intelligenceMetadata}
+            <div class="intel-meta-row">
+              {#if intelligenceMetadata.transliterated_input}
+                <span class="intel-pill">🔤 Script: {intelligenceMetadata.transliterated_input}</span>
+              {/if}
+              <span class="intel-pill">🎭 {intelligenceMetadata.formality.toUpperCase()}</span>
+              {#if intelligenceMetadata.chrf_estimated !== null && intelligenceMetadata.chrf_estimated !== undefined}
+                <span class="intel-pill pill-chrf">🎯 chrF: {intelligenceMetadata.chrf_estimated.toFixed(1)}%</span>
+              {/if}
+              {#if intelligenceMetadata.fallback_trail && intelligenceMetadata.fallback_trail.length > 0}
+                <span class="intel-pill pill-trail" title={intelligenceMetadata.fallback_trail.map(t => `${t.engine_id}: ${t.latency_ms.toFixed(1)}ms (${t.success ? 'OK' : 'Bypassed'})`).join(' ➔ ')}>
+                  ⚡ {intelligenceMetadata.engine_selected} ({intelligenceMetadata.fallback_trail.length} hop)
+                </span>
+              {/if}
+            </div>
+          {/if}
 
           <!-- Clickable translated tokens -->
           <div class="token-chips">
@@ -1029,6 +1108,70 @@
 
   .animate-fade {
     animation: fadeIn 0.2s ease-in;
+  }
+
+  .intelligence-controls {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  .btn-toggle-chip {
+    padding: 4px 10px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-toggle-chip.active {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: #6366f1;
+    color: #818cf8;
+  }
+
+  .mini-select {
+    padding: 4px 8px;
+    font-size: 0.8rem;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-subtle);
+    background: var(--bg-surface);
+    color: var(--text-primary);
+  }
+
+  .intel-meta-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 0.75rem 0;
+  }
+
+  .intel-pill {
+    padding: 3px 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-muted);
+  }
+
+  .intel-pill.pill-chrf {
+    background: rgba(16, 185, 129, 0.15);
+    border-color: rgba(16, 185, 129, 0.3);
+    color: #10b981;
+  }
+
+  .intel-pill.pill-trail {
+    background: rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.3);
+    color: #818cf8;
+    cursor: help;
   }
 
   @keyframes fadeIn {

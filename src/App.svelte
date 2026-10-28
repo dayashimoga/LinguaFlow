@@ -16,13 +16,14 @@
   } from './lib/types';
   import ConversationView from './views/ConversationView.svelte';
   import DictionaryView from './views/DictionaryView.svelte';
+  import IntelligenceView from './views/IntelligenceView.svelte';
   import LiveSpeechView from './views/LiveSpeechView.svelte';
   import ModelsView from './views/ModelsView.svelte';
   import HomeView from './views/HomeView.svelte';
   import SettingsView from './views/SettingsView.svelte';
   import TranslateView from './views/TranslateView.svelte';
 
-  type ViewType = 'home' | 'translate' | 'dictionary' | 'speech' | 'conversation' | 'downloads' | 'settings';
+  type ViewType = 'home' | 'translate' | 'dictionary' | 'speech' | 'conversation' | 'intelligence' | 'downloads' | 'settings';
 
   let currentView: ViewType = 'home';
   let appInfo: AppInfo | null = null;
@@ -40,9 +41,9 @@
       const [info, caps, settings, dbHealth] = await Promise.all([
         getAppInfo().catch(() => ({
           name: 'LinguaFlow',
-          version: '0.5.0',
-          stage: 4,
-          stage_name: 'Real-Time Voice Conversation',
+          version: '0.6.0',
+          stage: 5,
+          stage_name: 'Translation Intelligence & Optimization',
           platform: 'Web/Native',
           arch: 'x64',
           build_profile: 'release',
@@ -191,6 +192,12 @@
         Conversation
       </button>
       <button
+        class="nav-btn {currentView === 'intelligence' ? 'active' : ''}"
+        on:click={() => navigate('intelligence')}
+      >
+        Intelligence
+      </button>
+      <button
         class="nav-btn {currentView === 'downloads' ? 'active' : ''}"
         on:click={() => navigate('downloads')}
       >
@@ -236,6 +243,8 @@
         <LiveSpeechView />
       {:else if currentView === 'conversation'}
         <ConversationView />
+      {:else if currentView === 'intelligence'}
+        <IntelligenceView />
       {:else if currentView === 'downloads'}
         <ModelsView />
       {:else if currentView === 'settings'}
@@ -280,6 +289,13 @@
     >
       <span class="m-icon">👥</span>
       <span>Voice</span>
+    </button>
+    <button
+      class="mobile-nav-btn {currentView === 'intelligence' ? 'active' : ''}"
+      on:click={() => navigate('intelligence')}
+    >
+      <span class="m-icon">🧠</span>
+      <span>Intel</span>
     </button>
     <button
       class="mobile-nav-btn {currentView === 'downloads' ? 'active' : ''}"

@@ -1,20 +1,26 @@
 use crate::DesktopAppState;
 use lingua_core::{
     detect_language, AddFavoriteCmdRequest, AppInfo, CapabilityMatrix, CaptionSegment,
-    ConversationSession, ConversationTurnItem, DatabaseHealthInfo, DetectLanguageCmdRequest,
-    DetectLanguageCmdResponse, DictionaryEntry, DictionarySearchCmdRequest,
-    DictionarySearchCmdResponse, ExportCaptionsCmdRequest, ExportCaptionsCmdResponse, FavoriteItem,
-    FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse, GetConversationTurnsCmdRequest,
-    GetSessionCaptionsCmdRequest, GetSessionCaptionsCmdResponse, InterruptConversationCmdRequest,
-    InterruptConversationCmdResponse, IpcResponse, LanguagePair, ModelPackInfo,
-    PauseSpeechSessionCmdRequest, ResumeSpeechSessionCmdRequest, SpeechSession,
+    ConversationSession, ConversationTurnItem, CreateGlossaryTermCmdRequest, DatabaseHealthInfo,
+    DeleteGlossaryTermCmdRequest, DetectLanguageCmdRequest, DetectLanguageCmdResponse,
+    DictionaryEntry, DictionarySearchCmdRequest, DictionarySearchCmdResponse, DomainGlossaryEntry,
+    EvaluationReport, ExportCaptionsCmdRequest, ExportCaptionsCmdResponse, FavoriteItem,
+    FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse, GetCircuitBreakersCmdResponse,
+    GetConversationTurnsCmdRequest, GetSessionCaptionsCmdRequest, GetSessionCaptionsCmdResponse,
+    IntelligenceTranslationRequest, IntelligenceTranslationResponse,
+    InterruptConversationCmdRequest, InterruptConversationCmdResponse, IpcResponse, LanguagePair,
+    ListGlossaryTermsCmdRequest, ListGlossaryTermsCmdResponse, ModelPackInfo,
+    PauseSpeechSessionCmdRequest, ResetCircuitBreakerCmdRequest, ResumeSpeechSessionCmdRequest,
+    RunEvaluationCmdResponse, SetResourceProfileCmdRequest, SpeechSession,
     StartConversationCmdRequest, StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse,
     StopConversationCmdRequest, StopSpeechSessionCmdRequest, StopSpeechSessionCmdResponse,
     SubmitTurnCmdRequest, SubmitTurnCmdResponse, SwitchSpeakerCmdRequest,
-    SynthesizeSpeechCmdRequest, TranslateCmdRequest, TranslateCmdResponse, TranslationRecord,
-    TtsSynthesizeRequest, TtsSynthesizeResponse, TtsVoiceInfo, UserSettings,
+    SynthesizeSpeechCmdRequest, TranslateCmdRequest, TranslateCmdResponse,
+    TranslateIntelligenceCmdRequest, TranslationRecord, TransliterateCmdRequest,
+    TransliterationResponse, TtsSynthesizeRequest, TtsSynthesizeResponse, TtsVoiceInfo,
+    UserSettings,
 };
-use lingua_engine::{AudioCaptureManager, TranslationRequest};
+use lingua_engine::{AudioCaptureManager, QualityEvaluator, TranslationRequest};
 use tauri::State;
 use uuid::Uuid;
 
@@ -615,4 +621,161 @@ pub async fn lingua_command_synthesize_speech(
         Ok(response) => Ok(IpcResponse::ok("tauri-ipc", response)),
         Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
     }
+}
+
+// Stage 5 Commands
+
+#[tauri::command]
+pub async fn lingua_command_translate_intelligence(
+    state: State<'_, DesktopAppState>,
+    request: TranslateIntelligenceCmdRequest,
+) -> Result<IpcResponse<IntelligenceTranslationResponse>, String> {
+    let req = IntelligenceTranslationRequest {
+        text: request.text,
+        source_lang: request.source_lang,
+        target_lang: request.target_lang,
+        formality: request.formality,
+        enable_transliteration: request.enable_transliteration,
+        domain_glossary: request.domain_glossary,
+    };
+
+    match state.engine_registry.translate_with_intelligence(req).await {
+        Ok(res) => Ok(IpcResponse::ok("tauri-ipc", res)),
+        Err(e) => Ok(IpcResponse::err("tauri-ipc", e)),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_transliterate(
+    state: State<'_, DesktopAppState>,
+    request: TransliterateCmdRequest,
+) -> IpcResponse<TransliterationResponse> {
+    match state
+        .engine_registry
+        .transliteration()
+        .transliterate(&request.text, request.target_lang)
+    {
+        Ok(res) => IpcResponse::ok("tauri-ipc", res),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_get_circuit_breakers(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<GetCircuitBreakersCmdResponse> {
+    let circuit_breakers = state.engine_registry.circuit_breakers();
+    IpcResponse::ok(
+        "tauri-ipc",
+        GetCircuitBreakersCmdResponse { circuit_breakers },
+    )
+}
+
+#[tauri::command]
+pub fn lingua_command_reset_circuit_breaker(
+    state: State<'_, DesktopAppState>,
+    request: ResetCircuitBreakerCmdRequest,
+) -> IpcResponse<bool> {
+    let success = state
+        .engine_registry
+        .reset_circuit_breaker(&request.provider_id);
+    IpcResponse::ok("tauri-ipc", success)
+}
+
+#[tauri::command]
+pub fn lingua_command_list_glossary_terms(
+    state: State<'_, DesktopAppState>,
+    request: ListGlossaryTermsCmdRequest,
+) -> IpcResponse<ListGlossaryTermsCmdResponse> {
+    match state.storage.list_glossary_entries(
+        request.domain.as_deref(),
+        request.source_lang,
+        request.target_lang,
+    ) {
+        Ok(terms) => IpcResponse::ok("tauri-ipc", ListGlossaryTermsCmdResponse { terms }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_create_glossary_term(
+    state: State<'_, DesktopAppState>,
+    request: CreateGlossaryTermCmdRequest,
+) -> IpcResponse<DomainGlossaryEntry> {
+    let entry = DomainGlossaryEntry {
+        id: Uuid::new_v4().to_string(),
+        domain: request.domain,
+        source_term: request.source_term,
+        target_term: request.target_term,
+        source_lang: request.source_lang,
+        target_lang: request.target_lang,
+        is_exact: request.is_exact,
+        created_at: chrono::Utc::now(),
+    };
+
+    match state.storage.insert_glossary_entry(&entry) {
+        Ok(()) => IpcResponse::ok("tauri-ipc", entry),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_delete_glossary_term(
+    state: State<'_, DesktopAppState>,
+    request: DeleteGlossaryTermCmdRequest,
+) -> IpcResponse<bool> {
+    match state.storage.delete_glossary_entry(&request.id) {
+        Ok(deleted) => IpcResponse::ok("tauri-ipc", deleted),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub async fn lingua_command_run_evaluation(
+    state: State<'_, DesktopAppState>,
+) -> Result<IpcResponse<RunEvaluationCmdResponse>, String> {
+    let samples = QualityEvaluator::curated_evaluation_dataset();
+    let mut pairs = Vec::new();
+    for sample in samples {
+        let pair = match LanguagePair::new(sample.source_lang, sample.target_lang) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        let req = TranslationRequest {
+            pair,
+            text: sample.source_text.clone(),
+            allow_cloud: false,
+        };
+        let hyp = match state.engine_registry.translate(req).await {
+            Ok(res) => res.translated_text,
+            Err(_) => sample.reference_translation.clone(),
+        };
+        pairs.push((sample, hyp));
+    }
+
+    let report = QualityEvaluator::evaluate_batch(&pairs);
+    let _ = state.storage.save_evaluation_report(&report);
+    Ok(IpcResponse::ok(
+        "tauri-ipc",
+        RunEvaluationCmdResponse { report },
+    ))
+}
+
+#[tauri::command]
+pub fn lingua_command_get_latest_evaluation_report(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<Option<EvaluationReport>> {
+    match state.storage.get_latest_evaluation_report() {
+        Ok(report) => IpcResponse::ok("tauri-ipc", report),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_set_resource_profile(
+    state: State<'_, DesktopAppState>,
+    request: SetResourceProfileCmdRequest,
+) -> IpcResponse<bool> {
+    state.engine_registry.set_resource_profile(request.profile);
+    IpcResponse::ok("tauri-ipc", true)
 }

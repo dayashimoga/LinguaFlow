@@ -2124,6 +2124,7 @@ dependencies = [
 name = "lingua-cli"
 version = "0.1.0"
 dependencies = [
+ "chrono",
  "clap",
  "lingua-core",
  "lingua-engine",
@@ -2134,6 +2135,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "uuid",
 ]
 
 [[package]]
@@ -2209,6 +2211,7 @@ dependencies = [
  "thiserror 2.0.21",
  "tokio",
  "tracing",
+ "uuid",
 ]
 
 [[package]]

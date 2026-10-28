@@ -80,6 +80,17 @@ pub fn run() {
             commands::lingua_command_get_conversation_turns,
             commands::lingua_command_list_tts_voices,
             commands::lingua_command_synthesize_speech,
+            // Stage 5 commands
+            commands::lingua_command_translate_intelligence,
+            commands::lingua_command_transliterate,
+            commands::lingua_command_get_circuit_breakers,
+            commands::lingua_command_reset_circuit_breaker,
+            commands::lingua_command_list_glossary_terms,
+            commands::lingua_command_create_glossary_term,
+            commands::lingua_command_delete_glossary_term,
+            commands::lingua_command_run_evaluation,
+            commands::lingua_command_get_latest_evaluation_report,
+            commands::lingua_command_set_resource_profile,
         ])
         .run(tauri::generate_context!())
         .expect("error while running LinguaFlow application");

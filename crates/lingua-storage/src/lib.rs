@@ -1,6 +1,7 @@
 pub mod conversation_repo;
 pub mod db;
 pub mod dictionary_repo;
+pub mod glossary_repo;
 pub mod history_repo;
 pub mod model_packs_repo;
 pub mod offline_repo;

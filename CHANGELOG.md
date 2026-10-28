@@ -233,5 +233,77 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comprehensive Integration Test Suite**:
   - `tests/conversation_turns.rs`: 6 integration tests verifying two-way Kannada <-> English, Tamil <-> English, direct Kannada <-> Tamil, rapid speaker changes, barge-in / interruption, and acoustic echo suppression (mic ducking).
 
+## [0.6.0] - 2026-10-28 (Stage 5: Translation Intelligence and Optimization)
+
+### Added
+- **Multi-Engine Intelligence & Circuit Breakers (`lingua-engine`)**:
+  - `CircuitBreaker`: Resilient circuit breaker tracking consecutive upstream provider failures, configurable failure threshold (3), reset timeout (10s), and probe success threshold (2).
+  - Explicit state transitions (`Closed`, `HalfOpen`, `Open`) preventing cascading failures and continuous upstream flooding when external services become unreachable.
+  - `translate_with_intelligence`: Multi-tier translation pipeline with observable fallback trails recording every attempted engine, execution latency, and error reason.
+  - Automatic fallback from online HTTP providers to offline verified lexicon dictionary with user engine overrides.
+- **Context-Aware NLP & Transliteration Engine (`lingua-engine`)**:
+  - `ContextNlpProcessor`:
+    - Proper noun and entity protection preserving `{NamedEntity}` curly brace tokens intact through translation without distortion via indexed placeholder substitution and lossless reconstruction.
+    - Custom domain glossary substitution with case-insensitive multi-word phrase matching and word boundary enforcement (e.g., "Artificial Intelligence" -> "ಕೃತಕ ಬುದ್ಧಿಮತ್ತೆ" / "செயற்கை நுண்ணறிவு").
+    - Formality style adaptation: `Neutral`, `Formal` (with respectful Indic honorifics and polite verb inflections), and `Colloquial` (with natural conversational particles).
+  - `TransliterationEngine`:
+    - Phonetic transliteration of Romanized Indic input (Kanglish and Tanglish) to authentic Kannada (`kn-IN`) and Tamil (`ta-IN`) scripts.
+    - Full syllabic consonant-vowel mapping and multi-character conjunct resolution.
+    - Sub-microsecond execution (0.001 ms / op) powered by an internal bounded LRU cache.
+- **Linguistic Quality & Evaluation Framework (`lingua-engine`)**:
+  - `EvaluationDataset` & `EvaluationSuite`:
+    - Authentic implementation of Popović (2015) character n-gram F-score (chrF) using character 6-grams and $\beta=2$ weighting over all evaluated orders.
+    - Word Error Rate (WER) using dynamic programming Levenshtein distance on token sequences.
+    - Character Error Rate (CER) using Levenshtein distance on Unicode scalar values.
+    - 8 curated, authentic gold-standard parallel evaluation samples spanning Kannada, Tamil, and English.
+    - Structured evaluation reports with overall mean scores and per-sample breakdown.
+- **Performance Engineering & Bounded LRU Caches (`lingua-engine`)**:
+  - `BoundedLruCache<K, V>`: Thread-safe (`Arc<Mutex<...>>`) LRU cache with monotonic generation tracking, dynamic capacity resizing, and hit/miss/eviction counters.
+  - Elimination of unbounded memory growth in continuous translation workloads (sub-1.25 MB overhead for 1,000 entries).
+  - Configurable `ResourceProfile` (`PowerSaver`, `Balanced`, `HighPerformance`) to dynamically tune cache capacities and inference aggressiveness.
+- **SQLite Database Migration 006 (`lingua-storage`)**:
+  - Created `domain_glossaries` table supporting domain-specific term overrides with uniqueness constraints on `(domain, source_lang, target_lang, source_term)`.
+  - Created `evaluation_reports` table persisting timestamped evaluation benchmarks and aggregate quality scores.
+  - Created `circuit_breaker_metrics` table tracking total requests, failures, and fallbacks per provider.
+  - Seeded initial technical and medical domain terms for Kannada and Tamil.
+  - `GlossaryRepository` implementing list, insert, and domain lookup methods.
+- **Server Endpoints & Tauri IPC (`lingua-server` & `src-tauri`)**:
+  - REST endpoints:
+    - `POST /api/v1/intelligence/translate`: Intelligence pipeline with formality, glossaries, entity protection, and fallback metadata.
+    - `POST /api/v1/intelligence/transliterate`: Direct Romanized script transliteration.
+    - `GET /api/v1/intelligence/circuit-breakers`: Provider circuit breaker status and counters.
+    - `POST /api/v1/intelligence/circuit-breakers/reset`: Reset circuit breaker state to closed.
+    - `POST /api/v1/intelligence/evaluate`: Run linguistic benchmark evaluation against gold-standard dataset.
+    - `GET /api/v1/intelligence/cache/stats`: Bounded LRU cache hit/miss/eviction statistics.
+    - `POST /api/v1/intelligence/cache/clear`: Evict all cached translation entries.
+    - `GET /api/v1/intelligence/resource-profile`: Current resource profile and cache capacity.
+    - `POST /api/v1/intelligence/resource-profile`: Update resource profile.
+    - `GET /api/v1/glossary` & `POST /api/v1/glossary`: Domain glossary management.
+  - 10 Tauri IPC commands registered for seamless desktop execution.
+- **Accessible Svelte 5 Intelligence Studio UI (`src/`)**:
+  - `src/views/IntelligenceView.svelte`:
+    - Full-featured Intelligence Studio dashboard with tabs for Pipeline Playground, Circuit Breakers, Domain Glossaries, and Quality Evaluation.
+    - Interactive transliteration demo converting Romanized input in real time.
+    - Real-time circuit breaker health monitor with provider status badges, failure counts, and manual reset buttons.
+    - Domain glossary manager allowing users to browse seeded terms and add custom overrides.
+    - Automated quality evaluation runner rendering chrF, WER, and CER benchmark cards with per-sample inspection.
+  - Enhanced `src/views/TranslateView.svelte`:
+    - Real-time transliteration switch, formality selector (`Neutral`, `Formal`, `Colloquial`), domain glossary dropdown, and detailed observable fallback trail pill.
+  - Navigation updated to Stage 5 ("Translation Intelligence & Optimization") across desktop and mobile.
+- **CLI Commands & Microbenchmarks (`lingua-cli`)**:
+  - Added `lingua transliterate <text> [--target-lang <lang>]`.
+  - Added `lingua glossary list [--domain <domain>]` and `lingua glossary add`.
+  - Added `lingua circuit-breakers [--reset <provider>]`.
+  - Added `lingua eval [--domain <domain>]`.
+  - Extended `lingua doctor` with Stage 5 diagnostics (20/20 passed).
+  - Added microbenchmarks 13–16:
+    - Romanized Indic Transliteration: 0.001 ms / op (Threshold: < 0.5 ms - PASS)
+    - Bounded LRU Cache Read/Write: 0.003 ms / op (Threshold: < 0.05 ms - PASS)
+    - chrF Metric Computation: 0.177 ms / op (Threshold: < 2.0 ms - PASS)
+    - Translation Intelligence Pipeline Turnaround: 3.035 ms / op (Threshold: < 10.0 ms - PASS)
+- **Comprehensive Integration Test Suite**:
+  - `tests/translation_intelligence.rs`: 7 integration tests verifying circuit breaker state transitions, transliteration accuracy, domain glossary term replacement, proper noun entity preservation, formality rewriting, chrF/WER/CER computation, and bounded LRU cache eviction and stats.
+
+
 
 

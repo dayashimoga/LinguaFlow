@@ -296,5 +296,67 @@
   - Authored `docs/STAGE_4_ACCEPTANCE_REPORT.md` and updated `docs/BENCHMARKS.md`, `docs/requirements-traceability-matrix.md`, and `CHANGELOG.md`.
 - [x] Stage 4 certified complete and ready for user review.
 
+### [2026-10-28 18:00 UTC] Stage 5: Translation Intelligence and Optimization — Completed
+- [x] Phase 5.1 — Multi-Engine Intelligence & Observable Circuit Breakers:
+  - Added `CircuitState` (`Closed`, `HalfOpen`, `Open`), `CircuitBreakerStatus`, `FallbackStep`, `IntelligenceTranslationMetadata`, `IntelligenceTranslationRequest`, and `IntelligenceTranslationResponse` in `crates/lingua-core/src/models.rs`.
+  - Implemented `CircuitBreaker` in `crates/lingua-engine/src/registry.rs`:
+    - Tracks consecutive failure counts, failure threshold (3), reset timeout (10s), probe success threshold (2), total requests, total failures, and total fallbacks.
+    - Automatic state transitions: Closed -> Open upon reaching failure threshold; Open -> HalfOpen after timeout; HalfOpen -> Closed upon consecutive successes; HalfOpen -> Open upon probe failure.
+  - Implemented `translate_with_intelligence` in `crates/lingua-engine/src/registry.rs`:
+    - Observable fallback trail recording each attempted engine, success/failure status, error reason, and exact latency.
+    - Seamless fallback from online HTTP translation to offline verified lexicon dictionary.
+    - Engine override support (`None` = auto, or force specific engine).
+    - Integrated with bounded LRU cache (1,000 entries) with SHA-256 key hashing.
+- [x] Phase 5.2 — Context-Aware NLP, Transliteration, Glossaries & Entity Protection:
+  - Added `FormalityMode` (`Neutral`, `Formal`, `Colloquial`) in `crates/lingua-core/src/models.rs`.
+  - Implemented `ContextNlpProcessor` in `crates/lingua-engine/src/context_nlp.rs`:
+    - Proper noun and entity protection preserving `{NamedEntity}` curly brace tokens untouched through translation via placeholder substitution and lossless restoration.
+    - Domain glossary substitution: case-insensitive multi-word phrase matching with word boundary validation.
+    - Formality style rewriting: polite honorifics and suffixes for `Formal` mode vs. casual conversational markers for `Colloquial` mode across Kannada, Tamil, and English.
+  - Implemented `TransliterationEngine` in `crates/lingua-engine/src/transliteration.rs`:
+    - High-performance phonetic transliteration of Romanized Indic script (Kanglish / Tanglish) to authentic Kannada and Tamil scripts.
+    - Syllabic vowel combinations and consonant conjunct rules.
+    - Internal bounded LRU cache (500 items) yielding sub-microsecond lookups (0.001 ms).
+- [x] Phase 5.3 — Evaluation & Quality Metrics Framework:
+  - Implemented `EvaluationDataset` and `EvaluationSuite` in `crates/lingua-engine/src/evaluation.rs`:
+    - Popović (2015) character n-gram F-score (chrF) computation with character 6-grams and $\beta=2$ weighting across all evaluated orders.
+    - Word Error Rate (WER) using Levenshtein distance on tokenized words.
+    - Character Error Rate (CER) using Levenshtein distance on Unicode characters.
+    - 8 curated, authentic gold-standard parallel evaluation benchmark samples across `kn <-> en`, `ta <-> en`, and `kn <-> ta`.
+    - Batch evaluation runner generating structured `EvaluationReport` with per-sample scores and aggregate averages.
+- [x] Phase 5.4 — Performance Engineering & Bounded LRU Cache:
+  - Added `ResourceProfile` (`PowerSaver`, `Balanced`, `HighPerformance`) in `crates/lingua-core/src/models.rs`.
+  - Implemented `BoundedLruCache<K, V>` in `crates/lingua-engine/src/lru_cache.rs`:
+    - Thread-safe (`Arc<Mutex<...>>`) bounded LRU cache using monotonic generation tracking.
+    - Zero unbounded memory growth; dynamic capacity resizing with automatic eviction of oldest entries.
+    - Hit, miss, and eviction counter telemetry.
+  - Microbenchmarked sub-microsecond cache access (0.003 ms / op).
+- [x] Phase 5.5 — Persistence, IPC, CLI, Frontend & Certification:
+  - Database Migration 006: Created `domain_glossaries`, `evaluation_reports`, and `circuit_breaker_metrics` tables in `crates/lingua-storage/src/schema.rs`.
+  - Seeded initial technical and medical domain glossary terms for Kannada and Tamil.
+  - Added `GlossaryRepository` in `crates/lingua-storage/src/glossary_repo.rs` exposed on `StorageService`.
+  - Server endpoints in `crates/lingua-server/src/routes.rs`:
+    - `POST /api/v1/intelligence/translate`
+    - `POST /api/v1/intelligence/transliterate`
+    - `GET /api/v1/intelligence/circuit-breakers`
+    - `POST /api/v1/intelligence/circuit-breakers/reset`
+    - `POST /api/v1/intelligence/evaluate`
+    - `GET /api/v1/intelligence/cache/stats`
+    - `POST /api/v1/intelligence/cache/clear`
+    - `GET /api/v1/intelligence/resource-profile`
+    - `POST /api/v1/intelligence/resource-profile`
+    - `GET /api/v1/glossary` & `POST /api/v1/glossary`
+  - Registered 10 new desktop IPC commands in `src-tauri/src/commands.rs` and `src-tauri/src/lib.rs`.
+  - CLI subcommands in `crates/lingua-cli`: `transliterate`, `glossary`, `circuit-breakers`, `eval`, plus Stage 5 diagnostics in `doctor` (20/20 passed) and microbenchmarks 13–16 in `bench` (16/16 passed).
+  - Built comprehensive `src/views/IntelligenceView.svelte` with interactive Studio dashboard, transliteration playground, circuit breaker monitor, domain glossary manager, and quality evaluation gauges.
+  - Enhanced `src/views/TranslateView.svelte` with transliteration switch, formality selector, glossary dropdown, and fallback trail metadata.
+  - Created integration test suite `crates/lingua-engine/tests/translation_intelligence.rs` (7/7 passed).
+  - All 88 workspace unit & integration tests passing (100% pass rate).
+  - Clippy `-D warnings` and `cargo fmt --check` clean with 0 warnings.
+  - Svelte check (`npm run check`) 0 errors, 0 warnings; production build (`npm run build`) succeeded in 1.78s.
+  - Authored `docs/STAGE_5_ACCEPTANCE_REPORT.md` and updated `docs/BENCHMARKS.md`, `docs/requirements-traceability-matrix.md`, and `CHANGELOG.md`.
+- [x] Stage 5 certified complete and ready for user review.
+
+
 
 

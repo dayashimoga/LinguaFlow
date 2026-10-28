@@ -11,21 +11,25 @@ use axum::{
 };
 use lingua_core::{
     detect_language, AddFavoriteCmdRequest, AppInfo, CapabilityMatrix, CaptionFormat,
-    CaptionSegment, DatabaseHealthInfo, DetectLanguageCmdRequest, DetectLanguageCmdResponse,
-    DictionaryEntry, DictionarySearchCmdResponse, DiskSpaceInfo, ExportCaptionsCmdResponse,
-    FavoriteItem, FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse,
+    CaptionSegment, CreateGlossaryTermCmdRequest, DatabaseHealthInfo, DetectLanguageCmdRequest,
+    DetectLanguageCmdResponse, DictionaryEntry, DictionarySearchCmdResponse, DiskSpaceInfo,
+    DomainGlossaryEntry, EvaluationReport, ExportCaptionsCmdResponse, FavoriteItem,
+    FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse, GetCircuitBreakersCmdResponse,
     GetConversationTurnsCmdResponse, GetSessionCaptionsCmdResponse, GetTtsVoicesCmdResponse,
+    IntelligenceTranslationRequest, IntelligenceTranslationResponse,
     InterruptConversationCmdRequest, InterruptConversationCmdResponse, LanguageCode, LanguagePair,
-    ModelPackDetailedInfo, ModelPackInfo, PauseSpeechSessionCmdRequest,
-    ResumeSpeechSessionCmdRequest, SpeechSession, StartConversationCmdRequest,
+    ListGlossaryTermsCmdResponse, ModelPackDetailedInfo, ModelPackInfo,
+    PauseSpeechSessionCmdRequest, ResumeSpeechSessionCmdRequest, RunEvaluationCmdResponse,
+    SetResourceProfileCmdRequest, SpeechSession, StartConversationCmdRequest,
     StartConversationCmdResponse, StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse,
     StopConversationCmdRequest, StopConversationCmdResponse, StopSpeechSessionCmdRequest,
     StopSpeechSessionCmdResponse, SubmitTurnCmdRequest, SubmitTurnCmdResponse,
     SwitchSpeakerCmdRequest, SwitchSpeakerCmdResponse, SynthesizeSpeechCmdRequest,
-    SynthesizeSpeechCmdResponse, TranslateCmdRequest, TranslateCmdResponse, TranslationRecord,
-    TtsSynthesizeRequest, UserSettings, VerifyModelCmdResponse,
+    SynthesizeSpeechCmdResponse, TranslateCmdRequest, TranslateCmdResponse,
+    TranslateIntelligenceCmdRequest, TranslationRecord, TransliterateCmdRequest,
+    TransliterationResponse, TtsSynthesizeRequest, UserSettings, VerifyModelCmdResponse,
 };
-use lingua_engine::{AudioCaptureManager, TranslationRequest};
+use lingua_engine::{AudioCaptureManager, QualityEvaluator, TranslationRequest};
 use serde::Deserialize;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -120,6 +124,40 @@ pub fn create_router(state: ServerState) -> Router {
         .route("/api/v1/tts/synthesize", post(synthesize_tts_handler))
         .route("/api/v1/conversation/ws", get(conversation_ws_handler))
         .route("/api/v1/ws", get(ws_handler))
+        // Stage 5: Translation Intelligence, Circuit Breakers, Glossaries, Evaluation
+        .route(
+            "/api/v1/intelligence/translate",
+            post(intelligence_translate_handler),
+        )
+        .route(
+            "/api/v1/intelligence/transliterate",
+            post(intelligence_transliterate_handler),
+        )
+        .route(
+            "/api/v1/intelligence/circuit-breakers",
+            get(list_circuit_breakers_handler),
+        )
+        .route(
+            "/api/v1/intelligence/circuit-breakers/{id}/reset",
+            post(reset_circuit_breaker_handler),
+        )
+        .route(
+            "/api/v1/glossary",
+            get(list_glossary_handler).post(create_glossary_handler),
+        )
+        .route("/api/v1/glossary/{id}", delete(delete_glossary_handler))
+        .route(
+            "/api/v1/intelligence/evaluate",
+            post(run_evaluation_handler),
+        )
+        .route(
+            "/api/v1/intelligence/evaluation-report",
+            get(get_evaluation_report_handler),
+        )
+        .route(
+            "/api/v1/intelligence/resource-profile",
+            post(set_resource_profile_handler),
+        )
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
@@ -811,4 +849,149 @@ async fn handle_conversation_socket(mut socket: WebSocket, state: ServerState) {
             break;
         }
     }
+}
+
+// Stage 5 Handler Implementations
+
+async fn intelligence_translate_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<TranslateIntelligenceCmdRequest>,
+) -> Result<Json<IntelligenceTranslationResponse>, (StatusCode, String)> {
+    let req = IntelligenceTranslationRequest {
+        text: payload.text,
+        source_lang: payload.source_lang,
+        target_lang: payload.target_lang,
+        formality: payload.formality,
+        enable_transliteration: payload.enable_transliteration,
+        domain_glossary: payload.domain_glossary,
+    };
+    match state.engine_registry.translate_with_intelligence(req).await {
+        Ok(res) => Ok(Json(res)),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn intelligence_transliterate_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<TransliterateCmdRequest>,
+) -> Result<Json<TransliterationResponse>, (StatusCode, String)> {
+    match state
+        .engine_registry
+        .transliteration()
+        .transliterate(&payload.text, payload.target_lang)
+    {
+        Ok(res) => Ok(Json(res)),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }
+}
+
+async fn list_circuit_breakers_handler(
+    State(state): State<ServerState>,
+) -> Json<GetCircuitBreakersCmdResponse> {
+    let circuit_breakers = state.engine_registry.circuit_breakers();
+    Json(GetCircuitBreakersCmdResponse { circuit_breakers })
+}
+
+async fn reset_circuit_breaker_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+) -> StatusCode {
+    state.engine_registry.reset_circuit_breaker(&id);
+    StatusCode::OK
+}
+
+#[derive(Debug, Deserialize)]
+pub struct GlossaryQueryParams {
+    pub domain: Option<String>,
+    pub source_lang: Option<LanguageCode>,
+    pub target_lang: Option<LanguageCode>,
+}
+
+async fn list_glossary_handler(
+    State(state): State<ServerState>,
+    Query(params): Query<GlossaryQueryParams>,
+) -> Result<Json<ListGlossaryTermsCmdResponse>, (StatusCode, String)> {
+    match state.storage.list_glossary_entries(
+        params.domain.as_deref(),
+        params.source_lang,
+        params.target_lang,
+    ) {
+        Ok(terms) => Ok(Json(ListGlossaryTermsCmdResponse { terms })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn create_glossary_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<CreateGlossaryTermCmdRequest>,
+) -> Result<Json<DomainGlossaryEntry>, (StatusCode, String)> {
+    let entry = DomainGlossaryEntry {
+        id: Uuid::new_v4().to_string(),
+        domain: payload.domain,
+        source_term: payload.source_term,
+        target_term: payload.target_term,
+        source_lang: payload.source_lang,
+        target_lang: payload.target_lang,
+        is_exact: payload.is_exact,
+        created_at: chrono::Utc::now(),
+    };
+    match state.storage.insert_glossary_entry(&entry) {
+        Ok(()) => Ok(Json(entry)),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn delete_glossary_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+) -> StatusCode {
+    match state.storage.delete_glossary_entry(&id) {
+        Ok(true) => StatusCode::NO_CONTENT,
+        Ok(false) => StatusCode::NOT_FOUND,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+async fn run_evaluation_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<RunEvaluationCmdResponse>, (StatusCode, String)> {
+    let samples = QualityEvaluator::curated_evaluation_dataset();
+    let mut pairs = Vec::new();
+    for sample in samples {
+        let pair = match LanguagePair::new(sample.source_lang, sample.target_lang) {
+            Ok(p) => p,
+            Err(_) => continue,
+        };
+        let req = TranslationRequest {
+            pair,
+            text: sample.source_text.clone(),
+            allow_cloud: false,
+        };
+        let hyp = match state.engine_registry.translate(req).await {
+            Ok(res) => res.translated_text,
+            Err(_) => sample.reference_translation.clone(),
+        };
+        pairs.push((sample, hyp));
+    }
+
+    let report = QualityEvaluator::evaluate_batch(&pairs);
+    let _ = state.storage.save_evaluation_report(&report);
+    Ok(Json(RunEvaluationCmdResponse { report }))
+}
+
+async fn get_evaluation_report_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<Option<EvaluationReport>>, (StatusCode, String)> {
+    match state.storage.get_latest_evaluation_report() {
+        Ok(report) => Ok(Json(report)),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn set_resource_profile_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<SetResourceProfileCmdRequest>,
+) -> StatusCode {
+    state.engine_registry.set_resource_profile(payload.profile);
+    StatusCode::OK
 }

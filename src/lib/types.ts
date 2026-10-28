@@ -421,10 +421,108 @@ export interface InterruptConversationCmdRequest {
 export interface StopConversationCmdRequest {
   session_id: string;
 }
-
 export interface GetConversationTurnsCmdRequest {
   session_id: string;
 }
 
+// ==========================================
+// Stage 5: Translation Intelligence & Optimization
+// ==========================================
 
+export type FormalityMode = 'neutral' | 'formal' | 'colloquial';
+export type CircuitState = 'closed' | 'open' | 'half_open';
+export type ResourceProfile = 'power_saver' | 'balanced' | 'high_performance';
 
+export interface CircuitBreakerStatus {
+  provider_id: string;
+  state: CircuitState;
+  failure_count: number;
+  success_count: number;
+  last_failure_ms?: number | null;
+  total_requests: number;
+}
+
+export interface FallbackStep {
+  engine_id: string;
+  attempt: number;
+  success: boolean;
+  latency_ms: number;
+  reason?: string | null;
+}
+
+export interface IntelligenceTranslationMetadata {
+  formality: FormalityMode;
+  transliterated_input?: string | null;
+  protected_terms: string[];
+  domain_glossary_used?: string | null;
+  fallback_trail: FallbackStep[];
+  engine_selected: string;
+  chrf_estimated?: number | null;
+}
+
+export interface IntelligenceTranslationRequest {
+  text: string;
+  source_lang?: LanguageCode | null;
+  target_lang: LanguageCode;
+  formality: FormalityMode;
+  enable_transliteration: boolean;
+  domain_glossary?: string | null;
+}
+
+export interface IntelligenceTranslationResponse {
+  source_text: string;
+  translated_text: string;
+  detected_lang: LanguageCode;
+  target_lang: LanguageCode;
+  metadata: IntelligenceTranslationMetadata;
+}
+
+export interface DomainGlossaryEntry {
+  id: string;
+  domain: string;
+  source_term: string;
+  target_term: string;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  is_exact: boolean;
+  created_at: string;
+}
+
+export interface EvaluationResult {
+  sample_id: string;
+  category: string;
+  hypothesis: string;
+  reference: string;
+  chrf_score: number;
+  wer_score: number;
+  cer_score: number;
+}
+
+export interface EvaluationReport {
+  total_samples: number;
+  mean_chrf: number;
+  mean_wer: number;
+  mean_cer: number;
+  samples: EvaluationResult[];
+  evaluated_at: string;
+}
+
+export interface TransliterationRequest {
+  text: string;
+  target_lang: LanguageCode;
+}
+
+export interface TransliterationResponse {
+  input: string;
+  transliterated: string;
+  target_lang: LanguageCode;
+}
+
+export interface CreateGlossaryTermCmdRequest {
+  domain: string;
+  source_term: string;
+  target_term: string;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  is_exact: boolean;
+}

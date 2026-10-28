@@ -1,9 +1,18 @@
 import type {
   AppInfo,
   CapabilityMatrix,
+  CircuitBreakerStatus,
+  CreateGlossaryTermCmdRequest,
   DatabaseHealthInfo,
+  DomainGlossaryEntry,
+  EvaluationReport,
+  IntelligenceTranslationRequest,
+  IntelligenceTranslationResponse,
   IpcResponse,
+  LanguageCode,
   ModelPackInfo,
+  ResourceProfile,
+  TransliterationResponse,
   UserSettings,
 } from './types';
 
@@ -507,6 +516,161 @@ export async function synthesizeSpeech(
   return data.response;
 }
 
+// ==========================================
+// Stage 5: Translation Intelligence & Optimization
+// ==========================================
 
+export async function translateWithIntelligence(
+  req: IntelligenceTranslationRequest
+): Promise<IntelligenceTranslationResponse> {
+  if (isTauri) {
+    return invokeTauri<IntelligenceTranslationResponse>('lingua_command_translate_intelligence', {
+      request: req,
+    });
+  }
+  const res = await fetch(`${API_BASE}/intelligence/translate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err || 'Failed to translate with intelligence');
+  }
+  return res.json();
+}
 
+export async function transliterateText(
+  text: string,
+  target_lang: LanguageCode
+): Promise<TransliterationResponse> {
+  if (isTauri) {
+    return invokeTauri<TransliterationResponse>('lingua_command_transliterate', {
+      request: { text, target_lang },
+    });
+  }
+  const res = await fetch(`${API_BASE}/intelligence/transliterate`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text, target_lang }),
+  });
+  if (!res.ok) {
+    const err = await res.text();
+    throw new Error(err || 'Failed to transliterate text');
+  }
+  return res.json();
+}
 
+export async function getCircuitBreakers(): Promise<CircuitBreakerStatus[]> {
+  if (isTauri) {
+    const resp = await invokeTauri<{ circuit_breakers: CircuitBreakerStatus[] }>('lingua_command_get_circuit_breakers');
+    return resp.circuit_breakers;
+  }
+  const res = await fetch(`${API_BASE}/intelligence/circuit-breakers`);
+  if (!res.ok) throw new Error('Failed to fetch circuit breakers');
+  const data = await res.json();
+  return data.circuit_breakers;
+}
+
+export async function resetCircuitBreaker(providerId: string): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_reset_circuit_breaker', {
+      request: { provider_id: providerId },
+    });
+  }
+  const res = await fetch(`${API_BASE}/intelligence/circuit-breakers/${encodeURIComponent(providerId)}/reset`, {
+    method: 'POST',
+  });
+  return res.ok;
+}
+
+export async function listGlossaryTerms(
+  domain?: string,
+  sourceLang?: LanguageCode,
+  targetLang?: LanguageCode
+): Promise<DomainGlossaryEntry[]> {
+  if (isTauri) {
+    const resp = await invokeTauri<{ terms: DomainGlossaryEntry[] }>('lingua_command_list_glossary_terms', {
+      request: {
+        domain: domain || null,
+        source_lang: sourceLang || null,
+        target_lang: targetLang || null,
+      },
+    });
+    return resp.terms;
+  }
+  const params = new URLSearchParams();
+  if (domain) params.set('domain', domain);
+  if (sourceLang) params.set('source_lang', sourceLang);
+  if (targetLang) params.set('target_lang', targetLang);
+
+  const res = await fetch(`${API_BASE}/glossary?${params.toString()}`);
+  if (!res.ok) throw new Error('Failed to fetch glossary terms');
+  const data = await res.json();
+  return data.terms;
+}
+
+export async function createGlossaryTerm(
+  req: CreateGlossaryTermCmdRequest
+): Promise<DomainGlossaryEntry> {
+  if (isTauri) {
+    return invokeTauri<DomainGlossaryEntry>('lingua_command_create_glossary_term', {
+      request: req,
+    });
+  }
+  const res = await fetch(`${API_BASE}/glossary`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) throw new Error('Failed to create glossary term');
+  return res.json();
+}
+
+export async function deleteGlossaryTerm(id: string): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_delete_glossary_term', {
+      request: { id },
+    });
+  }
+  const res = await fetch(`${API_BASE}/glossary/${encodeURIComponent(id)}`, {
+    method: 'DELETE',
+  });
+  return res.ok;
+}
+
+export async function runEvaluation(): Promise<EvaluationReport> {
+  if (isTauri) {
+    const resp = await invokeTauri<{ report: EvaluationReport }>('lingua_command_run_evaluation');
+    return resp.report;
+  }
+  const res = await fetch(`${API_BASE}/intelligence/evaluate`, {
+    method: 'POST',
+  });
+  if (!res.ok) throw new Error('Failed to run quality evaluation');
+  const data = await res.json();
+  return data.report;
+}
+
+export async function getLatestEvaluationReport(): Promise<EvaluationReport | null> {
+  if (isTauri) {
+    return invokeTauri<EvaluationReport | null>('lingua_command_get_latest_evaluation_report');
+  }
+  const res = await fetch(`${API_BASE}/intelligence/evaluation-report`);
+  if (!res.ok) throw new Error('Failed to fetch latest evaluation report');
+  return res.json();
+}
+
+export async function setResourceProfile(profile: ResourceProfile): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_set_resource_profile', {
+      request: { profile },
+    });
+  }
+  const res = await fetch(`${API_BASE}/intelligence/resource-profile`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ profile }),
+  });
+  return res.ok;
+}

@@ -446,6 +446,59 @@ impl StorageService {
         conversation_repo::mark_turn_interrupted(&conn, turn_id)
     }
 
+    pub fn list_glossary_entries(
+        &self,
+        domain: Option<&str>,
+        source_lang: Option<LanguageCode>,
+        target_lang: Option<LanguageCode>,
+    ) -> Result<Vec<lingua_core::DomainGlossaryEntry>, LinguaError> {
+        let repo = crate::glossary_repo::GlossaryRepository::new(Arc::clone(&self.conn));
+        repo.list_entries(domain, source_lang, target_lang)
+    }
+
+    pub fn insert_glossary_entry(
+        &self,
+        entry: &lingua_core::DomainGlossaryEntry,
+    ) -> Result<(), LinguaError> {
+        let repo = crate::glossary_repo::GlossaryRepository::new(Arc::clone(&self.conn));
+        repo.insert_entry(entry)
+    }
+
+    pub fn delete_glossary_entry(&self, id: &str) -> Result<bool, LinguaError> {
+        let repo = crate::glossary_repo::GlossaryRepository::new(Arc::clone(&self.conn));
+        repo.delete_entry(id)
+    }
+
+    pub fn save_evaluation_report(
+        &self,
+        report: &lingua_core::EvaluationReport,
+    ) -> Result<String, LinguaError> {
+        let repo = crate::glossary_repo::GlossaryRepository::new(Arc::clone(&self.conn));
+        repo.save_evaluation_report(report)
+    }
+
+    pub fn get_latest_evaluation_report(
+        &self,
+    ) -> Result<Option<lingua_core::EvaluationReport>, LinguaError> {
+        let repo = crate::glossary_repo::GlossaryRepository::new(Arc::clone(&self.conn));
+        repo.get_latest_evaluation_report()
+    }
+
+    pub fn save_circuit_breaker_metrics(
+        &self,
+        status: &lingua_core::CircuitBreakerStatus,
+    ) -> Result<(), LinguaError> {
+        let repo = crate::glossary_repo::GlossaryRepository::new(Arc::clone(&self.conn));
+        repo.save_circuit_breaker_metrics(status)
+    }
+
+    pub fn list_circuit_breaker_metrics(
+        &self,
+    ) -> Result<Vec<lingua_core::CircuitBreakerStatus>, LinguaError> {
+        let repo = crate::glossary_repo::GlossaryRepository::new(Arc::clone(&self.conn));
+        repo.list_circuit_breaker_metrics()
+    }
+
     pub fn check_health(&self) -> Result<DatabaseHealthInfo, LinguaError> {
         let conn = self
             .conn
@@ -875,5 +928,95 @@ mod tests {
         assert_eq!(ended_sess.status, "ended");
         assert_eq!(ended_sess.total_turns, 2);
         assert!(ended_sess.ended_at.is_some());
+    }
+
+    #[test]
+    fn test_stage_5_glossaries_and_circuit_breakers() {
+        let storage = StorageService::open_in_memory().expect("in-memory DB failed");
+
+        // 1. Verify seeded glossaries exist
+        let entries = storage
+            .list_glossary_entries(
+                Some("technology"),
+                Some(LanguageCode::EnUs),
+                Some(LanguageCode::KnIn),
+            )
+            .expect("list glossaries failed");
+        assert!(entries.len() >= 3);
+        assert!(entries
+            .iter()
+            .any(|e| e.source_term == "software" && e.target_term == "ತಂತ್ರಾಂಶ"));
+
+        // 2. Insert custom glossary entry
+        let custom_entry = lingua_core::DomainGlossaryEntry {
+            id: "custom-term-1".into(),
+            domain: "aviation".into(),
+            source_term: "runway".into(),
+            target_term: "ಧಾವನಪಥ".into(),
+            source_lang: LanguageCode::EnUs,
+            target_lang: LanguageCode::KnIn,
+            is_exact: true,
+            created_at: Utc::now(),
+        };
+        storage
+            .insert_glossary_entry(&custom_entry)
+            .expect("insert glossary failed");
+
+        let queried = storage
+            .list_glossary_entries(Some("aviation"), None, None)
+            .expect("query failed");
+        assert_eq!(queried.len(), 1);
+        assert_eq!(queried[0].target_term, "ಧಾವನಪಥ");
+
+        // 3. Delete glossary entry
+        let deleted = storage
+            .delete_glossary_entry("custom-term-1")
+            .expect("delete failed");
+        assert!(deleted);
+        let queried_after = storage
+            .list_glossary_entries(Some("aviation"), None, None)
+            .expect("query failed");
+        assert_eq!(queried_after.len(), 0);
+
+        // 4. Test evaluation report saving and loading
+        let report = lingua_core::EvaluationReport {
+            total_samples: 1,
+            mean_chrf: 78.5,
+            mean_wer: 12.0,
+            mean_cer: 6.5,
+            samples: vec![],
+            evaluated_at: Utc::now(),
+        };
+        let rep_id = storage
+            .save_evaluation_report(&report)
+            .expect("save report failed");
+        assert!(!rep_id.is_empty());
+
+        let loaded = storage
+            .get_latest_evaluation_report()
+            .expect("get report failed")
+            .expect("report missing");
+        assert_eq!(loaded.total_samples, 1);
+        assert_eq!(loaded.mean_chrf, 78.5);
+
+        // 5. Test circuit breaker metrics
+        let cb_status = lingua_core::CircuitBreakerStatus {
+            provider_id: "mymemory-http".into(),
+            state: lingua_core::CircuitState::Closed,
+            failure_count: 0,
+            success_count: 42,
+            last_failure_ms: None,
+            total_requests: 42,
+        };
+        storage
+            .save_circuit_breaker_metrics(&cb_status)
+            .expect("save cb failed");
+
+        let metrics = storage
+            .list_circuit_breaker_metrics()
+            .expect("list cb failed");
+        assert_eq!(metrics.len(), 1);
+        assert_eq!(metrics[0].provider_id, "mymemory-http");
+        assert_eq!(metrics[0].state, lingua_core::CircuitState::Closed);
     }
 }

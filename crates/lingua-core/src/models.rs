@@ -161,6 +161,18 @@ impl CapabilityMatrix {
             media_subtitles: CapabilityState::ScheduledForStage(6),
         }
     }
+
+    pub fn stage_5_active() -> Self {
+        Self {
+            dictionary: CapabilityState::Active,
+            text_translation: CapabilityState::Active,
+            streaming_asr: CapabilityState::Active,
+            speech_synthesis: CapabilityState::Active,
+            offline_models: CapabilityState::Active,
+            live_conversation: CapabilityState::Active,
+            media_subtitles: CapabilityState::ScheduledForStage(6),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -516,6 +528,184 @@ pub struct TtsSynthesizeResponse {
     pub language: LanguageCode,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum FormalityMode {
+    #[default]
+    Neutral,
+    Formal,
+    Colloquial,
+}
+
+impl FormalityMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Neutral => "neutral",
+            Self::Formal => "formal",
+            Self::Colloquial => "colloquial",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s.to_lowercase().as_str() {
+            "formal" => Self::Formal,
+            "colloquial" | "casual" => Self::Colloquial,
+            _ => Self::Neutral,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum CircuitState {
+    #[default]
+    Closed,
+    Open,
+    HalfOpen,
+}
+
+impl CircuitState {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Closed => "closed",
+            Self::Open => "open",
+            Self::HalfOpen => "half_open",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CircuitBreakerStatus {
+    pub provider_id: String,
+    pub state: CircuitState,
+    pub failure_count: u32,
+    pub success_count: u32,
+    pub last_failure_ms: Option<u64>,
+    pub total_requests: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FallbackStep {
+    pub engine_id: String,
+    pub attempt: u32,
+    pub success: bool,
+    pub latency_ms: f64,
+    pub reason: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IntelligenceTranslationMetadata {
+    pub engine_selected: String,
+    pub formality: FormalityMode,
+    pub glossary_terms_applied: Vec<String>,
+    pub transliterated_input: Option<String>,
+    pub fallback_trail: Vec<FallbackStep>,
+    pub chrf_estimated: Option<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IntelligenceTranslationRequest {
+    pub text: String,
+    pub source_lang: Option<LanguageCode>,
+    pub target_lang: LanguageCode,
+    pub formality: FormalityMode,
+    pub enable_transliteration: bool,
+    pub domain_glossary: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IntelligenceTranslationResponse {
+    pub source_text: String,
+    pub translated_text: String,
+    pub detected_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub metadata: IntelligenceTranslationMetadata,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct DomainGlossaryEntry {
+    pub id: String,
+    pub domain: String,
+    pub source_term: String,
+    pub target_term: String,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub is_exact: bool,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EvaluationSample {
+    pub id: String,
+    pub category: String,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub source_text: String,
+    pub reference_translation: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EvaluationResult {
+    pub sample_id: String,
+    pub category: String,
+    pub hypothesis: String,
+    pub reference: String,
+    pub chrf_score: f64,
+    pub wer_score: f64,
+    pub cer_score: f64,
+    pub critical_errors: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct EvaluationReport {
+    pub total_samples: usize,
+    pub mean_chrf: f64,
+    pub mean_wer: f64,
+    pub mean_cer: f64,
+    pub samples: Vec<EvaluationResult>,
+    pub evaluated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum ResourceProfile {
+    #[default]
+    Balanced,
+    PowerSaver,
+    HighPerformance,
+}
+
+impl ResourceProfile {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Balanced => "balanced",
+            Self::PowerSaver => "power_saver",
+            Self::HighPerformance => "high_performance",
+        }
+    }
+
+    pub fn max_cache_entries(&self) -> usize {
+        match self {
+            Self::PowerSaver => 500,
+            Self::Balanced => 2000,
+            Self::HighPerformance => 8000,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TransliterationRequest {
+    pub text: String,
+    pub target_lang: LanguageCode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct TransliterationResponse {
+    pub input: String,
+    pub transliterated: String,
+    pub target_lang: LanguageCode,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct AppInfo {
     pub name: String,
@@ -532,8 +722,8 @@ impl Default for AppInfo {
         Self {
             name: "LinguaFlow".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            stage: 4,
-            stage_name: "Real-Time Voice Conversation".into(),
+            stage: 5,
+            stage_name: "Translation Intelligence & Optimization".into(),
             platform: std::env::consts::OS.into(),
             arch: std::env::consts::ARCH.into(),
             build_profile: if cfg!(debug_assertions) {
@@ -597,6 +787,33 @@ mod tests {
             matrix.media_subtitles,
             CapabilityState::ScheduledForStage(6)
         );
+    }
+
+    #[test]
+    fn test_capability_matrix_stage_5() {
+        let matrix = CapabilityMatrix::stage_5_active();
+        assert_eq!(matrix.dictionary, CapabilityState::Active);
+        assert_eq!(matrix.text_translation, CapabilityState::Active);
+        assert_eq!(matrix.streaming_asr, CapabilityState::Active);
+        assert_eq!(matrix.speech_synthesis, CapabilityState::Active);
+        assert_eq!(matrix.offline_models, CapabilityState::Active);
+        assert_eq!(matrix.live_conversation, CapabilityState::Active);
+        assert_eq!(
+            matrix.media_subtitles,
+            CapabilityState::ScheduledForStage(6)
+        );
+    }
+
+    #[test]
+    fn test_formality_mode_and_resource_profile() {
+        assert_eq!(FormalityMode::default(), FormalityMode::Neutral);
+        assert_eq!(FormalityMode::parse("formal"), FormalityMode::Formal);
+        assert_eq!(FormalityMode::parse("casual"), FormalityMode::Colloquial);
+        assert_eq!(FormalityMode::Formal.as_str(), "formal");
+
+        assert_eq!(ResourceProfile::default(), ResourceProfile::Balanced);
+        assert_eq!(ResourceProfile::PowerSaver.max_cache_entries(), 500);
+        assert_eq!(ResourceProfile::HighPerformance.max_cache_entries(), 8000);
     }
 
     #[test]

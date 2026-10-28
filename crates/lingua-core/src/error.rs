@@ -68,6 +68,12 @@ pub enum LinguaError {
     #[error("Speaker conflict or invalid turn state: {0}")]
     SpeakerConflict(String),
 
+    #[error("Circuit breaker open for provider '{0}'; request diverted to fallback")]
+    CircuitBreakerOpen(String),
+
+    #[error("Glossary term '{0}' not found")]
+    GlossaryTermNotFound(String),
+
     #[error("Internal system error: {0}")]
     Internal(String),
 }
@@ -96,6 +102,8 @@ impl LinguaError {
             LinguaError::TtsEngineError(_) => "TTS_ENGINE_ERROR",
             LinguaError::ConversationSessionNotFound(_) => "CONVERSATION_SESSION_NOT_FOUND",
             LinguaError::SpeakerConflict(_) => "SPEAKER_CONFLICT",
+            LinguaError::CircuitBreakerOpen(_) => "CIRCUIT_BREAKER_OPEN",
+            LinguaError::GlossaryTermNotFound(_) => "GLOSSARY_TERM_NOT_FOUND",
             LinguaError::Internal(_) => "INTERNAL_ERROR",
         }
     }
@@ -120,6 +128,8 @@ impl LinguaError {
                 | LinguaError::TtsEngineError(_)
                 | LinguaError::ConversationSessionNotFound(_)
                 | LinguaError::SpeakerConflict(_)
+                | LinguaError::CircuitBreakerOpen(_)
+                | LinguaError::GlossaryTermNotFound(_)
         )
     }
 }

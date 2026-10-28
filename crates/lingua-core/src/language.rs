@@ -31,6 +31,14 @@ impl LanguageCode {
         }
     }
 
+    pub fn as_str(&self) -> &'static str {
+        self.as_bcp47()
+    }
+
+    pub fn parse(s: &str) -> Result<Self, LinguaError> {
+        s.parse()
+    }
+
     pub fn short_code(&self) -> &'static str {
         match self {
             LanguageCode::KnIn => "kn",

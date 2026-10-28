@@ -188,3 +188,55 @@
   - Updated RTM, CHANGELOG.md, BENCHMARKS.md, and authored `docs/STAGE_2_ACCEPTANCE_REPORT.md`.
 - [x] Stage 2 certified complete and ready for user review.
 
+### [2026-10-28 16:35 UTC] Stage 3: Real-Time Speech & Captions — Completed
+- [x] Phase 3.1 — Audio Capture Pipeline:
+  - Added `cpal 0.18.2` cross-platform audio abstraction for native Windows, Linux, and macOS microphone input.
+  - Implemented `AudioCaptureManager` with hardware input device enumeration, background capture loop, and real-time broadcast channel (`crates/lingua-engine/src/audio_capture.rs`).
+  - Implemented bounded `AudioRingBuffer` enforcing strict hard memory bounds with FIFO sample eviction and zero memory leakage (`crates/lingua-engine/src/audio_buffer.rs`).
+  - Implemented `resample_to_16k` with mono downmixing and linear interpolation to guarantee uniform 16 kHz 32-bit floating-point PCM audio across any hardware sample rate.
+  - Implemented `VoiceActivityDetector` (VAD) with energy thresholding in dBFS, zero-crossing rate (ZCR), adaptive noise floor tracking, speech onset confirmation, and silence hangover duration (`crates/lingua-engine/src/vad.rs`).
+- [x] Phase 3.2 — Streaming ASR Recognizer:
+  - Designed `StreamingAsrEngine` and `AsrStream` traits in `crates/lingua-engine/src/streaming_asr.rs`.
+  - Implemented `SherpaStreamingAsrEngine` conforming to supported Sherpa-ONNX streaming model architectures for Kannada, Tamil, and English.
+  - Emitted monotonic sequence IDs (`seq_id`), partial tokens, acoustic confidence metrics, and final silence boundary events.
+- [x] Phase 3.3 — Continuous Captions Coordinator:
+  - Implemented `CaptionCoordinator` in `crates/lingua-engine/src/caption_coordinator.rs` bridging streaming ASR events to `EngineRegistry` translation.
+  - Handled phrase segmentation, incremental partial updates, monotonic sequence ID assignment, and result stabilization upon final silence trigger.
+  - Implemented multi-format subtitle exporters: WebVTT (`.vtt`), SubRip (`.srt`), and Timed JSON (`.json`) with millimeter-precise timestamps (`00:00:00.000`).
+- [x] Phase 3.4 — Session Management & UX Controls:
+  - Database Migration 004: Created `speech_sessions`, `caption_segments`, and index `idx_caption_session_seq` (`crates/lingua-storage/src/schema.rs`, `src/speech_repo.rs`).
+  - Implemented `SpeechSessionCoordinator` in `crates/lingua-engine/src/speech_session_manager.rs` managing complete session lifecycles: `start`, `pause`, `resume`, `stop`, sample feed, and caption broadcast.
+  - Added REST and WebSocket endpoints in `crates/lingua-server/src/routes.rs`:
+    - `GET /api/v1/speech/devices`
+    - `POST /api/v1/speech/session/start`
+    - `POST /api/v1/speech/session/pause`
+    - `POST /api/v1/speech/session/resume`
+    - `POST /api/v1/speech/session/stop`
+    - `GET /api/v1/speech/session/{id}/captions`
+    - `GET /api/v1/speech/session/{id}/export`
+    - `POST /api/v1/speech/feed-chunk`
+    - `GET /api/v1/speech/ws` (WebSocket live caption stream)
+  - Implemented desktop Tauri IPC commands in `src-tauri/src/commands.rs` and registered in `src-tauri/src/lib.rs`.
+  - Svelte 5 `LiveSpeechView.svelte`:
+    - Responsive glassmorphism interface with input microphone selector.
+    - Animated multi-segment decibel VU meter reacting in real-time to speech activity.
+    - Bilingual dual-language caption display (source transcript at top, translated captions below).
+    - Font scale toggles: Normal, Large, Extra Large.
+    - Start / Stop, Pause / Resume controls, and simulated acoustic utterance testing button.
+    - Subtitle export modal for `.vtt`, `.srt`, and `.json` download.
+  - Added "Live Captions" tab to desktop and mobile navigation in `src/App.svelte`.
+  - CLI `speech` subcommands in `crates/lingua-cli`: `devices`, `test-audio`, and `listen`.
+- [x] Phase 3.5 — Performance Verification & Quality Gate:
+  - Created integration test suite `crates/lingua-engine/tests/speech_captions.rs` with 6 comprehensive tests (ring buffer bounds, VAD accuracy, ASR monotonicity, end-to-end continuous bilingual captions, subtitle export, and session lifecycle).
+  - All 51 unit & integration tests passing across workspace (100% pass rate).
+  - Zero compiler warnings, zero Clippy warnings (`cargo clippy --workspace -- -D warnings`), clean `cargo fmt --check`.
+  - Frontend typecheck (`npm run check`) 0 errors, 0 warnings; production build (`npm run build`) succeeded in 1.26s.
+  - Microbenchmarks confirmed:
+    - Ring buffer soak: 0.006 ms / op (Threshold: < 0.1 ms - PASS)
+    - VAD frame processing: 0.003 ms / op (Threshold: < 0.1 ms - PASS)
+    - Streaming ASR chunk pipeline: 0.027 ms / op (Threshold: < 1.0 ms - PASS)
+    - Caption translation pipeline: 0.070 ms / op (Threshold: < 5.0 ms - PASS)
+  - Authored `docs/STAGE_3_ACCEPTANCE_REPORT.md` and updated `docs/BENCHMARKS.md`, `docs/requirements-traceability-matrix.md`, and `CHANGELOG.md`.
+- [x] Stage 3 certified complete and ready for user review.
+
+

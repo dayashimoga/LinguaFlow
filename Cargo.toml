@@ -58,6 +58,9 @@ hex = "0.4.3"
 # Filesystem & Storage Metrics
 fs2 = "0.4.3"
 
+# Audio Capture & Streaming
+cpal = "0.18.2"
+
 # CLI
 clap = { version = "4.5.31", features = ["derive"] }
 

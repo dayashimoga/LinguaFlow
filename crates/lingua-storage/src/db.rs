@@ -15,10 +15,12 @@ use crate::offline_repo::{
 };
 use crate::schema::run_migrations;
 use crate::settings_repo::{get_user_settings, save_user_settings};
+use chrono::{DateTime, Utc};
 use lingua_core::{
-    CachedTranslation, DatabaseHealthInfo, DictionaryEntry, FavoriteItem, LanguageCode,
-    LinguaError, ModelInstallState, ModelPackDetailedInfo, ModelPackInfo, ModelPackManifest,
-    MorphologyEntry, TranslationRecord, UserSettings,
+    CachedTranslation, CaptionSegment, DatabaseHealthInfo, DictionaryEntry, FavoriteItem,
+    LanguageCode, LinguaError, ModelInstallState, ModelPackDetailedInfo, ModelPackInfo,
+    ModelPackManifest, MorphologyEntry, SpeechSession, SpeechSessionStatus, TranslationRecord,
+    UserSettings,
 };
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
@@ -295,6 +297,81 @@ impl StorageService {
         lookup_morphology(&conn, lang, surface)
     }
 
+    // --- Stage 3: Real-Time Speech & Captions Methods ---
+    pub fn create_speech_session(&self, session: &SpeechSession) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        crate::speech_repo::create_speech_session(&conn, session)
+    }
+
+    pub fn update_speech_session_status(
+        &self,
+        session_id: &str,
+        status: SpeechSessionStatus,
+        duration_seconds: u64,
+        ended_at: Option<DateTime<Utc>>,
+    ) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        crate::speech_repo::update_speech_session_status(
+            &conn,
+            session_id,
+            status,
+            duration_seconds,
+            ended_at,
+        )
+    }
+
+    pub fn get_speech_session(
+        &self,
+        session_id: &str,
+    ) -> Result<Option<SpeechSession>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        crate::speech_repo::get_speech_session(&conn, session_id)
+    }
+
+    pub fn list_speech_sessions(&self, limit: usize) -> Result<Vec<SpeechSession>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        crate::speech_repo::list_speech_sessions(&conn, limit)
+    }
+
+    pub fn record_caption_segment(&self, segment: &CaptionSegment) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        crate::speech_repo::record_caption_segment(&conn, segment)
+    }
+
+    pub fn get_caption_segments_for_session(
+        &self,
+        session_id: &str,
+    ) -> Result<Vec<CaptionSegment>, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        crate::speech_repo::get_caption_segments_for_session(&conn, session_id)
+    }
+
+    pub fn delete_speech_session(&self, session_id: &str) -> Result<(), LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        crate::speech_repo::delete_speech_session(&conn, session_id)
+    }
+
     pub fn check_health(&self) -> Result<DatabaseHealthInfo, LinguaError> {
         let conn = self
             .conn
@@ -528,5 +605,93 @@ mod tests {
             .expect("morphology lookup failed");
         assert!(morph_ta.is_some());
         assert_eq!(morph_ta.unwrap().stem_form, "செய்");
+    }
+
+    #[test]
+    fn test_stage_3_speech_sessions_and_captions() {
+        let storage = StorageService::open_in_memory().expect("in-memory DB failed");
+
+        // 1. Create a speech session
+        let session = SpeechSession {
+            id: "session-test-01".into(),
+            title: "Live Kannada Speech Session".into(),
+            source_lang: LanguageCode::KnIn,
+            target_lang: LanguageCode::EnUs,
+            status: SpeechSessionStatus::Active,
+            created_at: Utc::now(),
+            ended_at: None,
+            duration_seconds: 0,
+        };
+        storage
+            .create_speech_session(&session)
+            .expect("create speech session failed");
+
+        // 2. Query the created session
+        let fetched = storage
+            .get_speech_session("session-test-01")
+            .expect("fetch failed")
+            .expect("session missing");
+        assert_eq!(fetched.title, "Live Kannada Speech Session");
+        assert_eq!(fetched.status, SpeechSessionStatus::Active);
+
+        // 3. Record progressive captions
+        let cap1 = CaptionSegment {
+            id: "cap-1".into(),
+            session_id: "session-test-01".into(),
+            seq_id: 1,
+            source_text: "ನಮಸ್ಕಾರ".into(),
+            translated_text: "Hello".into(),
+            source_lang: LanguageCode::KnIn,
+            target_lang: LanguageCode::EnUs,
+            is_final: false,
+            confidence: 0.88,
+            start_time_ms: 0,
+            end_time_ms: 600,
+            created_at: Utc::now(),
+        };
+        storage.record_caption_segment(&cap1).expect("cap1 failed");
+
+        // Update cap1 to final
+        let cap1_final = CaptionSegment {
+            id: "cap-1".into(),
+            session_id: "session-test-01".into(),
+            seq_id: 1,
+            source_text: "ನಮಸ್ಕಾರ, ನೀವು ಹೇಗಿದ್ದೀರಿ?".into(),
+            translated_text: "Hello, how are you?".into(),
+            source_lang: LanguageCode::KnIn,
+            target_lang: LanguageCode::EnUs,
+            is_final: true,
+            confidence: 0.95,
+            start_time_ms: 0,
+            end_time_ms: 1800,
+            created_at: Utc::now(),
+        };
+        storage
+            .record_caption_segment(&cap1_final)
+            .expect("cap1_final update failed");
+
+        let captions = storage
+            .get_caption_segments_for_session("session-test-01")
+            .expect("get captions failed");
+        assert_eq!(captions.len(), 1);
+        assert_eq!(captions[0].source_text, "ನಮಸ್ಕಾರ, ನೀವು ಹೇಗಿದ್ದೀರಿ?");
+        assert!(captions[0].is_final);
+
+        // 4. Update session status to completed
+        storage
+            .update_speech_session_status(
+                "session-test-01",
+                SpeechSessionStatus::Completed,
+                15,
+                Some(Utc::now()),
+            )
+            .expect("update status failed");
+
+        let updated_sess = storage
+            .get_speech_session("session-test-01")
+            .expect("fetch failed")
+            .expect("missing");
+        assert_eq!(updated_sess.status, SpeechSessionStatus::Completed);
+        assert_eq!(updated_sess.duration_seconds, 15);
     }
 }

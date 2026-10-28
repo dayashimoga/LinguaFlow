@@ -10,13 +10,17 @@ use axum::{
     Json, Router,
 };
 use lingua_core::{
-    detect_language, AddFavoriteCmdRequest, AppInfo, CapabilityMatrix, DatabaseHealthInfo,
-    DetectLanguageCmdRequest, DetectLanguageCmdResponse, DictionaryEntry,
-    DictionarySearchCmdResponse, DiskSpaceInfo, FavoriteItem, LanguageCode, LanguagePair,
-    ModelPackDetailedInfo, ModelPackInfo, TranslateCmdRequest, TranslateCmdResponse,
-    TranslationRecord, UserSettings, VerifyModelCmdResponse,
+    detect_language, AddFavoriteCmdRequest, AppInfo, CapabilityMatrix, CaptionFormat,
+    CaptionSegment, DatabaseHealthInfo, DetectLanguageCmdRequest, DetectLanguageCmdResponse,
+    DictionaryEntry, DictionarySearchCmdResponse, DiskSpaceInfo, ExportCaptionsCmdResponse,
+    FavoriteItem, FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse,
+    GetSessionCaptionsCmdResponse, LanguageCode, LanguagePair, ModelPackDetailedInfo,
+    ModelPackInfo, PauseSpeechSessionCmdRequest, ResumeSpeechSessionCmdRequest, SpeechSession,
+    StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse, StopSpeechSessionCmdRequest,
+    StopSpeechSessionCmdResponse, TranslateCmdRequest, TranslateCmdResponse, TranslationRecord,
+    UserSettings, VerifyModelCmdResponse,
 };
-use lingua_engine::TranslationRequest;
+use lingua_engine::{AudioCaptureManager, TranslationRequest};
 use serde::Deserialize;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -59,6 +63,33 @@ pub fn create_router(state: ServerState) -> Router {
             get(list_favorites_handler).post(add_favorite_handler),
         )
         .route("/api/v1/favorites/{id}", delete(remove_favorite_handler))
+        .route("/api/v1/speech/devices", get(get_speech_devices_handler))
+        .route(
+            "/api/v1/speech/session/start",
+            post(start_speech_session_handler),
+        )
+        .route(
+            "/api/v1/speech/session/pause",
+            post(pause_speech_session_handler),
+        )
+        .route(
+            "/api/v1/speech/session/resume",
+            post(resume_speech_session_handler),
+        )
+        .route(
+            "/api/v1/speech/session/stop",
+            post(stop_speech_session_handler),
+        )
+        .route(
+            "/api/v1/speech/session/{id}/captions",
+            get(get_speech_captions_handler),
+        )
+        .route(
+            "/api/v1/speech/session/{id}/export",
+            get(export_speech_captions_handler),
+        )
+        .route("/api/v1/speech/feed-chunk", post(feed_speech_chunk_handler))
+        .route("/api/v1/speech/ws", get(speech_ws_handler))
         .route("/api/v1/ws", get(ws_handler))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
@@ -405,4 +436,171 @@ async fn handle_socket(mut socket: WebSocket, state: ServerState) {
     }
 
     info!("WebSocket client disconnected");
+}
+
+async fn get_speech_devices_handler(
+) -> Result<Json<GetAudioDevicesCmdResponse>, (StatusCode, String)> {
+    match AudioCaptureManager::list_input_devices() {
+        Ok(devices) => Ok(Json(GetAudioDevicesCmdResponse { devices })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn start_speech_session_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<StartSpeechSessionCmdRequest>,
+) -> Result<Json<StartSpeechSessionCmdResponse>, (StatusCode, String)> {
+    match state
+        .speech_coordinator
+        .start_session(
+            payload.source_language,
+            payload.target_language,
+            payload.title,
+            payload.device_id,
+        )
+        .await
+    {
+        Ok(session) => Ok(Json(StartSpeechSessionCmdResponse { session })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn pause_speech_session_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<PauseSpeechSessionCmdRequest>,
+) -> Result<Json<SpeechSession>, (StatusCode, String)> {
+    match state
+        .speech_coordinator
+        .pause_session(&payload.session_id)
+        .await
+    {
+        Ok(session) => Ok(Json(session)),
+        Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
+    }
+}
+
+async fn resume_speech_session_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<ResumeSpeechSessionCmdRequest>,
+) -> Result<Json<SpeechSession>, (StatusCode, String)> {
+    match state
+        .speech_coordinator
+        .resume_session(&payload.session_id)
+        .await
+    {
+        Ok(session) => Ok(Json(session)),
+        Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
+    }
+}
+
+async fn stop_speech_session_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<StopSpeechSessionCmdRequest>,
+) -> Result<Json<StopSpeechSessionCmdResponse>, (StatusCode, String)> {
+    match state
+        .speech_coordinator
+        .stop_session(&payload.session_id)
+        .await
+    {
+        Ok(session) => Ok(Json(StopSpeechSessionCmdResponse { session })),
+        Err(e) => Err((StatusCode::NOT_FOUND, e.to_string())),
+    }
+}
+
+async fn get_speech_captions_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+) -> Result<Json<GetSessionCaptionsCmdResponse>, (StatusCode, String)> {
+    match state.speech_coordinator.get_session_captions(&id).await {
+        Ok(captions) => Ok(Json(GetSessionCaptionsCmdResponse { captions })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+#[derive(Debug, Deserialize)]
+struct ExportQuery {
+    format: Option<String>,
+}
+
+async fn export_speech_captions_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+    Query(query): Query<ExportQuery>,
+) -> Result<Json<ExportCaptionsCmdResponse>, (StatusCode, String)> {
+    let format = match query.format.as_deref() {
+        Some("srt") => CaptionFormat::Srt,
+        Some("json") => CaptionFormat::Json,
+        _ => CaptionFormat::Vtt,
+    };
+    match state
+        .speech_coordinator
+        .export_session_captions(&id, format)
+        .await
+    {
+        Ok((content, filename)) => Ok(Json(ExportCaptionsCmdResponse {
+            content,
+            filename,
+            format,
+        })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn feed_speech_chunk_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<FeedAudioChunkCmdRequest>,
+) -> Result<Json<Vec<CaptionSegment>>, (StatusCode, String)> {
+    match state
+        .speech_coordinator
+        .feed_audio_chunk(&payload.session_id, &payload.samples)
+        .await
+    {
+        Ok(segments) => Ok(Json(segments)),
+        Err(e) => Err((StatusCode::BAD_REQUEST, e.to_string())),
+    }
+}
+
+async fn speech_ws_handler(ws: WebSocketUpgrade, State(state): State<ServerState>) -> Response {
+    ws.on_upgrade(|socket| handle_speech_socket(socket, state))
+}
+
+async fn handle_speech_socket(mut socket: WebSocket, state: ServerState) {
+    info!("WebSocket client connected to LinguaFlow speech captions stream");
+    let mut caption_rx = state.speech_coordinator.subscribe_captions();
+
+    loop {
+        tokio::select! {
+            msg = socket.recv() => {
+                let msg = match msg {
+                    Some(Ok(m)) => m,
+                    Some(Err(e)) => {
+                        error!("Speech WebSocket receive error: {e}");
+                        break;
+                    }
+                    None => break,
+                };
+
+                match msg {
+                    Message::Text(text) => {
+                        if text == "ping" {
+                            let _ = socket.send(Message::Text("pong".into())).await;
+                        } else if let Ok(feed_req) = serde_json::from_str::<FeedAudioChunkCmdRequest>(&text) {
+                            let _ = state.speech_coordinator.feed_audio_chunk(&feed_req.session_id, &feed_req.samples).await;
+                        }
+                    }
+                    Message::Ping(payload) => {
+                        let _ = socket.send(Message::Pong(payload)).await;
+                    }
+                    Message::Close(_) => break,
+                    _ => {}
+                }
+            }
+            Ok(caption) = caption_rx.recv() => {
+                if let Ok(json) = serde_json::to_string(&caption) {
+                    let _ = socket.send(Message::Text(json.into())).await;
+                }
+            }
+        }
+    }
+    info!("Speech WebSocket client disconnected");
 }

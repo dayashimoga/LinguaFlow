@@ -252,4 +252,108 @@ export async function getDiskSpace(): Promise<import('./types').GetDiskSpaceCmdR
   return res.json();
 }
 
+export async function getAudioDevices(): Promise<import('./types').AudioDeviceItem[]> {
+  if (isTauri) {
+    const resp = await invokeTauri<import('./types').GetAudioDevicesCmdResponse>('lingua_command_get_audio_devices');
+    return resp.devices;
+  }
+  const res = await fetch(`${API_BASE}/speech/devices`);
+  if (!res.ok) throw new Error('Failed to fetch audio devices');
+  const data: import('./types').GetAudioDevicesCmdResponse = await res.json();
+  return data.devices;
+}
+
+export async function startSpeechSession(req: import('./types').StartSpeechSessionCmdRequest): Promise<import('./types').SpeechSession> {
+  if (isTauri) {
+    const resp = await invokeTauri<import('./types').StartSpeechSessionCmdResponse>('lingua_command_start_speech_session', { request: req });
+    return resp.session;
+  }
+  const res = await fetch(`${API_BASE}/speech/session/start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(errText || 'Failed to start speech session');
+  }
+  const data: import('./types').StartSpeechSessionCmdResponse = await res.json();
+  return data.session;
+}
+
+export async function pauseSpeechSession(sessionId: string): Promise<import('./types').SpeechSession> {
+  if (isTauri) {
+    return invokeTauri<import('./types').SpeechSession>('lingua_command_pause_speech_session', { request: { session_id: sessionId } });
+  }
+  const res = await fetch(`${API_BASE}/speech/session/pause`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error('Failed to pause speech session');
+  return res.json();
+}
+
+export async function resumeSpeechSession(sessionId: string): Promise<import('./types').SpeechSession> {
+  if (isTauri) {
+    return invokeTauri<import('./types').SpeechSession>('lingua_command_resume_speech_session', { request: { session_id: sessionId } });
+  }
+  const res = await fetch(`${API_BASE}/speech/session/resume`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error('Failed to resume speech session');
+  return res.json();
+}
+
+export async function stopSpeechSession(sessionId: string): Promise<import('./types').SpeechSession> {
+  if (isTauri) {
+    const resp = await invokeTauri<import('./types').StopSpeechSessionCmdResponse>('lingua_command_stop_speech_session', { request: { session_id: sessionId } });
+    return resp.session;
+  }
+  const res = await fetch(`${API_BASE}/speech/session/stop`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId }),
+  });
+  if (!res.ok) throw new Error('Failed to stop speech session');
+  const data: import('./types').StopSpeechSessionCmdResponse = await res.json();
+  return data.session;
+}
+
+export async function getSessionCaptions(sessionId: string): Promise<import('./types').CaptionSegment[]> {
+  if (isTauri) {
+    const resp = await invokeTauri<import('./types').GetSessionCaptionsCmdResponse>('lingua_command_get_session_captions', { request: { session_id: sessionId } });
+    return resp.captions;
+  }
+  const res = await fetch(`${API_BASE}/speech/session/${encodeURIComponent(sessionId)}/captions`);
+  if (!res.ok) throw new Error('Failed to fetch session captions');
+  const data: import('./types').GetSessionCaptionsCmdResponse = await res.json();
+  return data.captions;
+}
+
+export async function exportCaptions(sessionId: string, format: import('./types').CaptionFormat): Promise<import('./types').ExportCaptionsCmdResponse> {
+  if (isTauri) {
+    return invokeTauri<import('./types').ExportCaptionsCmdResponse>('lingua_command_export_captions', { request: { session_id: sessionId, format } });
+  }
+  const res = await fetch(`${API_BASE}/speech/session/${encodeURIComponent(sessionId)}/export?format=${format}`);
+  if (!res.ok) throw new Error('Failed to export captions');
+  return res.json();
+}
+
+export async function feedAudioChunk(sessionId: string, samples: number[]): Promise<import('./types').CaptionSegment[]> {
+  if (isTauri) {
+    return invokeTauri<import('./types').CaptionSegment[]>('lingua_command_feed_audio_chunk', { request: { session_id: sessionId, samples } });
+  }
+  const res = await fetch(`${API_BASE}/speech/feed-chunk`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ session_id: sessionId, samples }),
+  });
+  if (!res.ok) throw new Error('Failed to feed audio chunk');
+  return res.json();
+}
+
+
 

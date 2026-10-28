@@ -73,7 +73,7 @@ mod tests {
         assert_eq!(response.status(), axum::http::StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let caps: CapabilityMatrix = serde_json::from_slice(&body).unwrap();
-        assert_eq!(caps, CapabilityMatrix::stage_2_active());
+        assert_eq!(caps, CapabilityMatrix::stage_3_active());
 
         // Test /api/v1/models
         let response = app
@@ -122,6 +122,7 @@ mod tests {
 
         // Test /api/v1/dictionary/search
         let response = app
+            .clone()
             .oneshot(
                 axum::http::Request::builder()
                     .uri("/api/v1/dictionary/search?q=water&limit=5")
@@ -135,5 +136,129 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let dict_res: DictionarySearchCmdResponse = serde_json::from_slice(&body).unwrap();
         assert!(!dict_res.entries.is_empty());
+
+        // Test /api/v1/speech/devices
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/speech/devices")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // Test /api/v1/speech/session/start
+        let start_req = serde_json::to_string(&lingua_core::StartSpeechSessionCmdRequest {
+            source_language: LanguageCode::KnIn,
+            target_language: LanguageCode::EnUs,
+            title: Some("Test Stage 3 Live Captions".into()),
+            device_id: None,
+        })
+        .unwrap();
+
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/speech/session/start")
+                    .header("Content-Type", "application/json")
+                    .body(axum::body::Body::from(start_req))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let start_res: lingua_core::StartSpeechSessionCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        let session_id = start_res.session.id;
+
+        // Test /api/v1/speech/session/pause
+        let pause_req = serde_json::to_string(&lingua_core::PauseSpeechSessionCmdRequest {
+            session_id: session_id.clone(),
+        })
+        .unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/speech/session/pause")
+                    .header("Content-Type", "application/json")
+                    .body(axum::body::Body::from(pause_req))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // Test /api/v1/speech/session/resume
+        let resume_req = serde_json::to_string(&lingua_core::ResumeSpeechSessionCmdRequest {
+            session_id: session_id.clone(),
+        })
+        .unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/speech/session/resume")
+                    .header("Content-Type", "application/json")
+                    .body(axum::body::Body::from(resume_req))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // Test /api/v1/speech/session/stop
+        let stop_req = serde_json::to_string(&lingua_core::StopSpeechSessionCmdRequest {
+            session_id: session_id.clone(),
+        })
+        .unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/speech/session/stop")
+                    .header("Content-Type", "application/json")
+                    .body(axum::body::Body::from(stop_req))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // Test /api/v1/speech/session/{id}/captions
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!("/api/v1/speech/session/{session_id}/captions"))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // Test /api/v1/speech/session/{id}/export?format=vtt
+        let response = app
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!(
+                        "/api/v1/speech/session/{session_id}/export?format=vtt"
+                    ))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
     }
 }

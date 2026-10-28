@@ -198,6 +198,79 @@ pub struct ListDetailedModelPacksResponse {
     pub model_packs: Vec<crate::models::ModelPackDetailedInfo>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StartSpeechSessionCmdRequest {
+    pub source_language: crate::language::LanguageCode,
+    pub target_language: crate::language::LanguageCode,
+    pub title: Option<String>,
+    pub device_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StartSpeechSessionCmdResponse {
+    pub session: crate::models::SpeechSession,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PauseSpeechSessionCmdRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ResumeSpeechSessionCmdRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StopSpeechSessionCmdRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct StopSpeechSessionCmdResponse {
+    pub session: crate::models::SpeechSession,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GetAudioDevicesCmdResponse {
+    pub devices: Vec<crate::models::AudioDeviceItem>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GetSessionCaptionsCmdRequest {
+    pub session_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetSessionCaptionsCmdResponse {
+    pub captions: Vec<crate::models::CaptionSegment>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExportCaptionsCmdRequest {
+    pub session_id: String,
+    pub format: crate::models::CaptionFormat,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ExportCaptionsCmdResponse {
+    pub content: String,
+    pub filename: String,
+    pub format: crate::models::CaptionFormat,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FeedAudioChunkCmdRequest {
+    pub session_id: String,
+    pub samples: Vec<f32>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct FeedAudioChunkCmdResponse {
+    pub session_id: String,
+    pub new_events: Vec<crate::models::AsrTranscriptEvent>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

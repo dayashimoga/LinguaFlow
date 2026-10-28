@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 3;
+pub const CURRENT_SCHEMA_VERSION: u32 = 4;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -39,6 +39,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 3 {
         apply_migration_003(conn)?;
+    }
+    if current_version < 4 {
+        apply_migration_004(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -297,5 +300,57 @@ fn apply_migration_003(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 003: {e}")))?;
 
     info!("Migration 003 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_004(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!("Applying LinguaFlow Database Migration 004 — Real-Time Speech Sessions and Captions");
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    tx.execute_batch(
+        "
+        CREATE TABLE IF NOT EXISTS speech_sessions (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            status TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            ended_at TEXT,
+            duration_seconds INTEGER NOT NULL DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS caption_segments (
+            id TEXT PRIMARY KEY,
+            session_id TEXT NOT NULL,
+            seq_id INTEGER NOT NULL,
+            source_text TEXT NOT NULL,
+            translated_text TEXT NOT NULL,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            is_final INTEGER NOT NULL,
+            confidence REAL NOT NULL,
+            start_time_ms INTEGER NOT NULL,
+            end_time_ms INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY(session_id) REFERENCES speech_sessions(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_caption_session_seq
+        ON caption_segments(session_id, seq_id);
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (4, datetime('now'), 'Stage 3: Real-Time Speech sessions and caption segments');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 004: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 004: {e}")))?;
+
+    info!("Migration 004 applied successfully");
     Ok(())
 }

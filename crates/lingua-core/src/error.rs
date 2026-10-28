@@ -26,6 +26,15 @@ pub enum LinguaError {
     #[error("Audio device failure: {0}")]
     AudioDeviceError(String),
 
+    #[error("Microphone permission denied by host OS")]
+    AudioPermissionDenied,
+
+    #[error("Streaming ASR engine error: {0}")]
+    AsrEngineError(String),
+
+    #[error("Speech session '{0}' not found")]
+    SpeechSessionNotFound(String),
+
     #[error("Model verification failed for '{0}': checksum mismatch")]
     ModelIntegrityFailure(String),
 
@@ -64,6 +73,9 @@ impl LinguaError {
             LinguaError::NetworkUnavailable => "NETWORK_UNAVAILABLE",
             LinguaError::StorageBudgetExceeded { .. } => "STORAGE_BUDGET_EXCEEDED",
             LinguaError::AudioDeviceError(_) => "AUDIO_DEVICE_ERROR",
+            LinguaError::AudioPermissionDenied => "AUDIO_PERMISSION_DENIED",
+            LinguaError::AsrEngineError(_) => "ASR_ENGINE_ERROR",
+            LinguaError::SpeechSessionNotFound(_) => "SPEECH_SESSION_NOT_FOUND",
             LinguaError::ModelIntegrityFailure(_) => "MODEL_INTEGRITY_FAILURE",
             LinguaError::Validation(_) => "VALIDATION_ERROR",
             LinguaError::TranslationFailed(_) => "TRANSLATION_FAILED",
@@ -86,6 +98,9 @@ impl LinguaError {
                 | LinguaError::OfflineModelMissing(_)
                 | LinguaError::IdenticalLanguagePair(_, _)
                 | LinguaError::AudioDeviceError(_)
+                | LinguaError::AudioPermissionDenied
+                | LinguaError::AsrEngineError(_)
+                | LinguaError::SpeechSessionNotFound(_)
                 | LinguaError::ModelNotFound(_)
                 | LinguaError::DownloadCancelled(_)
                 | LinguaError::DownloadFailed(_)

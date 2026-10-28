@@ -223,4 +223,111 @@ export interface GetDiskSpaceCmdResponse {
   models_path: string;
 }
 
+export interface AudioDeviceItem {
+  id: string;
+  name: string;
+  is_default: boolean;
+  channels: number;
+  sample_rate: number;
+}
+
+export type VadState = 'Silence' | 'Speech';
+
+export interface AsrTranscriptEvent {
+  session_id: string;
+  seq_id: number;
+  text: string;
+  is_final: boolean;
+  confidence: number;
+  start_time_ms: number;
+  end_time_ms: number;
+  language: LanguageCode;
+}
+
+export type SpeechSessionStatus = 'Active' | 'Paused' | 'Completed' | 'Failed';
+
+export interface SpeechSession {
+  id: string;
+  title: string;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  status: SpeechSessionStatus;
+  created_at: string;
+  ended_at: string | null;
+  duration_seconds: number;
+}
+
+export interface CaptionSegment {
+  id: string;
+  session_id: string;
+  seq_id: number;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  source_text: string;
+  translated_text: string;
+  is_final: boolean;
+  confidence: number;
+  start_time_ms: number;
+  end_time_ms: number;
+  created_at: string;
+}
+
+export type CaptionFormat = 'vtt' | 'srt' | 'json';
+
+export interface StartSpeechSessionCmdRequest {
+  source_language: LanguageCode;
+  target_language: LanguageCode;
+  title?: string | null;
+  device_id?: string | null;
+}
+
+export interface StartSpeechSessionCmdResponse {
+  session: SpeechSession;
+}
+
+export interface PauseSpeechSessionCmdRequest {
+  session_id: string;
+}
+
+export interface ResumeSpeechSessionCmdRequest {
+  session_id: string;
+}
+
+export interface StopSpeechSessionCmdRequest {
+  session_id: string;
+}
+
+export interface StopSpeechSessionCmdResponse {
+  session: SpeechSession;
+}
+
+export interface GetAudioDevicesCmdResponse {
+  devices: AudioDeviceItem[];
+}
+
+export interface GetSessionCaptionsCmdRequest {
+  session_id: string;
+}
+
+export interface GetSessionCaptionsCmdResponse {
+  captions: CaptionSegment[];
+}
+
+export interface ExportCaptionsCmdRequest {
+  session_id: string;
+  format: CaptionFormat;
+}
+
+export interface ExportCaptionsCmdResponse {
+  content: string;
+  filename: string;
+  format: CaptionFormat;
+}
+
+export interface FeedAudioChunkCmdRequest {
+  session_id: string;
+  samples: number[];
+}
+
+
 

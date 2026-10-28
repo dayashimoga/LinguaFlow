@@ -8,18 +8,24 @@ pub use error::LinguaError;
 pub use ipc::{
     AddFavoriteCmdRequest, CancelDownloadCmdRequest, DatabaseHealthInfo, DeleteModelCmdRequest,
     DetectLanguageCmdRequest, DetectLanguageCmdResponse, DictionarySearchCmdRequest,
-    DictionarySearchCmdResponse, DownloadModelCmdRequest, GetAppInfoResponse,
-    GetCapabilitiesResponse, GetDiskSpaceCmdResponse, GetUserSettingsResponse, IpcErrorPayload,
-    IpcRequest, IpcResponse, ListDetailedModelPacksResponse, ListModelPacksResponse,
-    RemoveFavoriteCmdRequest, SaveUserSettingsRequest, TranslateCmdRequest, TranslateCmdResponse,
-    VerifyModelCmdRequest, VerifyModelCmdResponse,
+    DictionarySearchCmdResponse, DownloadModelCmdRequest, ExportCaptionsCmdRequest,
+    ExportCaptionsCmdResponse, FeedAudioChunkCmdRequest, FeedAudioChunkCmdResponse,
+    GetAppInfoResponse, GetAudioDevicesCmdResponse, GetCapabilitiesResponse,
+    GetDiskSpaceCmdResponse, GetSessionCaptionsCmdRequest, GetSessionCaptionsCmdResponse,
+    GetUserSettingsResponse, IpcErrorPayload, IpcRequest, IpcResponse,
+    ListDetailedModelPacksResponse, ListModelPacksResponse, PauseSpeechSessionCmdRequest,
+    RemoveFavoriteCmdRequest, ResumeSpeechSessionCmdRequest, SaveUserSettingsRequest,
+    StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse, StopSpeechSessionCmdRequest,
+    StopSpeechSessionCmdResponse, TranslateCmdRequest, TranslateCmdResponse, VerifyModelCmdRequest,
+    VerifyModelCmdResponse,
 };
 pub use language::{LanguageCode, LanguagePair};
 pub use models::{
-    AppInfo, AudioSettings, CachedTranslation, CapabilityMatrix, CapabilityState, DictionaryEntry,
+    AppInfo, AsrTranscriptEvent, AudioDeviceItem, AudioSettings, CachedTranslation,
+    CapabilityMatrix, CapabilityState, CaptionFormat, CaptionSegment, DictionaryEntry,
     DictionaryExample, DiskSpaceInfo, EnginePreference, FavoriteItem, ModelFileItem,
     ModelInstallState, ModelPackDetailedInfo, ModelPackInfo, ModelPackManifest, MorphologyEntry,
-    ThemeMode, TranslationRecord, UserSettings,
+    SpeechSession, SpeechSessionStatus, ThemeMode, TranslationRecord, UserSettings, VadState,
 };
 pub use unicode::{
     detect_language, detect_script, normalize_text_nfc, sanitize_translation_input, DetectedScript,

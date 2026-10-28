@@ -1,3 +1,4 @@
+use crate::audio_capture::AudioCaptureManager;
 use crate::http_provider::HttpTranslationProvider;
 use crate::lexicon_engine::LexiconTranslationEngine;
 use crate::local_model_engine::LocalNeuralTranslationEngine;
@@ -17,6 +18,7 @@ pub struct EngineRegistry {
     translation_engines: Vec<Arc<dyn TranslationEngine>>,
     storage: Option<StorageService>,
     model_manager: Option<Arc<ModelManager>>,
+    audio_capture: Arc<AudioCaptureManager>,
 }
 
 impl EngineRegistry {
@@ -25,6 +27,7 @@ impl EngineRegistry {
             translation_engines: Vec::new(),
             storage: None,
             model_manager: None,
+            audio_capture: Arc::new(AudioCaptureManager::default()),
         }
     }
 
@@ -37,6 +40,7 @@ impl EngineRegistry {
             translation_engines: Vec::new(),
             storage: Some(storage.clone()),
             model_manager: None,
+            audio_capture: Arc::new(AudioCaptureManager::default()),
         };
 
         // Initialize ModelManager
@@ -64,6 +68,10 @@ impl EngineRegistry {
         self.model_manager.clone()
     }
 
+    pub fn audio_capture(&self) -> Arc<AudioCaptureManager> {
+        Arc::clone(&self.audio_capture)
+    }
+
     pub fn register_translation_engine(&mut self, engine: Arc<dyn TranslationEngine>) {
         info!(
             "Registering translation engine: {} ({})",
@@ -74,7 +82,7 @@ impl EngineRegistry {
     }
 
     pub fn get_capabilities(&self) -> CapabilityMatrix {
-        let mut matrix = CapabilityMatrix::stage_2_active();
+        let mut matrix = CapabilityMatrix::stage_3_active();
 
         if !self.translation_engines.is_empty() {
             matrix.text_translation = CapabilityState::Active;

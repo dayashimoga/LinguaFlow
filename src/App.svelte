@@ -16,12 +16,13 @@
   } from './lib/types';
   import ConversationView from './views/ConversationView.svelte';
   import DictionaryView from './views/DictionaryView.svelte';
+  import LiveSpeechView from './views/LiveSpeechView.svelte';
   import ModelsView from './views/ModelsView.svelte';
   import HomeView from './views/HomeView.svelte';
   import SettingsView from './views/SettingsView.svelte';
   import TranslateView from './views/TranslateView.svelte';
 
-  type ViewType = 'home' | 'translate' | 'dictionary' | 'conversation' | 'downloads' | 'settings';
+  type ViewType = 'home' | 'translate' | 'dictionary' | 'speech' | 'conversation' | 'downloads' | 'settings';
 
   let currentView: ViewType = 'home';
   let appInfo: AppInfo | null = null;
@@ -135,9 +136,10 @@
         if (e.key === '1') navigate('home');
         if (e.key === '2') navigate('translate');
         if (e.key === '3') navigate('dictionary');
-        if (e.key === '4') navigate('conversation');
-        if (e.key === '5') navigate('downloads');
-        if (e.key === '6') navigate('settings');
+        if (e.key === '4') navigate('speech');
+        if (e.key === '5') navigate('conversation');
+        if (e.key === '6') navigate('downloads');
+        if (e.key === '7') navigate('settings');
       }
     };
     window.addEventListener('keydown', handleKeydown);
@@ -152,7 +154,7 @@
       <div class="logo-circle">LF</div>
       <div>
         <span class="brand-name">Lingua<span class="gradient-text">Flow</span></span>
-        <span class="brand-stage">Stage {appInfo?.stage ?? 2} {appInfo?.stage_name ?? 'Offline Translation'}</span>
+        <span class="brand-stage">Stage {appInfo?.stage ?? 3} {appInfo?.stage_name ?? 'Real-Time Speech & Captions'}</span>
       </div>
     </button>
 
@@ -175,6 +177,12 @@
         on:click={() => navigate('dictionary')}
       >
         Dictionary
+      </button>
+      <button
+        class="nav-btn {currentView === 'speech' ? 'active' : ''}"
+        on:click={() => navigate('speech')}
+      >
+        Live Captions
       </button>
       <button
         class="nav-btn {currentView === 'conversation' ? 'active' : ''}"
@@ -224,6 +232,8 @@
         <TranslateView settings={userSettings} onSaveSettings={handleSaveSettings} onNavigate={navigate} />
       {:else if currentView === 'dictionary'}
         <DictionaryView />
+      {:else if currentView === 'speech'}
+        <LiveSpeechView />
       {:else if currentView === 'conversation'}
         <ConversationView />
       {:else if currentView === 'downloads'}
@@ -258,10 +268,17 @@
       <span>Dictionary</span>
     </button>
     <button
+      class="mobile-nav-btn {currentView === 'speech' ? 'active' : ''}"
+      on:click={() => navigate('speech')}
+    >
+      <span class="m-icon">🎙️</span>
+      <span>Captions</span>
+    </button>
+    <button
       class="mobile-nav-btn {currentView === 'conversation' ? 'active' : ''}"
       on:click={() => navigate('conversation')}
     >
-      <span class="m-icon">🎙️</span>
+      <span class="m-icon">👥</span>
       <span>Voice</span>
     </button>
     <button

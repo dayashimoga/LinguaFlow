@@ -136,6 +136,106 @@ impl CapabilityMatrix {
             media_subtitles: CapabilityState::ScheduledForStage(6),
         }
     }
+
+    pub fn stage_3_active() -> Self {
+        Self {
+            dictionary: CapabilityState::Active,
+            text_translation: CapabilityState::Active,
+            streaming_asr: CapabilityState::Active,
+            speech_synthesis: CapabilityState::ScheduledForStage(4),
+            offline_models: CapabilityState::Active,
+            live_conversation: CapabilityState::ScheduledForStage(4),
+            media_subtitles: CapabilityState::ScheduledForStage(6),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct AudioDeviceItem {
+    pub id: String,
+    pub name: String,
+    pub is_default: bool,
+    pub sample_rate: u32,
+    pub channels: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum VadState {
+    Silence,
+    Speech,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AsrTranscriptEvent {
+    pub session_id: String,
+    pub seq_id: u64,
+    pub is_final: bool,
+    pub text: String,
+    pub language: LanguageCode,
+    pub confidence: f32,
+    pub start_time_ms: u64,
+    pub end_time_ms: u64,
+    pub stability: f32,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum SpeechSessionStatus {
+    Active,
+    Paused,
+    Completed,
+}
+
+impl SpeechSessionStatus {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Active => "active",
+            Self::Paused => "paused",
+            Self::Completed => "completed",
+        }
+    }
+
+    pub fn parse(s: &str) -> Self {
+        match s {
+            "paused" => Self::Paused,
+            "completed" => Self::Completed,
+            _ => Self::Active,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SpeechSession {
+    pub id: String,
+    pub title: String,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub status: SpeechSessionStatus,
+    pub created_at: DateTime<Utc>,
+    pub ended_at: Option<DateTime<Utc>>,
+    pub duration_seconds: u64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CaptionSegment {
+    pub id: String,
+    pub session_id: String,
+    pub seq_id: u64,
+    pub source_text: String,
+    pub translated_text: String,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub is_final: bool,
+    pub confidence: f32,
+    pub start_time_ms: u64,
+    pub end_time_ms: u64,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum CaptionFormat {
+    Vtt,
+    Srt,
+    Json,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -299,8 +399,8 @@ impl Default for AppInfo {
         Self {
             name: "LinguaFlow".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            stage: 2,
-            stage_name: "Offline Translation".into(),
+            stage: 3,
+            stage_name: "Real-Time Speech & Captions".into(),
             platform: std::env::consts::OS.into(),
             arch: std::env::consts::ARCH.into(),
             build_profile: if cfg!(debug_assertions) {
@@ -332,6 +432,19 @@ mod tests {
         let matrix = CapabilityMatrix::stage_0_baseline();
         assert_eq!(matrix.dictionary, CapabilityState::ScheduledForStage(1));
         assert_eq!(matrix.streaming_asr, CapabilityState::ScheduledForStage(3));
+        assert_eq!(
+            matrix.speech_synthesis,
+            CapabilityState::ScheduledForStage(4)
+        );
+    }
+
+    #[test]
+    fn test_capability_matrix_stage_3() {
+        let matrix = CapabilityMatrix::stage_3_active();
+        assert_eq!(matrix.dictionary, CapabilityState::Active);
+        assert_eq!(matrix.text_translation, CapabilityState::Active);
+        assert_eq!(matrix.offline_models, CapabilityState::Active);
+        assert_eq!(matrix.streaming_asr, CapabilityState::Active);
         assert_eq!(
             matrix.speech_synthesis,
             CapabilityState::ScheduledForStage(4)

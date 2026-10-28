@@ -513,3 +513,9 @@
   - Frontend typecheck (`npm run check`) 0 errors, 0 warnings; production bundle build (`npm run build`) succeeded in 3.44s.
   - Authored `docs/STAGE_8_ACCEPTANCE_REPORT.md` and updated `BENCHMARKS.md`, `requirements-traceability-matrix.md`, `TODO.md`, and `CHANGELOG.md`.
 - [x] Stage 8 certified complete and ready for user review.
+
+### [2026-10-28 16:50 UTC] CI Pipeline Android Action Deprecation Fix
+- [x] Resolved GitHub Actions Android workflow failure:
+  - Upgraded `android-actions/setup-android` from `v3` to `v4` in `.github/workflows/mobile.yml`.
+  - Addressed upstream Google deprecation and unpublishing of the legacy `tools` package from Android SDK repositories.
+  - Verified clean tracking and pushed changes to remote repository.

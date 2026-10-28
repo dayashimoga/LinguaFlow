@@ -495,7 +495,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Comprehensive Integration Test Suite**:
   - `tests/enterprise_platform.rs`: 6 integration tests verifying RBAC tenancy isolation, API key auth and rate limiting, worker pool backpressure and failover, anonymous offline mode guarantee, audit trail logging, and quota enforcement with fail-safe refunds.
 
+---
 
+## [0.8.1] - 2026-10-28
 
+### Fixed
+- **Mobile CI Workflow**: Upgraded `android-actions/setup-android` from `v3` to `v4` in `.github/workflows/mobile.yml`. Fixes GitHub Actions build failure caused by Google deprecating and unpublishing the legacy `tools` package from the Android SDK repository, which caused `sdkmanager tools` to exit with code 1.
 
 

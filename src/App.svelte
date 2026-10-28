@@ -23,8 +23,19 @@
   import SettingsView from './views/SettingsView.svelte';
   import TranslateView from './views/TranslateView.svelte';
   import MediaView from './views/MediaView.svelte';
+  import LearnView from './views/LearnView.svelte';
 
-  type ViewType = 'home' | 'translate' | 'dictionary' | 'speech' | 'conversation' | 'intelligence' | 'media' | 'downloads' | 'settings';
+  type ViewType =
+    | 'home'
+    | 'translate'
+    | 'dictionary'
+    | 'speech'
+    | 'conversation'
+    | 'intelligence'
+    | 'media'
+    | 'learn'
+    | 'downloads'
+    | 'settings';
 
   let currentView: ViewType = 'home';
   let appInfo: AppInfo | null = null;
@@ -205,6 +216,12 @@
         Media & OCR
       </button>
       <button
+        class="nav-btn {currentView === 'learn' ? 'active' : ''}"
+        on:click={() => navigate('learn')}
+      >
+        Learn
+      </button>
+      <button
         class="nav-btn {currentView === 'downloads' ? 'active' : ''}"
         on:click={() => navigate('downloads')}
       >
@@ -254,6 +271,8 @@
         <IntelligenceView />
       {:else if currentView === 'media'}
         <MediaView />
+      {:else if currentView === 'learn'}
+        <LearnView />
       {:else if currentView === 'downloads'}
         <ModelsView />
       {:else if currentView === 'settings'}
@@ -312,6 +331,13 @@
     >
       <span class="m-icon">🎞️</span>
       <span>Media</span>
+    </button>
+    <button
+      class="mobile-nav-btn {currentView === 'learn' ? 'active' : ''}"
+      on:click={() => navigate('learn')}
+    >
+      <span class="m-icon">🗂️</span>
+      <span>Learn</span>
     </button>
     <button
       class="mobile-nav-btn {currentView === 'downloads' ? 'active' : ''}"

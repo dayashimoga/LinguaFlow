@@ -1,35 +1,45 @@
 use crate::DesktopAppState;
 use lingua_core::{
-    detect_language, AddFavoriteCmdRequest, AppInfo, CapabilityMatrix, CaptionSegment,
-    ConversationSession, ConversationTurnItem, CreateGlossaryTermCmdRequest, DatabaseHealthInfo,
+    detect_language, AddFavoriteCmdRequest, AppInfo, AssessPronunciationCmdRequest,
+    AssessPronunciationCmdResponse, CapabilityMatrix, CaptionSegment, ConversationSession,
+    ConversationTurnItem, CreateGlossaryTermCmdRequest, DatabaseHealthInfo,
     DeleteGlossaryTermCmdRequest, DetectLanguageCmdRequest, DetectLanguageCmdResponse,
     DictionaryEntry, DictionarySearchCmdRequest, DictionarySearchCmdResponse, DocumentJobStatus,
     DocumentTranslationJob, DomainGlossaryEntry, EvaluationReport, ExportCaptionsCmdRequest,
-    ExportCaptionsCmdResponse, ExportSubtitlesCmdRequest, ExportSubtitlesCmdResponse, FavoriteItem,
-    FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse, GetCircuitBreakersCmdResponse,
-    GetConversationTurnsCmdRequest, GetGlobalShortcutsCmdResponse, GetOverlaySettingsCmdResponse,
-    GetSessionCaptionsCmdRequest, GetSessionCaptionsCmdResponse, GlobalShortcutConfig,
-    IntelligenceTranslationRequest, IntelligenceTranslationResponse,
-    InterruptConversationCmdRequest, InterruptConversationCmdResponse, IpcResponse, LanguagePair,
-    ListGlossaryTermsCmdRequest, ListGlossaryTermsCmdResponse, ListMediaSegmentsCmdRequest,
-    ListMediaSegmentsCmdResponse, MediaProgressStatus, MediaSession, MediaSubtitleExportFormat,
-    MediaSubtitleSegment, ModelPackInfo, PauseSpeechSessionCmdRequest, PerformOcrCmdRequest,
-    PerformOcrCmdResponse, ResetCircuitBreakerCmdRequest, ResumeSpeechSessionCmdRequest,
-    RunEvaluationCmdResponse, SaveGlobalShortcutsCmdRequest, SaveOverlaySettingsCmdRequest,
-    SetResourceProfileCmdRequest, SpeechSession, StartConversationCmdRequest,
-    StartMediaTranscriptionCmdRequest, StartMediaTranscriptionCmdResponse,
-    StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse, StopConversationCmdRequest,
-    StopSpeechSessionCmdRequest, StopSpeechSessionCmdResponse, SubmitTurnCmdRequest,
-    SubmitTurnCmdResponse, SwitchSpeakerCmdRequest, SynthesizeSpeechCmdRequest,
-    SystemAudioPermission, TranslateCmdRequest, TranslateCmdResponse, TranslateDocumentCmdRequest,
+    ExportCaptionsCmdResponse, ExportSubtitlesCmdRequest, ExportSubtitlesCmdResponse,
+    ExportUserDataCmdResponse, FavoriteItem, FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse,
+    GetCircuitBreakersCmdResponse, GetConversationTurnsCmdRequest,
+    GetDataPrivacySettingsCmdResponse, GetGlobalShortcutsCmdResponse, GetGrammarTopicsCmdRequest,
+    GetGrammarTopicsCmdResponse, GetLearnerProgressCmdResponse, GetLearningDeckCardsCmdRequest,
+    GetLearningDeckCardsCmdResponse, GetListeningChallengesCmdRequest,
+    GetListeningChallengesCmdResponse, GetOverlaySettingsCmdResponse,
+    GetPlatformReleaseStatusCmdResponse, GetSessionCaptionsCmdRequest,
+    GetSessionCaptionsCmdResponse, GlobalShortcutConfig, IntelligenceTranslationRequest,
+    IntelligenceTranslationResponse, InterruptConversationCmdRequest,
+    InterruptConversationCmdResponse, IpcResponse, LanguagePair, LinguaError,
+    ListGlossaryTermsCmdRequest, ListGlossaryTermsCmdResponse, ListLearningDecksCmdResponse,
+    ListMediaSegmentsCmdRequest, ListMediaSegmentsCmdResponse, MediaProgressStatus, MediaSession,
+    MediaSubtitleExportFormat, MediaSubtitleSegment, ModelPackInfo, PauseSpeechSessionCmdRequest,
+    PerformOcrCmdRequest, PerformOcrCmdResponse, PurgeUserDataCmdRequest, PurgeUserDataCmdResponse,
+    ResetCircuitBreakerCmdRequest, ResumeSpeechSessionCmdRequest, ReviewCardCmdRequest,
+    ReviewCardCmdResponse, ReviewRating, RunEvaluationCmdResponse,
+    SaveDataPrivacySettingsCmdRequest, SaveGlobalShortcutsCmdRequest,
+    SaveOverlaySettingsCmdRequest, SetResourceProfileCmdRequest, SpeechSession,
+    StartConversationCmdRequest, StartMediaTranscriptionCmdRequest,
+    StartMediaTranscriptionCmdResponse, StartSpeechSessionCmdRequest,
+    StartSpeechSessionCmdResponse, StopConversationCmdRequest, StopSpeechSessionCmdRequest,
+    StopSpeechSessionCmdResponse, SubmitTurnCmdRequest, SubmitTurnCmdResponse,
+    SwitchSpeakerCmdRequest, SynthesizeSpeechCmdRequest, SystemAudioPermission,
+    TranslateCmdRequest, TranslateCmdResponse, TranslateDocumentCmdRequest,
     TranslateDocumentCmdResponse, TranslateIntelligenceCmdRequest, TranslationRecord,
     TransliterateCmdRequest, TransliterationResponse, TtsSynthesizeRequest, TtsSynthesizeResponse,
     TtsVoiceInfo, UpdateMediaSegmentCmdRequest, UserSettings,
 };
 use lingua_engine::{
-    AudioCaptureManager, AuthenticOcrEngine, DocumentProcessor, LiveOverlayController,
-    MediaTranscriptionPipeline, OcrEngine, PlatformIntegrationsCoordinator, QualityEvaluator,
-    TranslationRequest,
+    AudioCaptureManager, AuthenticOcrEngine, DocumentProcessor, GrammarKnowledgeBase,
+    ListeningChallengeGenerator, LiveOverlayController, MediaTranscriptionPipeline, OcrEngine,
+    PlatformIntegrationsCoordinator, PronunciationEvaluator, QualityEvaluator, SecurityAuditor,
+    SpacedRepetitionSystem, TranslationRequest,
 };
 use tauri::State;
 use uuid::Uuid;
@@ -1089,4 +1099,158 @@ pub fn lingua_command_save_global_shortcuts(
         return IpcResponse::err("tauri-ipc", e);
     }
     IpcResponse::ok("tauri-ipc", true)
+}
+
+// ============================================================================
+// Stage 7: Learning & Production Certification Commands
+// ============================================================================
+
+#[tauri::command]
+pub fn lingua_command_list_learning_decks(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<ListLearningDecksCmdResponse> {
+    match state.storage.list_learning_decks() {
+        Ok(decks) => IpcResponse::ok("tauri-ipc", ListLearningDecksCmdResponse { decks }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_get_deck_cards(
+    state: State<'_, DesktopAppState>,
+    request: GetLearningDeckCardsCmdRequest,
+) -> IpcResponse<GetLearningDeckCardsCmdResponse> {
+    match state.storage.get_deck_cards(&request.deck_id) {
+        Ok(cards) => IpcResponse::ok("tauri-ipc", GetLearningDeckCardsCmdResponse { cards }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_review_card(
+    state: State<'_, DesktopAppState>,
+    request: ReviewCardCmdRequest,
+) -> IpcResponse<ReviewCardCmdResponse> {
+    let card = match state.storage.get_card_by_id(&request.card_id) {
+        Ok(c) => c,
+        Err(e) => return IpcResponse::err("tauri-ipc", e),
+    };
+
+    let rating = ReviewRating::from_u8(request.rating);
+    let (new_rep, new_int, new_ease, next_rev) = SpacedRepetitionSystem::calculate_next_interval(
+        rating,
+        card.repetition,
+        card.interval_days,
+        card.ease_factor,
+    );
+
+    match state.storage.update_card_review(
+        &request.card_id,
+        request.rating,
+        new_rep,
+        new_int,
+        new_ease,
+        next_rev,
+    ) {
+        Ok(result) => IpcResponse::ok("tauri-ipc", ReviewCardCmdResponse { result }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_get_learner_progress(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<GetLearnerProgressCmdResponse> {
+    match state.storage.get_learner_progress() {
+        Ok(progress) => IpcResponse::ok("tauri-ipc", GetLearnerProgressCmdResponse { progress }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_assess_pronunciation(
+    request: AssessPronunciationCmdRequest,
+) -> IpcResponse<AssessPronunciationCmdResponse> {
+    let result = PronunciationEvaluator::assess(
+        &request.request.reference_text,
+        &request.request.spoken_transcript,
+        request.request.language,
+    );
+    IpcResponse::ok("tauri-ipc", AssessPronunciationCmdResponse { result })
+}
+
+#[tauri::command]
+pub fn lingua_command_get_listening_challenges(
+    request: GetListeningChallengesCmdRequest,
+) -> IpcResponse<GetListeningChallengesCmdResponse> {
+    let challenges = ListeningChallengeGenerator::get_challenges(request.language, request.count);
+    IpcResponse::ok(
+        "tauri-ipc",
+        GetListeningChallengesCmdResponse { challenges },
+    )
+}
+
+#[tauri::command]
+pub fn lingua_command_get_grammar_topics(
+    request: GetGrammarTopicsCmdRequest,
+) -> IpcResponse<GetGrammarTopicsCmdResponse> {
+    let topics = GrammarKnowledgeBase::get_topics(request.language);
+    IpcResponse::ok("tauri-ipc", GetGrammarTopicsCmdResponse { topics })
+}
+
+#[tauri::command]
+pub fn lingua_command_get_privacy_settings(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<GetDataPrivacySettingsCmdResponse> {
+    match state.storage.get_privacy_settings() {
+        Ok(settings) => {
+            IpcResponse::ok("tauri-ipc", GetDataPrivacySettingsCmdResponse { settings })
+        }
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_save_privacy_settings(
+    state: State<'_, DesktopAppState>,
+    request: SaveDataPrivacySettingsCmdRequest,
+) -> IpcResponse<bool> {
+    match state.storage.save_privacy_settings(&request.settings) {
+        Ok(()) => IpcResponse::ok("tauri-ipc", true),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_export_user_data(
+    state: State<'_, DesktopAppState>,
+) -> IpcResponse<ExportUserDataCmdResponse> {
+    match state.storage.export_all_user_data() {
+        Ok(archive) => IpcResponse::ok("tauri-ipc", ExportUserDataCmdResponse { archive }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_purge_user_data(
+    state: State<'_, DesktopAppState>,
+    request: PurgeUserDataCmdRequest,
+) -> IpcResponse<PurgeUserDataCmdResponse> {
+    if request.confirm_phrase != "I UNDERSTAND THIS ACTION IS IRREVERSIBLE" {
+        return IpcResponse::err(
+            "tauri-ipc",
+            LinguaError::SecurityViolation("Invalid confirmation phrase for data purge".into()),
+        );
+    }
+    match state.storage.purge_all_user_data() {
+        Ok(result) => IpcResponse::ok("tauri-ipc", PurgeUserDataCmdResponse { result }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_get_platform_release_status(
+) -> IpcResponse<GetPlatformReleaseStatusCmdResponse> {
+    let status = SecurityAuditor::get_platform_release_status();
+    IpcResponse::ok("tauri-ipc", GetPlatformReleaseStatusCmdResponse { status })
 }

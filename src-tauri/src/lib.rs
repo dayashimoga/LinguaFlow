@@ -103,6 +103,19 @@ pub fn run() {
             commands::lingua_command_get_overlay_permission,
             commands::lingua_command_get_global_shortcuts,
             commands::lingua_command_save_global_shortcuts,
+            // Stage 7 commands
+            commands::lingua_command_list_learning_decks,
+            commands::lingua_command_get_deck_cards,
+            commands::lingua_command_review_card,
+            commands::lingua_command_get_learner_progress,
+            commands::lingua_command_assess_pronunciation,
+            commands::lingua_command_get_listening_challenges,
+            commands::lingua_command_get_grammar_topics,
+            commands::lingua_command_get_privacy_settings,
+            commands::lingua_command_save_privacy_settings,
+            commands::lingua_command_export_user_data,
+            commands::lingua_command_purge_user_data,
+            commands::lingua_command_get_platform_release_status,
         ])
         .run(tauri::generate_context!())
         .expect("error while running LinguaFlow application");

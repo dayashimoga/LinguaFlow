@@ -24,6 +24,18 @@ import type {
   DocumentTranslationJob,
   DocumentBlock,
   GlobalShortcutConfig,
+  LearningDeck,
+  LearningCard,
+  ReviewResult,
+  LearnerProgress,
+  PronunciationAssessmentRequest,
+  PronunciationAssessmentResult,
+  ListeningChallenge,
+  GrammarGuideTopic,
+  DataPrivacySettings,
+  ExportUserDataArchive,
+  PurgeUserDataResult,
+  PlatformReleaseStatus,
 } from './types';
 
 // Check if running in a Tauri native environment
@@ -849,3 +861,184 @@ export async function saveGlobalShortcuts(config: GlobalShortcutConfig): Promise
   }
   return true;
 }
+
+// ============================================================================
+// Stage 7: Learning & Production Certification IPC Handlers
+// ============================================================================
+
+export async function listLearningDecks(): Promise<LearningDeck[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ decks: LearningDeck[] }>('lingua_command_list_learning_decks');
+    return res.decks;
+  }
+  const res = await fetch(`${API_BASE}/learning/decks`);
+  if (!res.ok) throw new Error('Failed to fetch learning decks');
+  const data = await res.json();
+  return data.decks;
+}
+
+export async function getDeckCards(deckId: string): Promise<LearningCard[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ cards: LearningCard[] }>('lingua_command_get_deck_cards', {
+      request: { deck_id: deckId },
+    });
+    return res.cards;
+  }
+  const res = await fetch(`${API_BASE}/learning/deck/${deckId}/cards`);
+  if (!res.ok) throw new Error('Failed to fetch deck cards');
+  const data = await res.json();
+  return data.cards;
+}
+
+export async function reviewCard(cardId: string, rating: number): Promise<ReviewResult> {
+  if (isTauri) {
+    const res = await invokeTauri<{ result: ReviewResult }>('lingua_command_review_card', {
+      request: { card_id: cardId, rating },
+    });
+    return res.result;
+  }
+  const res = await fetch(`${API_BASE}/learning/card/${cardId}/review`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rating }),
+  });
+  if (!res.ok) throw new Error('Failed to log review');
+  const data = await res.json();
+  return data.result;
+}
+
+export async function getLearnerProgress(): Promise<LearnerProgress> {
+  if (isTauri) {
+    const res = await invokeTauri<{ progress: LearnerProgress }>('lingua_command_get_learner_progress');
+    return res.progress;
+  }
+  const res = await fetch(`${API_BASE}/learning/progress`);
+  if (!res.ok) throw new Error('Failed to fetch learner progress');
+  const data = await res.json();
+  return data.progress;
+}
+
+export async function assessPronunciation(
+  req: PronunciationAssessmentRequest
+): Promise<PronunciationAssessmentResult> {
+  if (isTauri) {
+    const res = await invokeTauri<{ result: PronunciationAssessmentResult }>(
+      'lingua_command_assess_pronunciation',
+      { request: { request: req } }
+    );
+    return res.result;
+  }
+  const res = await fetch(`${API_BASE}/learning/pronunciation/assess`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ request: req }),
+  });
+  if (!res.ok) throw new Error('Failed to assess pronunciation');
+  const data = await res.json();
+  return data.result;
+}
+
+export async function getListeningChallenges(
+  lang: import('./types').LanguageCode,
+  count = 3
+): Promise<ListeningChallenge[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ challenges: ListeningChallenge[] }>(
+      'lingua_command_get_listening_challenges',
+      { request: { language: lang, count } }
+    );
+    return res.challenges;
+  }
+  const res = await fetch(`${API_BASE}/learning/listening/challenges?language=${encodeURIComponent(lang)}&count=${count}`);
+  if (!res.ok) throw new Error('Failed to fetch listening challenges');
+  const data = await res.json();
+  return data.challenges;
+}
+
+export async function getGrammarTopics(
+  lang: import('./types').LanguageCode
+): Promise<GrammarGuideTopic[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ topics: GrammarGuideTopic[] }>(
+      'lingua_command_get_grammar_topics',
+      { request: { language: lang } }
+    );
+    return res.topics;
+  }
+  const res = await fetch(`${API_BASE}/learning/grammar/topics?language=${encodeURIComponent(lang)}`);
+  if (!res.ok) throw new Error('Failed to fetch grammar topics');
+  const data = await res.json();
+  return data.topics;
+}
+
+export async function getPrivacySettings(): Promise<DataPrivacySettings> {
+  if (isTauri) {
+    const res = await invokeTauri<{ settings: DataPrivacySettings }>(
+      'lingua_command_get_privacy_settings'
+    );
+    return res.settings;
+  }
+  const res = await fetch(`${API_BASE}/privacy/settings`);
+  if (!res.ok) throw new Error('Failed to fetch privacy settings');
+  const data = await res.json();
+  return data.settings;
+}
+
+export async function savePrivacySettings(settings: DataPrivacySettings): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_save_privacy_settings', {
+      request: { settings },
+    });
+  }
+  const res = await fetch(`${API_BASE}/privacy/settings`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ settings }),
+  });
+  return res.ok;
+}
+
+export async function exportUserData(): Promise<ExportUserDataArchive> {
+  if (isTauri) {
+    const res = await invokeTauri<{ archive: ExportUserDataArchive }>(
+      'lingua_command_export_user_data'
+    );
+    return res.archive;
+  }
+  const res = await fetch(`${API_BASE}/privacy/export`, { method: 'POST' });
+  if (!res.ok) throw new Error('Failed to export user data');
+  const data = await res.json();
+  return data.archive;
+}
+
+export async function purgeUserData(confirmPhrase: string): Promise<PurgeUserDataResult> {
+  if (isTauri) {
+    const res = await invokeTauri<{ result: PurgeUserDataResult }>(
+      'lingua_command_purge_user_data',
+      { request: { confirm_phrase: confirmPhrase } }
+    );
+    return res.result;
+  }
+  const res = await fetch(`${API_BASE}/privacy/purge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ confirm_phrase: confirmPhrase }),
+  });
+  if (!res.ok) throw new Error('Failed to purge user data');
+  const data = await res.json();
+  return data.result;
+}
+
+export async function getPlatformReleaseStatus(): Promise<PlatformReleaseStatus[]> {
+  if (isTauri) {
+    const res = await invokeTauri<{ status: PlatformReleaseStatus[] }>(
+      'lingua_command_get_platform_release_status'
+    );
+    return res.status;
+  }
+  const res = await fetch(`${API_BASE}/platform/release-status`);
+  if (!res.ok) throw new Error('Failed to fetch platform release status');
+  const data = await res.json();
+  return data.status;
+}
+

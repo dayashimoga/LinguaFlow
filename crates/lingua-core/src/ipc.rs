@@ -531,6 +531,98 @@ pub struct SaveGlobalShortcutsCmdRequest {
     pub config: crate::models::GlobalShortcutConfig,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ListLearningDecksCmdResponse {
+    pub decks: Vec<crate::models::LearningDeck>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetLearningDeckCardsCmdRequest {
+    pub deck_id: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetLearningDeckCardsCmdResponse {
+    pub cards: Vec<crate::models::LearningCard>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReviewCardCmdRequest {
+    pub card_id: String,
+    pub rating: u8,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReviewCardCmdResponse {
+    pub result: crate::models::ReviewResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetLearnerProgressCmdResponse {
+    pub progress: crate::models::LearnerProgress,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AssessPronunciationCmdRequest {
+    pub request: crate::models::PronunciationAssessmentRequest,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct AssessPronunciationCmdResponse {
+    pub result: crate::models::PronunciationAssessmentResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetListeningChallengesCmdRequest {
+    pub language: crate::language::LanguageCode,
+    pub count: usize,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetListeningChallengesCmdResponse {
+    pub challenges: Vec<crate::models::ListeningChallenge>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetGrammarTopicsCmdRequest {
+    pub language: crate::language::LanguageCode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetGrammarTopicsCmdResponse {
+    pub topics: Vec<crate::models::GrammarGuideTopic>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetDataPrivacySettingsCmdResponse {
+    pub settings: crate::models::DataPrivacySettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct SaveDataPrivacySettingsCmdRequest {
+    pub settings: crate::models::DataPrivacySettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ExportUserDataCmdResponse {
+    pub archive: crate::models::ExportUserDataArchive,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PurgeUserDataCmdRequest {
+    pub confirm_phrase: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PurgeUserDataCmdResponse {
+    pub result: crate::models::PurgeUserDataResult,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct GetPlatformReleaseStatusCmdResponse {
+    pub status: Vec<crate::models::PlatformReleaseStatus>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 7;
+pub const CURRENT_SCHEMA_VERSION: u32 = 8;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -51,6 +51,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 7 {
         apply_migration_007(conn)?;
+    }
+    if current_version < 8 {
+        apply_migration_008(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -583,5 +586,152 @@ fn apply_migration_007(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 007: {e}")))?;
 
     info!("Migration 007 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_008(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!("Applying LinguaFlow Database Migration 008 — Language Learning & Privacy Settings");
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    tx.execute_batch(
+        "
+        -- Learning decks
+        CREATE TABLE IF NOT EXISTS learning_decks (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            description TEXT NOT NULL,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        -- Flashcards with SM-2 state tracking
+        CREATE TABLE IF NOT EXISTS flashcards (
+            id TEXT PRIMARY KEY,
+            deck_id TEXT NOT NULL,
+            source_lang TEXT NOT NULL,
+            target_lang TEXT NOT NULL,
+            source_term TEXT NOT NULL,
+            target_term TEXT NOT NULL,
+            romanization TEXT,
+            ipa TEXT,
+            part_of_speech TEXT NOT NULL,
+            example_source TEXT NOT NULL,
+            example_target TEXT NOT NULL,
+            grammar_notes TEXT,
+            repetition INTEGER NOT NULL DEFAULT 0,
+            interval_days REAL NOT NULL DEFAULT 1.0,
+            ease_factor REAL NOT NULL DEFAULT 2.5,
+            next_review_at TEXT NOT NULL,
+            total_reviews INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL,
+            FOREIGN KEY (deck_id) REFERENCES learning_decks(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_flashcards_deck_next_review
+        ON flashcards(deck_id, next_review_at);
+
+        CREATE INDEX IF NOT EXISTS idx_flashcards_next_review
+        ON flashcards(next_review_at);
+
+        -- SM-2 Review history logs
+        CREATE TABLE IF NOT EXISTS learning_review_logs (
+            id TEXT PRIMARY KEY,
+            card_id TEXT NOT NULL,
+            rating INTEGER NOT NULL,
+            repetition INTEGER NOT NULL,
+            interval_days REAL NOT NULL,
+            ease_factor REAL NOT NULL,
+            reviewed_at TEXT NOT NULL,
+            FOREIGN KEY (card_id) REFERENCES flashcards(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_review_logs_card_id
+        ON learning_review_logs(card_id);
+
+        -- Privacy consent and local data retention settings
+        CREATE TABLE IF NOT EXISTS privacy_settings (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            analytics_enabled INTEGER NOT NULL DEFAULT 0,
+            local_transcripts_retention_days INTEGER NOT NULL DEFAULT 30,
+            microphone_consent INTEGER NOT NULL DEFAULT 1,
+            camera_consent INTEGER NOT NULL DEFAULT 1,
+            cloud_processing_consent INTEGER NOT NULL DEFAULT 0,
+            policy_version_accepted TEXT NOT NULL DEFAULT '2026.10-v1',
+            updated_at TEXT NOT NULL
+        );
+
+        -- Default privacy settings
+        INSERT OR IGNORE INTO privacy_settings (
+            id, analytics_enabled, local_transcripts_retention_days,
+            microphone_consent, camera_consent, cloud_processing_consent,
+            policy_version_accepted, updated_at
+        ) VALUES (
+            1, 0, 30, 1, 1, 0, '2026.10-v1', datetime('now')
+        );
+
+        -- Seed initial learning decks
+        INSERT OR IGNORE INTO learning_decks (id, title, description, source_lang, target_lang, created_at)
+        VALUES 
+        ('deck-kn-core', 'Kannada Essential Vocabulary & Grammar', 'Core expressions, case markers (Vibhakti), and daily vocabulary', 'kn-IN', 'en-US', datetime('now')),
+        ('deck-ta-core', 'Tamil Essential Vocabulary & Grammar', 'Core expressions, case markers (Vēṟṟumai), and daily vocabulary', 'ta-IN', 'en-US', datetime('now'));
+
+        -- Seed Kannada flashcards
+        INSERT OR IGNORE INTO flashcards (
+            id, deck_id, source_lang, target_lang, source_term, target_term,
+            romanization, ipa, part_of_speech, example_source, example_target,
+            grammar_notes, repetition, interval_days, ease_factor, next_review_at, total_reviews, created_at
+        ) VALUES
+        ('card-kn-01', 'deck-kn-core', 'kn-IN', 'en-US', 'ನಮಸ್ಕಾರ', 'Hello / Greetings',
+         'Namaskāra', '/nʌmʌskɑːrʌ/', 'interjection', 'ನಮಸ್ಕಾರ, ನೀವು ಹೇಗಿದ್ದೀರಿ?', 'Hello, how are you?',
+         'Indeclinable (ಅವ್ಯಯ - Avyaya); standard polite greeting for all times of day.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-kn-02', 'deck-kn-core', 'kn-IN', 'en-US', 'ಧನ್ಯವಾದ', 'Thank you',
+         'Dhanyavāda', '/d̪ʱʌnjʌʋɑːd̪ʌ/', 'noun', 'ನಿಮ್ಮ ಸಹಾಯಕ್ಕೆ ಧನ್ಯವಾದಗಳು.', 'Thank you for your assistance.',
+         'Root Sanskrit loanword; often pluralized as ಧನ್ಯವಾದಗಳು (Dhanyavādagaḷu).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-kn-03', 'deck-kn-core', 'kn-IN', 'en-US', 'ಮನೆ', 'House / Home',
+         'Mane', '/mʌne/', 'noun', 'ನಮ್ಮ ಮನೆ ಬೆಂಗಳೂರಿನಲ್ಲಿದೆ.', 'Our house is in Bengaluru.',
+         'Accusative (ದ್ವಿತೀಯಾ): ಮನೆಯನ್ನು; Genitive (ಷಷ್ಠೀ): ಮನೆಯ; Locative (ಸಪ್ತಮೀ): ಮನೆಯಲ್ಲಿ.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-kn-04', 'deck-kn-core', 'kn-IN', 'en-US', 'ನೀರು', 'Water',
+         'Nīru', '/niːru/', 'noun', 'ದಯವಿಟ್ಟು ಕುಡಿಯಲು ನೀರು ಕೊಡಿ.', 'Please give water to drink.',
+         'Neuter non-rational noun; Dative (ಚತುರ್ಥೀ): ನೀರಿಗೆ (nīrige).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-kn-05', 'deck-kn-core', 'kn-IN', 'en-US', 'ಪುಸ್ತಕ', 'Book',
+         'Pustaka', '/pust̪ʌkʌ/', 'noun', 'ನಾನು ಹೊಸ ಪುಸ್ತಕವನ್ನು ಓದುತ್ತಿದ್ದೇನೆ.', 'I am reading a new book.',
+         'Plural suffix: -ಗಳು (Pustakagaḷu); Instrumental (ತೃತೀಯಾ): ಪುಸ್ತಕದಿಂದ (from the book).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now'));
+
+        -- Seed Tamil flashcards
+        INSERT OR IGNORE INTO flashcards (
+            id, deck_id, source_lang, target_lang, source_term, target_term,
+            romanization, ipa, part_of_speech, example_source, example_target,
+            grammar_notes, repetition, interval_days, ease_factor, next_review_at, total_reviews, created_at
+        ) VALUES
+        ('card-ta-01', 'deck-ta-core', 'ta-IN', 'en-US', 'வணக்கம்', 'Hello / Greetings',
+         'Vaṇakkam', '/ʋɐɳɐkːɐm/', 'interjection', 'வணக்கம், நீங்கள் எப்படி இருக்கிறீர்கள்?', 'Hello, how are you?',
+         'Universal traditional Tamil greeting; literally means reverence or bowing.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-ta-02', 'deck-ta-core', 'ta-IN', 'en-US', 'நன்றி', 'Thank you',
+         'Naṉṟi', '/n̪ɐndri/', 'noun', 'உங்கள் உதவிக்கு மிக்க நன்றி.', 'Thank you very much for your help.',
+         'Traditional Dravidian noun expressing gratitude; combined with மிக்க (mikka - much).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-ta-03', 'deck-ta-core', 'ta-IN', 'en-US', 'வீடு', 'House / Home',
+         'Vīṭu', '/ʋiːɖɯ/', 'noun', 'எங்கள் வீடு சென்னையில் உள்ளது.', 'Our house is in Chennai.',
+         'Accusative (இரண்டாம் வேற்றுமை): வீட்டை; Dative (நான்காம்): வீட்டிற்கு; Locative (ஏழாம்): வீட்டில்.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-ta-04', 'deck-ta-core', 'ta-IN', 'en-US', 'தண்ணீர்', 'Water',
+         'Taṇṇīr', '/t̪ɐɳːiːr/', 'noun', 'குடிப்பதற்கு தண்ணீர் கொடுங்கள்.', 'Please give water to drink.',
+         'Compound of தண் (cold/pure) + நீர் (water); Dative: தண்ணீருக்கு.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-ta-05', 'deck-ta-core', 'ta-IN', 'en-US', 'புத்தகம்', 'Book',
+         'Puttakam', '/put̪ːɐɡɐm/', 'noun', 'நான் ஒரு நல்ல புத்தகத்தை படிக்கிறேன்.', 'I am reading a good book.',
+         'Plural suffix: -கள் (Puttakangkaḷ); Instrumental (மூன்றாம் வேற்றுமை): புத்தகத்தால்.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now'));
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (8, datetime('now'), 'Stage 7: Spaced Repetition Learning Decks, Flashcards, Review Logs, and Privacy Settings');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 008: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 008: {e}")))?;
+
+    info!("Migration 008 applied successfully");
     Ok(())
 }

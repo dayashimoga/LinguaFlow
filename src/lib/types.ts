@@ -629,3 +629,200 @@ export interface GlobalShortcutConfig {
   overlay_toggle: string;
   enabled: boolean;
 }
+
+// ============================================================================
+// Stage 7: Learning & Production Certification Types
+// ============================================================================
+
+export type ReviewRating = 0 | 1 | 2 | 3 | 4 | 5;
+
+export interface LearningCard {
+  id: string;
+  deck_id: string;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  source_term: string;
+  target_term: string;
+  romanization?: string | null;
+  ipa?: string | null;
+  part_of_speech?: string | null;
+  example_source?: string | null;
+  example_target?: string | null;
+  grammar_notes?: string | null;
+  repetition: number;
+  interval_days: number;
+  ease_factor: number;
+  next_review_at: string;
+  total_reviews: number;
+  created_at: string;
+}
+
+export interface LearningDeck {
+  id: string;
+  source_lang: LanguageCode;
+  target_lang: LanguageCode;
+  title: string;
+  description: string;
+  total_cards: number;
+  created_at: string;
+}
+
+export interface ReviewResult {
+  card_id: string;
+  rating: number;
+  new_repetition: number;
+  new_interval_days: number;
+  new_ease_factor: number;
+  next_review_at: string;
+}
+
+export interface LearnerProgress {
+  total_cards_studied: number;
+  cards_due_today: number;
+  cards_mastered: number;
+  current_streak_days: number;
+  retention_rate: number;
+  study_time_minutes: number;
+}
+
+export interface PronunciationAssessmentRequest {
+  reference_text: string;
+  spoken_transcript: string;
+  language: LanguageCode;
+}
+
+export interface PronunciationAssessmentResult {
+  accuracy_score: number;
+  is_passing: boolean;
+  chrf: number;
+  wer: number;
+  cer: number;
+  phoneme_feedback: string[];
+}
+
+export interface ListeningChallenge {
+  id: string;
+  prompt_audio_text: string;
+  language: LanguageCode;
+  correct_answer: string;
+  options: string[];
+  explanation: string;
+}
+
+export interface GrammarGuideTopic {
+  id: string;
+  language: LanguageCode;
+  title: string;
+  category: string;
+  content_markdown: string;
+  examples: string[];
+}
+
+export interface DataPrivacySettings {
+  analytics_enabled: boolean;
+  local_transcripts_retention_days: number;
+  microphone_consent: boolean;
+  camera_consent: boolean;
+  cloud_processing_consent: boolean;
+  policy_version_accepted: string;
+}
+
+export interface ExportUserDataArchive {
+  export_id: string;
+  exported_at: string;
+  app_version: string;
+  translation_history_count: number;
+  learning_cards_count: number;
+  checksum_sha256: string;
+  raw_json: string;
+}
+
+export interface PurgeUserDataResult {
+  purged_history_rows: number;
+  purged_sessions_rows: number;
+  purged_cards_rows: number;
+  purged_media_rows: number;
+}
+
+export interface PlatformReleaseStatus {
+  platform: string;
+  binary_name: string;
+  is_signed: boolean;
+  signature_details: string;
+  limitations: string[];
+}
+
+export interface ListLearningDecksCmdResponse {
+  decks: LearningDeck[];
+}
+
+export interface GetLearningDeckCardsCmdRequest {
+  deck_id: string;
+}
+
+export interface GetLearningDeckCardsCmdResponse {
+  cards: LearningCard[];
+}
+
+export interface ReviewCardCmdRequest {
+  card_id: string;
+  rating: number;
+}
+
+export interface ReviewCardCmdResponse {
+  result: ReviewResult;
+}
+
+export interface GetLearnerProgressCmdResponse {
+  progress: LearnerProgress;
+}
+
+export interface AssessPronunciationCmdRequest {
+  request: PronunciationAssessmentRequest;
+}
+
+export interface AssessPronunciationCmdResponse {
+  result: PronunciationAssessmentResult;
+}
+
+export interface GetListeningChallengesCmdRequest {
+  language: LanguageCode;
+  count: number;
+}
+
+export interface GetListeningChallengesCmdResponse {
+  challenges: ListeningChallenge[];
+}
+
+export interface GetGrammarTopicsCmdRequest {
+  language: LanguageCode;
+}
+
+export interface GetGrammarTopicsCmdResponse {
+  topics: GrammarGuideTopic[];
+}
+
+export interface GetDataPrivacySettingsCmdResponse {
+  settings: DataPrivacySettings;
+}
+
+export interface SaveDataPrivacySettingsCmdRequest {
+  settings: DataPrivacySettings;
+}
+
+export interface ExportUserDataCmdResponse {
+  archive: ExportUserDataArchive;
+}
+
+export interface PurgeUserDataCmdRequest {
+  confirm_phrase: string;
+}
+
+export interface PurgeUserDataCmdResponse {
+  result: PurgeUserDataResult;
+}
+
+export interface GetPlatformReleaseStatusCmdResponse {
+  status: PlatformReleaseStatus[];
+}
+

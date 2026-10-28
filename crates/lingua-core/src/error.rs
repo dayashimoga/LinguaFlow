@@ -100,6 +100,24 @@ pub enum LinguaError {
     #[error("Permission denied: {0}")]
     PermissionDenied(String),
 
+    #[error("Learning deck '{0}' not found")]
+    LearningDeckNotFound(String),
+
+    #[error("Learning card '{0}' not found")]
+    LearningCardNotFound(String),
+
+    #[error("Security or privacy violation: {0}")]
+    SecurityViolation(String),
+
+    #[error("Privacy policy has not been accepted by user")]
+    PrivacyPolicyNotAccepted,
+
+    #[error("Data archive export failed: {0}")]
+    DataExportError(String),
+
+    #[error("User data purge failed: {0}")]
+    DataPurgeError(String),
+
     #[error("Internal system error: {0}")]
     Internal(String),
 }
@@ -137,6 +155,12 @@ impl LinguaError {
             LinguaError::DocumentJobNotFound(_) => "DOCUMENT_JOB_NOT_FOUND",
             LinguaError::FileSizeLimitExceeded { .. } => "FILE_SIZE_LIMIT_EXCEEDED",
             LinguaError::PermissionDenied(_) => "PERMISSION_DENIED",
+            LinguaError::LearningDeckNotFound(_) => "LEARNING_DECK_NOT_FOUND",
+            LinguaError::LearningCardNotFound(_) => "LEARNING_CARD_NOT_FOUND",
+            LinguaError::SecurityViolation(_) => "SECURITY_VIOLATION",
+            LinguaError::PrivacyPolicyNotAccepted => "PRIVACY_POLICY_NOT_ACCEPTED",
+            LinguaError::DataExportError(_) => "DATA_EXPORT_ERROR",
+            LinguaError::DataPurgeError(_) => "DATA_PURGE_ERROR",
             LinguaError::Internal(_) => "INTERNAL_ERROR",
         }
     }
@@ -170,6 +194,9 @@ impl LinguaError {
                 | LinguaError::DocumentJobNotFound(_)
                 | LinguaError::FileSizeLimitExceeded { .. }
                 | LinguaError::PermissionDenied(_)
+                | LinguaError::LearningDeckNotFound(_)
+                | LinguaError::LearningCardNotFound(_)
+                | LinguaError::PrivacyPolicyNotAccepted
         )
     }
 }
@@ -187,6 +214,14 @@ mod tests {
         let internal_err = LinguaError::Internal("disk full".into());
         assert_eq!(internal_err.code(), "INTERNAL_ERROR");
         assert!(!internal_err.is_recoverable());
+
+        let learn_err = LinguaError::LearningDeckNotFound("deck-1".into());
+        assert_eq!(learn_err.code(), "LEARNING_DECK_NOT_FOUND");
+        assert!(learn_err.is_recoverable());
+
+        let priv_err = LinguaError::PrivacyPolicyNotAccepted;
+        assert_eq!(priv_err.code(), "PRIVACY_POLICY_NOT_ACCEPTED");
+        assert!(priv_err.is_recoverable());
     }
 
     #[test]

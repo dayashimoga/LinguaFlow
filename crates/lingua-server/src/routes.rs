@@ -10,25 +10,30 @@ use axum::{
     Json, Router,
 };
 use lingua_core::{
-    detect_language, AddFavoriteCmdRequest, AppInfo, CapabilityMatrix, CaptionFormat,
-    CaptionSegment, CreateGlossaryTermCmdRequest, DatabaseHealthInfo, DetectLanguageCmdRequest,
+    detect_language, AddFavoriteCmdRequest, AppInfo, AssessPronunciationCmdRequest,
+    AssessPronunciationCmdResponse, CapabilityMatrix, CaptionFormat, CaptionSegment,
+    CreateGlossaryTermCmdRequest, DatabaseHealthInfo, DetectLanguageCmdRequest,
     DetectLanguageCmdResponse, DictionaryEntry, DictionarySearchCmdResponse, DiskSpaceInfo,
     DocumentJobStatus, DocumentTranslationJob, DomainGlossaryEntry, EvaluationReport,
-    ExportCaptionsCmdResponse, ExportSubtitlesCmdResponse, FavoriteItem, FeedAudioChunkCmdRequest,
-    GetAudioDevicesCmdResponse, GetCircuitBreakersCmdResponse, GetConversationTurnsCmdResponse,
-    GetOverlaySettingsCmdResponse, GetSessionCaptionsCmdResponse, GetTtsVoicesCmdResponse,
+    ExportCaptionsCmdResponse, ExportSubtitlesCmdResponse, ExportUserDataCmdResponse, FavoriteItem,
+    FeedAudioChunkCmdRequest, GetAudioDevicesCmdResponse, GetCircuitBreakersCmdResponse,
+    GetConversationTurnsCmdResponse, GetDataPrivacySettingsCmdResponse,
+    GetGrammarTopicsCmdResponse, GetLearnerProgressCmdResponse, GetLearningDeckCardsCmdResponse,
+    GetListeningChallengesCmdResponse, GetOverlaySettingsCmdResponse,
+    GetPlatformReleaseStatusCmdResponse, GetSessionCaptionsCmdResponse, GetTtsVoicesCmdResponse,
     IntelligenceTranslationRequest, IntelligenceTranslationResponse,
     InterruptConversationCmdRequest, InterruptConversationCmdResponse, LanguageCode, LanguagePair,
-    ListGlossaryTermsCmdResponse, ListMediaSegmentsCmdResponse, MediaProgressStatus, MediaSession,
-    MediaSubtitleExportFormat, MediaSubtitleSegment, ModelPackDetailedInfo, ModelPackInfo,
-    PauseSpeechSessionCmdRequest, PerformOcrCmdRequest, PerformOcrCmdResponse,
-    ResumeSpeechSessionCmdRequest, RunEvaluationCmdResponse, SaveOverlaySettingsCmdRequest,
-    SetResourceProfileCmdRequest, SpeechSession, StartConversationCmdRequest,
-    StartConversationCmdResponse, StartMediaTranscriptionCmdRequest,
-    StartMediaTranscriptionCmdResponse, StartSpeechSessionCmdRequest,
-    StartSpeechSessionCmdResponse, StopConversationCmdRequest, StopConversationCmdResponse,
-    StopSpeechSessionCmdRequest, StopSpeechSessionCmdResponse, SubmitTurnCmdRequest,
-    SubmitTurnCmdResponse, SwitchSpeakerCmdRequest, SwitchSpeakerCmdResponse,
+    ListGlossaryTermsCmdResponse, ListLearningDecksCmdResponse, ListMediaSegmentsCmdResponse,
+    MediaProgressStatus, MediaSession, MediaSubtitleExportFormat, MediaSubtitleSegment,
+    ModelPackDetailedInfo, ModelPackInfo, PauseSpeechSessionCmdRequest, PerformOcrCmdRequest,
+    PerformOcrCmdResponse, PurgeUserDataCmdRequest, PurgeUserDataCmdResponse,
+    ResumeSpeechSessionCmdRequest, ReviewCardCmdResponse, ReviewRating, RunEvaluationCmdResponse,
+    SaveDataPrivacySettingsCmdRequest, SaveOverlaySettingsCmdRequest, SetResourceProfileCmdRequest,
+    SpeechSession, StartConversationCmdRequest, StartConversationCmdResponse,
+    StartMediaTranscriptionCmdRequest, StartMediaTranscriptionCmdResponse,
+    StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse, StopConversationCmdRequest,
+    StopConversationCmdResponse, StopSpeechSessionCmdRequest, StopSpeechSessionCmdResponse,
+    SubmitTurnCmdRequest, SubmitTurnCmdResponse, SwitchSpeakerCmdRequest, SwitchSpeakerCmdResponse,
     SynthesizeSpeechCmdRequest, SynthesizeSpeechCmdResponse, SystemAudioPermission,
     TranslateCmdRequest, TranslateCmdResponse, TranslateDocumentCmdRequest,
     TranslateDocumentCmdResponse, TranslateIntelligenceCmdRequest, TranslationRecord,
@@ -36,8 +41,10 @@ use lingua_core::{
     UpdateMediaSegmentCmdRequest, UserSettings, VerifyModelCmdResponse,
 };
 use lingua_engine::{
-    AudioCaptureManager, AuthenticOcrEngine, DocumentProcessor, LiveOverlayController,
-    MediaTranscriptionPipeline, OcrEngine, QualityEvaluator, TranslationRequest,
+    AudioCaptureManager, AuthenticOcrEngine, DocumentProcessor, GrammarKnowledgeBase,
+    ListeningChallengeGenerator, LiveOverlayController, MediaTranscriptionPipeline, OcrEngine,
+    PronunciationEvaluator, QualityEvaluator, SecurityAuditor, SpacedRepetitionSystem,
+    TranslationRequest,
 };
 use serde::Deserialize;
 use tower_http::cors::{Any, CorsLayer};
@@ -194,6 +201,42 @@ pub fn create_router(state: ServerState) -> Router {
         .route(
             "/api/v1/overlay/permission",
             get(get_overlay_permission_handler),
+        )
+        // Stage 7: Learning & Production Certification routes
+        .route("/api/v1/learning/decks", get(list_learning_decks_handler))
+        .route(
+            "/api/v1/learning/deck/{id}/cards",
+            get(get_deck_cards_handler),
+        )
+        .route(
+            "/api/v1/learning/card/{id}/review",
+            post(review_card_handler),
+        )
+        .route(
+            "/api/v1/learning/progress",
+            get(get_learner_progress_handler),
+        )
+        .route(
+            "/api/v1/learning/pronunciation/assess",
+            post(assess_pronunciation_handler),
+        )
+        .route(
+            "/api/v1/learning/listening/challenges",
+            get(get_listening_challenges_handler),
+        )
+        .route(
+            "/api/v1/learning/grammar/topics",
+            get(get_grammar_topics_handler),
+        )
+        .route(
+            "/api/v1/privacy/settings",
+            get(get_privacy_settings_handler).post(save_privacy_settings_handler),
+        )
+        .route("/api/v1/privacy/export", post(export_user_data_handler))
+        .route("/api/v1/privacy/purge", post(purge_user_data_handler))
+        .route(
+            "/api/v1/platform/release-status",
+            get(get_platform_release_status_handler),
         )
         .layer(cors)
         .layer(TraceLayer::new_for_http())
@@ -1302,4 +1345,160 @@ async fn save_overlay_settings_handler(
 
 async fn get_overlay_permission_handler() -> Json<SystemAudioPermission> {
     Json(LiveOverlayController::check_system_audio_permission())
+}
+
+// ============================================================================
+// Stage 7: Learning & Production Certification Handlers
+// ============================================================================
+
+async fn list_learning_decks_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<ListLearningDecksCmdResponse>, (StatusCode, String)> {
+    match state.storage.list_learning_decks() {
+        Ok(decks) => Ok(Json(ListLearningDecksCmdResponse { decks })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn get_deck_cards_handler(
+    State(state): State<ServerState>,
+    Path(id): Path<String>,
+) -> Result<Json<GetLearningDeckCardsCmdResponse>, (StatusCode, String)> {
+    match state.storage.get_deck_cards(&id) {
+        Ok(cards) => Ok(Json(GetLearningDeckCardsCmdResponse { cards })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+#[derive(Deserialize)]
+struct ReviewCardPayload {
+    rating: u8,
+}
+
+async fn review_card_handler(
+    State(state): State<ServerState>,
+    Path(card_id): Path<String>,
+    Json(payload): Json<ReviewCardPayload>,
+) -> Result<Json<ReviewCardCmdResponse>, (StatusCode, String)> {
+    let card = state
+        .storage
+        .get_card_by_id(&card_id)
+        .map_err(|e| (StatusCode::NOT_FOUND, e.to_string()))?;
+
+    let rating = ReviewRating::from_u8(payload.rating);
+    let (new_rep, new_int, new_ease, next_rev) = SpacedRepetitionSystem::calculate_next_interval(
+        rating,
+        card.repetition,
+        card.interval_days,
+        card.ease_factor,
+    );
+
+    match state.storage.update_card_review(
+        &card_id,
+        payload.rating,
+        new_rep,
+        new_int,
+        new_ease,
+        next_rev,
+    ) {
+        Ok(result) => Ok(Json(ReviewCardCmdResponse { result })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn get_learner_progress_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<GetLearnerProgressCmdResponse>, (StatusCode, String)> {
+    match state.storage.get_learner_progress() {
+        Ok(progress) => Ok(Json(GetLearnerProgressCmdResponse { progress })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn assess_pronunciation_handler(
+    Json(payload): Json<AssessPronunciationCmdRequest>,
+) -> Json<AssessPronunciationCmdResponse> {
+    let result = PronunciationEvaluator::assess(
+        &payload.request.reference_text,
+        &payload.request.spoken_transcript,
+        payload.request.language,
+    );
+    Json(AssessPronunciationCmdResponse { result })
+}
+
+#[derive(Deserialize)]
+struct ListeningQueryParams {
+    language: Option<LanguageCode>,
+    count: Option<usize>,
+}
+
+async fn get_listening_challenges_handler(
+    Query(params): Query<ListeningQueryParams>,
+) -> Json<GetListeningChallengesCmdResponse> {
+    let lang = params.language.unwrap_or(LanguageCode::KnIn);
+    let count = params.count.unwrap_or(3);
+    let challenges = ListeningChallengeGenerator::get_challenges(lang, count);
+    Json(GetListeningChallengesCmdResponse { challenges })
+}
+
+#[derive(Deserialize)]
+struct GrammarQueryParams {
+    language: Option<LanguageCode>,
+}
+
+async fn get_grammar_topics_handler(
+    Query(params): Query<GrammarQueryParams>,
+) -> Json<GetGrammarTopicsCmdResponse> {
+    let lang = params.language.unwrap_or(LanguageCode::KnIn);
+    let topics = GrammarKnowledgeBase::get_topics(lang);
+    Json(GetGrammarTopicsCmdResponse { topics })
+}
+
+async fn get_privacy_settings_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<GetDataPrivacySettingsCmdResponse>, (StatusCode, String)> {
+    match state.storage.get_privacy_settings() {
+        Ok(settings) => Ok(Json(GetDataPrivacySettingsCmdResponse { settings })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn save_privacy_settings_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<SaveDataPrivacySettingsCmdRequest>,
+) -> StatusCode {
+    match state.storage.save_privacy_settings(&payload.settings) {
+        Ok(()) => StatusCode::OK,
+        Err(_) => StatusCode::INTERNAL_SERVER_ERROR,
+    }
+}
+
+async fn export_user_data_handler(
+    State(state): State<ServerState>,
+) -> Result<Json<ExportUserDataCmdResponse>, (StatusCode, String)> {
+    match state.storage.export_all_user_data() {
+        Ok(archive) => Ok(Json(ExportUserDataCmdResponse { archive })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn purge_user_data_handler(
+    State(state): State<ServerState>,
+    Json(payload): Json<PurgeUserDataCmdRequest>,
+) -> Result<Json<PurgeUserDataCmdResponse>, (StatusCode, String)> {
+    if payload.confirm_phrase != "I UNDERSTAND THIS ACTION IS IRREVERSIBLE" {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            "Invalid confirmation phrase for data purge".into(),
+        ));
+    }
+    match state.storage.purge_all_user_data() {
+        Ok(result) => Ok(Json(PurgeUserDataCmdResponse { result })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
+async fn get_platform_release_status_handler() -> Json<GetPlatformReleaseStatusCmdResponse> {
+    let status = SecurityAuditor::get_platform_release_status();
+    Json(GetPlatformReleaseStatusCmdResponse { status })
 }

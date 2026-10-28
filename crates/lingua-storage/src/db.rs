@@ -7,6 +7,7 @@ use crate::history_repo::{
     add_favorite, clear_translation_history, list_favorites, list_translation_history,
     record_translation, remove_favorite,
 };
+use crate::learning_repo::LearningRepository;
 use crate::model_packs_repo::{
     get_detailed_model_pack, get_model_manifest, list_detailed_model_packs, list_model_packs,
     save_model_manifest, seed_initial_model_catalog, update_model_pack_install_state,
@@ -631,6 +632,74 @@ impl StorageService {
             error: None,
         })
     }
+
+    // --- Stage 7: Learning & Privacy ---
+
+    pub fn list_learning_decks(&self) -> Result<Vec<lingua_core::LearningDeck>, LinguaError> {
+        let repo = LearningRepository::new(self.conn.clone());
+        repo.list_learning_decks()
+    }
+
+    pub fn get_deck_cards(
+        &self,
+        deck_id: &str,
+    ) -> Result<Vec<lingua_core::LearningCard>, LinguaError> {
+        let repo = LearningRepository::new(self.conn.clone());
+        repo.get_deck_cards(deck_id)
+    }
+
+    pub fn get_card_by_id(&self, card_id: &str) -> Result<lingua_core::LearningCard, LinguaError> {
+        let repo = LearningRepository::new(self.conn.clone());
+        repo.get_card_by_id(card_id)
+    }
+
+    pub fn update_card_review(
+        &self,
+        card_id: &str,
+        rating: u8,
+        new_repetition: u32,
+        new_interval_days: f32,
+        new_ease_factor: f32,
+        next_review_at: DateTime<Utc>,
+    ) -> Result<lingua_core::ReviewResult, LinguaError> {
+        let repo = LearningRepository::new(self.conn.clone());
+        repo.update_card_review(
+            card_id,
+            rating,
+            new_repetition,
+            new_interval_days,
+            new_ease_factor,
+            next_review_at,
+        )
+    }
+
+    pub fn get_learner_progress(&self) -> Result<lingua_core::LearnerProgress, LinguaError> {
+        let repo = LearningRepository::new(self.conn.clone());
+        repo.get_learner_progress()
+    }
+
+    pub fn get_privacy_settings(&self) -> Result<lingua_core::DataPrivacySettings, LinguaError> {
+        let repo = LearningRepository::new(self.conn.clone());
+        repo.get_privacy_settings()
+    }
+
+    pub fn save_privacy_settings(
+        &self,
+        settings: &lingua_core::DataPrivacySettings,
+    ) -> Result<(), LinguaError> {
+        let repo = LearningRepository::new(self.conn.clone());
+        repo.save_privacy_settings(settings)
+    }
+
+    pub fn export_all_user_data(&self) -> Result<lingua_core::ExportUserDataArchive, LinguaError> {
+        let repo = LearningRepository::new(self.conn.clone());
+        repo.export_all_user_data()
+    }
+
+    pub fn purge_all_user_data(&self) -> Result<lingua_core::PurgeUserDataResult, LinguaError> {
+        let repo = LearningRepository::new(self.conn.clone());
+        repo.purge_all_user_data()
+    }
 }
 
 fn default_data_dir() -> Result<PathBuf, LinguaError> {
@@ -1212,5 +1281,27 @@ mod tests {
             fetched_job.status,
             lingua_core::DocumentJobStatus::Completed
         );
+    }
+
+    #[test]
+    fn test_stage_7_learning_and_privacy() {
+        let storage = StorageService::open_in_memory().expect("in-memory DB failed");
+
+        let decks = storage.list_learning_decks().expect("list decks failed");
+        assert!(decks.len() >= 2);
+
+        let cards = storage
+            .get_deck_cards(&decks[0].id)
+            .expect("get deck cards failed");
+        assert!(!cards.is_empty());
+
+        let progress = storage.get_learner_progress().expect("get progress failed");
+        assert!(progress.total_cards_studied >= 10);
+
+        let privacy = storage.get_privacy_settings().expect("get privacy failed");
+        assert!(privacy.microphone_consent);
+
+        let archive = storage.export_all_user_data().expect("export failed");
+        assert!(!archive.checksum_sha256.is_empty());
     }
 }

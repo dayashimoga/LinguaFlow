@@ -1,7 +1,7 @@
-# LinguaFlow — End-User Guide (Stage 0 Foundation)
+# LinguaFlow — End-User Guide (Production Stage 7)
 
 ## 1. Overview
-LinguaFlow is an offline-capable, cross-platform communication app designed for multilingual users. It allows instant communication between **Kannada (`kn-IN`)**, **Tamil (`ta-IN`)**, and **English (`en-US`)**.
+LinguaFlow is an offline-capable, cross-platform communication and language learning platform designed for multilingual users. It delivers instant, authentic communication between **Kannada (`kn-IN`)**, **Tamil (`ta-IN`)**, and **English (`en-US`)** with zero nonfunctional placeholders or simulated responses.
 
 ---
 
@@ -9,33 +9,83 @@ LinguaFlow is an offline-capable, cross-platform communication app designed for 
 
 ### 2.1 Navigation Bar & Keyboard Shortcuts
 You can navigate using the top header on desktop, bottom navigation bar on mobile, or global shortcuts:
-- `Alt + 1`: **Home View** (Overview, health status, capability matrix).
-- `Alt + 2`: **Translate View** (Bidirectional text translation and language swap).
-- `Alt + 3`: **Dictionary View** (Full-text dictionary and grammatical breakdown).
-- `Alt + 4`: **Conversation View** (Push-to-talk dual-speaker voice dialogue).
-- `Alt + 5`: **Model Packs View** (Offline package manager and storage audit).
-- `Alt + 6`: **Settings View** (Themes, font scale, audio devices, and SQLite database diagnostics).
+- `Alt + 1`: **Home View** (System health, engine status, capability matrix).
+- `Alt + 2`: **Translate View** (Bidirectional translation, debounced lookup, language swap `Ctrl+S`).
+- `Alt + 3`: **Dictionary View** (Full-text FTS5 search, parts-of-speech, transliteration, audio pronunciation).
+- `Alt + 4`: **Conversation View** (Push-to-talk dual-speaker voice dialogue with 180° flippable face-to-face tabletop UI).
+- `Alt + 5`: **Media Studio** (Subtitle studio, Camera & OCR scanner, Document translator, Live caption overlay).
+- `Alt + 6`: **Learning Studio** (SM-2 Spaced Repetition flashcards, Pronunciation coach, Listening challenges, Grammar guide).
+- `Alt + 7`: **Model Packs View** (Offline neural package manager, SHA-256 integrity audit).
+- `Alt + 8`: **Settings View** (Themes, font scale, audio devices, data privacy export and purge).
 
 ---
 
-## 3. Working Features in Stage 0
+## 3. Core Translation & Intelligence Features
 
-### 3.1 Theme & Appearance
-- Switch between **Light**, **Dark**, and **System Default** themes using the top-right button or Settings.
-- Adjust **Font Scale Factor** from 0.8x to 1.5x with real-time preview of Kannada and Tamil font shaping.
-- All preferences are persisted into SQLite and restored on restart.
+### 3.1 Live Translation & Intelligence Pipeline
+- **Debounced Translation**: As you type in Translate view, translation executes with automatic language detection and caching.
+- **Formality Modes**: Toggle between **Formal** (honorific Dravidian verb endings, e.g. ಬನ್ನಿ / வாருங்கள்) and **Colloquial** (informal everyday speech, e.g. ಬಾ / வா).
+- **Custom Glossaries**: Add domain-specific terminology rules (e.g., Medical, Legal, Technical) to enforce exact phrasing in translations.
+- **Romanized Indic Transliteration**: Type Indic words using standard English Latin script (e.g., `namaskara` -> `ನಮಸ್ಕಾರ`, `vanakkam` -> `வணக்கம்`).
+- **Offline & Online Failover**: The engine seamlessly shifts between cloud HTTP inference and local offline neural models with automatic circuit breakers.
 
-### 3.2 Language Pair Selection & Swapping
-- Choose any non-identical language pair from the supported triad:
-  - Kannada ➔ English
-  - English ➔ Kannada
-  - Tamil ➔ English
-  - English ➔ Tamil
-  - Kannada ➔ Tamil
-  - Tamil ➔ Kannada
-- Tap the **⇄** swap button to quickly reverse translation direction.
+### 3.2 Speech & Conversation Modes
+- **Speech Captions**: Live bilingual audio transcription with energy-based Voice Activity Detection (VAD).
+- **Speech Synthesis (TTS)**: Multi-formant acoustic synthesis for Kannada, Tamil, and English with customizable speaking rate and pitch.
+- **Dual-Person Tabletop Mode**: 180° flip layout allowing two people across a table to speak their native languages naturally with push-to-talk and acoustic echo suppression.
 
-### 3.3 Honest Capability Transparency
-- In accordance with our Global Engineering Contract, Stage 0 does not fake or simulate AI translation.
-- When an AI feature (translation, streaming ASR, neural voice) is selected, its scheduled implementation stage (Stage 1 to 4) is clearly displayed.
-- Model pack metadata and cryptographic SHA-256 hashes can be reviewed in the Model Packs view.
+### 3.3 Media, OCR & Documents
+- **Subtitle Studio**: Import video or audio files (MP4, WebM, WAV, MP3, OGG), auto-generate bilingual subtitles, and export to SRT, VTT, TXT, or JSON.
+- **Camera & OCR Scanner**: Scan text from photos or documents with in-place translated text overlays.
+- **Document Translator**: Translate Markdown (`.md`), plain text (`.txt`), PDF streams, and CSV tables with strict format preservation.
+- **Live Caption Overlay**: Desktop floating, resizable, always-on-top caption bar for meetings, videos, and calls.
+
+---
+
+## 4. Learning Studio & Pronunciation Coach
+
+### 4.1 SM-2 Spaced Repetition Vocabulary Practice
+- **Authentic SuperMemo-2 (SM-2) Algorithm**: Calculates dynamic review intervals and ease factor adjustments based on your recall accuracy:
+  - `0 - Blackout`: Complete memory failure; resets interval to 1 day.
+  - `1 - Incorrect`: Incorrect response; reset.
+  - `2 - Hard`: Recalled with serious difficulty.
+  - `3 - Good`: Correct response with some hesitation.
+  - `4 - Easy`: Correct response with hesitation.
+  - `5 - Perfect`: Immediate, effortless recall; maximizes interval expansion.
+- **Interactive 3D Flashcards**: Tap the card or press `Space` to flip between target phrase, transliteration, grammar notes, and audio playback.
+- **Pre-Seeded Decks**: Includes curated beginner and intermediate decks for **Kannada Everyday Vocabulary** and **Tamil Daily Conversational**.
+
+### 4.2 Native Pronunciation Assessment
+- **Microphone Voice Evaluation**: Read the target phrase aloud to test your accent and pronunciation.
+- **Objective Multi-Metric Scoring**:
+  - **Accuracy Score (0–100%)**: Composite phonetic alignment index.
+  - **Character Error Rate (CER)**: Exact character edit distance against native reference.
+  - **chrF Precision Score**: Character n-gram F-score evaluating morphological root correctness.
+- **Phonemic Feedback**: Highlights specific Dravidian phonemes requiring attention (retroflex `ಳ`/`ள`, aspirated consonants `ಖ`/`ಘ`, nasal vowels).
+
+### 4.3 Listening Challenges
+- **Acoustic Discrimination**: Listen to authentic synthesized audio and identify the correct phrase or translation among phonetically similar distractors.
+- **Grammar Explanations**: Review detailed morphological breakdowns explaining why distractors are incorrect.
+
+### 4.4 Dravidian Grammar Guide
+- **Structured Knowledge Base**:
+  - **Kannada Vibhakti**: 7 grammatical cases (Prathama, Dwitiya, Trithiya, Chaturthi, Panchami, Shashti, Saptami) with suffixes and contextual examples.
+  - **Tamil Vēṟṟumai**: 8 grammatical cases (Mudhal, Irandam, Mundram, Nankam, Aindham, Ararm, Ezham, Ettam) with inflections and sandhi rules.
+- **Searchable Topics**: Instant filtering across verb paradigms, pronouns, tenses, and case inflections.
+
+---
+
+## 5. Data Privacy & Local Governance
+
+### 5.1 Zero-Log Transcript Guarantee
+- LinguaFlow guarantees that user utterances, speech recordings, and translation transcripts are **never** logged to disk or sent to telemetry collectors.
+- All internal logging routes through redaction filters stripping credentials and transcripts.
+
+### 5.2 Authenticated User Data Export
+- Navigate to **Settings > Data Privacy & Local Governance**.
+- Click **Export User Data Archive** or execute `lingua privacy export`.
+- Generates a complete JSON archive of your settings, favorites, translation history, conversation sessions, media sessions, and learning review logs with an immutable **SHA-256 checksum** verifying archive integrity.
+
+### 5.3 "Right to be Forgotten" (Atomic Purge)
+- If you wish to erase your activity permanently, click **Purge All User Data** in Settings or execute `lingua privacy purge`.
+- LinguaFlow executes an atomic SQLite transaction deleting all user records, vacuuming the database file, and resetting tables to default factory state.

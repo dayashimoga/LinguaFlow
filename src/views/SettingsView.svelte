@@ -1,8 +1,16 @@
 <script lang="ts">
-  import { checkDatabaseHealth } from '../lib/ipc';
+  import { onMount } from 'svelte';
+  import {
+    checkDatabaseHealth,
+    exportUserData,
+    getPrivacySettings,
+    purgeUserData,
+    savePrivacySettings,
+  } from '../lib/ipc';
   import {
     SUPPORTED_LANGUAGES,
     type DatabaseHealthInfo,
+    type DataPrivacySettings,
     type EnginePreference,
     type LanguageCode,
     type ThemeMode,
@@ -73,6 +81,75 @@
       checkingHealth = false;
     }
   }
+
+  let privacySettings: DataPrivacySettings | null = null;
+  let isExporting = false;
+  let exportChecksum = '';
+  let exportId = '';
+  let showPurgeModal = false;
+  let purgePhrase = '';
+  let isPurging = false;
+  let purgeStatusMsg = '';
+
+  async function loadPrivacy() {
+    try {
+      privacySettings = await getPrivacySettings();
+    } catch (e) {
+      console.error('Failed to load privacy settings:', e);
+    }
+  }
+
+  async function handleTogglePrivacy() {
+    if (!privacySettings) return;
+    try {
+      await savePrivacySettings(privacySettings);
+    } catch (e) {
+      console.error('Failed to update privacy settings:', e);
+    }
+  }
+
+  async function handleExport() {
+    isExporting = true;
+    exportChecksum = '';
+    try {
+      const archive = await exportUserData();
+      exportChecksum = archive.checksum_sha256;
+      exportId = archive.export_id;
+      const blob = new Blob([archive.raw_json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `lingua-user-export-${archive.export_id.slice(0, 8)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Export failed:', e);
+    } finally {
+      isExporting = false;
+    }
+  }
+
+  async function handlePurge() {
+    if (purgePhrase !== 'I UNDERSTAND THIS ACTION IS IRREVERSIBLE') return;
+    isPurging = true;
+    purgeStatusMsg = '';
+    try {
+      const res = await purgeUserData(purgePhrase);
+      purgeStatusMsg = `Purged ${res.purged_history_rows} history, ${res.purged_sessions_rows} sessions, ${res.purged_cards_rows} flashcard logs, and ${res.purged_media_rows} media files.`;
+      purgePhrase = '';
+      setTimeout(() => {
+        showPurgeModal = false;
+      }, 3000);
+    } catch (e: any) {
+      purgeStatusMsg = `Purge error: ${e?.message || e}`;
+    } finally {
+      isPurging = false;
+    }
+  }
+
+  onMount(() => {
+    loadPrivacy();
+  });
 </script>
 
 <div class="settings-view">
@@ -197,6 +274,103 @@
         <div class="diag-item">
           <span class="d-label">Settings Persisted:</span>
           <span>{healthInfo.settings_persisted ? 'Yes' : 'No'}</span>
+        </div>
+      </div>
+    {/if}
+  </section>
+
+  <!-- Data Privacy & Governance -->
+  <section class="settings-card glass-panel" aria-labelledby="privacy-header">
+    <div class="card-header-row">
+      <div>
+        <h2 id="privacy-header">Data Privacy & Local Governance</h2>
+        <p class="section-desc">
+          Zero-transcript guarantees (Contract Rule 7), local retention controls, authenticated export, and atomic purge.
+        </p>
+      </div>
+      <span class="badge badge-active">🔒 Zero-Transcript Guarantee</span>
+    </div>
+
+    {#if privacySettings}
+      <div class="privacy-controls-grid">
+        <label class="checkbox-label">
+          <input
+            type="checkbox"
+            bind:checked={privacySettings.analytics_enabled}
+            on:change={handleTogglePrivacy}
+          />
+          <span>Share Anonymous Diagnostics (No User Utterances or Transcripts)</span>
+        </label>
+
+        <label class="checkbox-label">
+          <input
+            type="checkbox"
+            bind:checked={privacySettings.microphone_consent}
+            on:change={handleTogglePrivacy}
+          />
+          <span>Microphone Permission Consent for Live Speech & Pronunciation</span>
+        </label>
+
+        <div class="form-group">
+          <label for="retention-slider">
+            Transcript Retention Period: {privacySettings.local_transcripts_retention_days} days
+          </label>
+          <input
+            id="retention-slider"
+            type="range"
+            min="0"
+            max="365"
+            step="1"
+            bind:value={privacySettings.local_transcripts_retention_days}
+            on:change={handleTogglePrivacy}
+          />
+        </div>
+      </div>
+    {/if}
+
+    <div class="privacy-actions-row">
+      <button class="btn-secondary" on:click={handleExport} disabled={isExporting}>
+        {isExporting ? 'Exporting Archive...' : '📦 Export My Data (JSON + SHA-256)'}
+      </button>
+
+      <button class="btn-danger" on:click={() => (showPurgeModal = true)}>
+        🗑️ Purge All My Data (Right to be Forgotten)
+      </button>
+    </div>
+
+    {#if exportChecksum}
+      <div class="export-feedback">
+        [OK] Export ID: <code>{exportId.slice(0, 8)}</code> | SHA-256 Checksum: <code>{exportChecksum}</code>
+      </div>
+    {/if}
+
+    {#if showPurgeModal}
+      <div class="modal-backdrop">
+        <div class="modal-card">
+          <h3>Confirm Complete Data Purge</h3>
+          <p class="warning-text">
+            ⚠️ This will permanently and irreversibly erase all translation history, speech sessions, flashcard review logs, and media files from your local SQLite database.
+          </p>
+          <p>To confirm, type <code>I UNDERSTAND THIS ACTION IS IRREVERSIBLE</code> below:</p>
+          <input
+            type="text"
+            class="confirm-input"
+            bind:value={purgePhrase}
+            placeholder="I UNDERSTAND THIS ACTION IS IRREVERSIBLE"
+          />
+
+          {#if purgeStatusMsg}
+            <div class="purge-msg">{purgeStatusMsg}</div>
+          {/if}
+
+          <div class="modal-btn-row">
+            <button class="btn-danger" on:click={handlePurge} disabled={purgePhrase !== 'I UNDERSTAND THIS ACTION IS IRREVERSIBLE' || isPurging}>
+              {isPurging ? 'Purging...' : 'Permanently Purge Data'}
+            </button>
+            <button class="btn-secondary" on:click={() => (showPurgeModal = false)}>
+              Cancel
+            </button>
+          </div>
         </div>
       </div>
     {/if}
@@ -337,5 +511,113 @@
     color: #34d399;
     font-weight: 600;
     font-size: 0.95rem;
+  }
+
+  .privacy-controls-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    margin-top: 8px;
+  }
+
+  .privacy-actions-row {
+    display: flex;
+    gap: 16px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+
+  .btn-danger {
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    background: #dc2626;
+    color: #fff;
+    border: none;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-danger:hover:not(:disabled) {
+    background: #b91c1c;
+    box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);
+  }
+
+  .btn-secondary {
+    padding: 10px 18px;
+    border-radius: var(--radius-md);
+    background: var(--bg-surface-elevated);
+    color: var(--text-primary);
+    border: 1px solid var(--border-subtle);
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .export-feedback {
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid #10b981;
+    border-radius: var(--radius-md);
+    padding: 10px 14px;
+    color: #ecfdf5;
+    font-size: 0.85rem;
+  }
+
+  .modal-backdrop {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  }
+
+  .modal-card {
+    background: #0f172a;
+    border: 1px solid #ef4444;
+    border-radius: var(--radius-lg);
+    padding: 24px;
+    max-width: 520px;
+    width: 90%;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .warning-text {
+    color: #f87171;
+    font-size: 0.9rem;
+    line-height: 1.5;
+  }
+
+  .confirm-input {
+    padding: 10px;
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: #1e293b;
+    color: #f8fafc;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+  }
+
+  .modal-btn-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 10px;
+  }
+
+  .purge-msg {
+    color: #34d399;
+    font-size: 0.85rem;
+    font-weight: 600;
   }
 </style>

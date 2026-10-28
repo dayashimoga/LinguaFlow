@@ -307,4 +307,191 @@ mod tests {
         assert_eq!(conv_resp.session.speaker_a_lang, LanguageCode::KnIn);
         assert_eq!(conv_resp.session.speaker_b_lang, LanguageCode::EnUs);
     }
+
+    #[tokio::test]
+    async fn test_stage_7_learning_and_privacy_endpoints() {
+        let storage = StorageService::open_in_memory().unwrap();
+        let engine = Arc::new(EngineRegistry::new_with_storage(storage.clone()));
+        let app_info = AppInfo::default();
+        let state = ServerState::new(storage, engine, app_info);
+        let app = create_router(state);
+
+        // 1. Test /api/v1/learning/decks
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/learning/decks")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let deck_resp: lingua_core::ListLearningDecksCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert!(!deck_resp.decks.is_empty());
+        let deck_id = deck_resp.decks[0].id.clone();
+
+        // 2. Test /api/v1/learning/deck/{id}/cards
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri(format!("/api/v1/learning/deck/{deck_id}/cards"))
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let card_resp: lingua_core::GetLearningDeckCardsCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert!(!card_resp.cards.is_empty());
+        let card_id = card_resp.cards[0].id.clone();
+
+        // 3. Test /api/v1/learning/card/{id}/review
+        let review_payload = serde_json::to_string(&serde_json::json!({
+            "rating": 4
+        }))
+        .unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri(format!("/api/v1/learning/card/{card_id}/review"))
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(review_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let review_resp: lingua_core::ReviewCardCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(review_resp.result.new_repetition, 1);
+
+        // 4. Test /api/v1/learning/progress
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/learning/progress")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let prog_resp: lingua_core::GetLearnerProgressCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert!(prog_resp.progress.total_cards_studied >= 1);
+
+        // 5. Test /api/v1/learning/pronunciation/assess
+        let assess_payload = serde_json::to_string(&lingua_core::AssessPronunciationCmdRequest {
+            request: lingua_core::PronunciationAssessmentRequest {
+                reference_text: "ನಮಸ್ಕಾರ".into(),
+                spoken_transcript: "ನಮಸ್ಕಾರ".into(),
+                language: LanguageCode::KnIn,
+            },
+        })
+        .unwrap();
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/learning/pronunciation/assess")
+                    .header("content-type", "application/json")
+                    .body(axum::body::Body::from(assess_payload))
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let assess_resp: lingua_core::AssessPronunciationCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert!(assess_resp.result.is_passing);
+
+        // 6. Test /api/v1/learning/listening/challenges
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/learning/listening/challenges?language=kn-IN&count=2")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // 7. Test /api/v1/learning/grammar/topics
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/learning/grammar/topics?language=ta-IN")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // 8. Test /api/v1/privacy/settings
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/privacy/settings")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // 9. Test /api/v1/privacy/export
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .method("POST")
+                    .uri("/api/v1/privacy/export")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let export_resp: lingua_core::ExportUserDataCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(export_resp.archive.app_version, "0.1.0");
+        assert!(!export_resp.archive.checksum_sha256.is_empty());
+
+        // 10. Test /api/v1/platform/release-status
+        let response = app
+            .clone()
+            .oneshot(
+                axum::http::Request::builder()
+                    .uri("/api/v1/platform/release-status")
+                    .body(axum::body::Body::empty())
+                    .unwrap(),
+            )
+            .await
+            .unwrap();
+        assert_eq!(response.status(), axum::http::StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+        let rel_resp: lingua_core::GetPlatformReleaseStatusCmdResponse =
+            serde_json::from_slice(&body).unwrap();
+        assert_eq!(rel_resp.status.len(), 4);
+    }
 }

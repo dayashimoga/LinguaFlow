@@ -99,6 +99,7 @@ pub struct CapabilityMatrix {
     pub offline_models: CapabilityState,
     pub live_conversation: CapabilityState,
     pub media_subtitles: CapabilityState,
+    pub language_learning: CapabilityState,
 }
 
 impl CapabilityMatrix {
@@ -111,6 +112,7 @@ impl CapabilityMatrix {
             offline_models: CapabilityState::ScheduledForStage(2),
             live_conversation: CapabilityState::ScheduledForStage(4),
             media_subtitles: CapabilityState::ScheduledForStage(6),
+            language_learning: CapabilityState::ScheduledForStage(7),
         }
     }
 
@@ -123,6 +125,7 @@ impl CapabilityMatrix {
             offline_models: CapabilityState::ScheduledForStage(2),
             live_conversation: CapabilityState::ScheduledForStage(4),
             media_subtitles: CapabilityState::ScheduledForStage(6),
+            language_learning: CapabilityState::ScheduledForStage(7),
         }
     }
 
@@ -135,6 +138,7 @@ impl CapabilityMatrix {
             offline_models: CapabilityState::Active,
             live_conversation: CapabilityState::ScheduledForStage(4),
             media_subtitles: CapabilityState::ScheduledForStage(6),
+            language_learning: CapabilityState::ScheduledForStage(7),
         }
     }
 
@@ -147,6 +151,7 @@ impl CapabilityMatrix {
             offline_models: CapabilityState::Active,
             live_conversation: CapabilityState::ScheduledForStage(4),
             media_subtitles: CapabilityState::ScheduledForStage(6),
+            language_learning: CapabilityState::ScheduledForStage(7),
         }
     }
 
@@ -159,6 +164,7 @@ impl CapabilityMatrix {
             offline_models: CapabilityState::Active,
             live_conversation: CapabilityState::Active,
             media_subtitles: CapabilityState::ScheduledForStage(6),
+            language_learning: CapabilityState::ScheduledForStage(7),
         }
     }
 
@@ -171,6 +177,7 @@ impl CapabilityMatrix {
             offline_models: CapabilityState::Active,
             live_conversation: CapabilityState::Active,
             media_subtitles: CapabilityState::ScheduledForStage(6),
+            language_learning: CapabilityState::ScheduledForStage(7),
         }
     }
 
@@ -183,6 +190,20 @@ impl CapabilityMatrix {
             offline_models: CapabilityState::Active,
             live_conversation: CapabilityState::Active,
             media_subtitles: CapabilityState::Active,
+            language_learning: CapabilityState::ScheduledForStage(7),
+        }
+    }
+
+    pub fn stage_7_active() -> Self {
+        Self {
+            dictionary: CapabilityState::Active,
+            text_translation: CapabilityState::Active,
+            streaming_asr: CapabilityState::Active,
+            speech_synthesis: CapabilityState::Active,
+            offline_models: CapabilityState::Active,
+            live_conversation: CapabilityState::Active,
+            media_subtitles: CapabilityState::Active,
+            language_learning: CapabilityState::Active,
         }
     }
 }
@@ -734,8 +755,8 @@ impl Default for AppInfo {
         Self {
             name: "LinguaFlow".into(),
             version: env!("CARGO_PKG_VERSION").into(),
-            stage: 6,
-            stage_name: "Media, Captions & Integrations".into(),
+            stage: 7,
+            stage_name: "Learning & Production Certification".into(),
             platform: std::env::consts::OS.into(),
             arch: std::env::consts::ARCH.into(),
             build_profile: if cfg!(debug_assertions) {
@@ -1074,6 +1095,176 @@ impl Default for GlobalShortcutConfig {
     }
 }
 
+// =========================================================================
+// Stage 7 Models: Language Learning, Production Security & Release Certification
+// =========================================================================
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LearningCard {
+    pub id: String,
+    pub deck_id: String,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub source_term: String,
+    pub target_term: String,
+    pub romanization: Option<String>,
+    pub ipa: Option<String>,
+    pub part_of_speech: String,
+    pub example_source: String,
+    pub example_target: String,
+    pub grammar_notes: Option<String>,
+    pub repetition: u32,
+    pub interval_days: f32,
+    pub ease_factor: f32,
+    pub next_review_at: DateTime<Utc>,
+    pub total_reviews: u32,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct LearningDeck {
+    pub id: String,
+    pub title: String,
+    pub description: String,
+    pub source_lang: LanguageCode,
+    pub target_lang: LanguageCode,
+    pub total_cards: usize,
+    pub due_cards: usize,
+    pub created_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ReviewRating {
+    Blackout = 0,
+    Incorrect = 1,
+    Hard = 2,
+    Good = 3,
+    Easy = 4,
+    Perfect = 5,
+}
+
+impl ReviewRating {
+    pub fn from_u8(val: u8) -> Self {
+        match val {
+            0 => Self::Blackout,
+            1 => Self::Incorrect,
+            2 => Self::Hard,
+            3 => Self::Good,
+            4 => Self::Easy,
+            _ => Self::Perfect,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ReviewResult {
+    pub card_id: String,
+    pub rating: u8,
+    pub new_repetition: u32,
+    pub new_interval_days: f32,
+    pub new_ease_factor: f32,
+    pub next_review_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LearnerProgress {
+    pub total_cards_studied: u32,
+    pub cards_due_today: u32,
+    pub cards_mastered: u32,
+    pub current_streak_days: u32,
+    pub retention_rate: f32,
+    pub study_time_minutes: u32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PronunciationAssessmentRequest {
+    pub reference_text: String,
+    pub spoken_transcript: String,
+    pub language: LanguageCode,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PronunciationAssessmentResult {
+    pub accuracy_score: f32,
+    pub wer: f32,
+    pub cer: f32,
+    pub chrf: f32,
+    pub phoneme_feedback: Vec<String>,
+    pub is_passing: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ListeningChallenge {
+    pub id: String,
+    pub prompt_audio_text: String,
+    pub language: LanguageCode,
+    pub correct_answer: String,
+    pub options: Vec<String>,
+    pub explanation: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct GrammarGuideTopic {
+    pub id: String,
+    pub language: LanguageCode,
+    pub title: String,
+    pub category: String,
+    pub content_markdown: String,
+    pub examples: Vec<DictionaryExample>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct DataPrivacySettings {
+    pub analytics_enabled: bool,
+    pub local_transcripts_retention_days: u32,
+    pub microphone_consent: bool,
+    pub camera_consent: bool,
+    pub cloud_processing_consent: bool,
+    pub policy_version_accepted: String,
+}
+
+impl Default for DataPrivacySettings {
+    fn default() -> Self {
+        Self {
+            analytics_enabled: false,
+            local_transcripts_retention_days: 30,
+            microphone_consent: true,
+            camera_consent: true,
+            cloud_processing_consent: false,
+            policy_version_accepted: "2026.10-v1".into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ExportUserDataArchive {
+    pub export_id: String,
+    pub exported_at: DateTime<Utc>,
+    pub app_version: String,
+    pub translation_history_count: usize,
+    pub learning_cards_count: usize,
+    pub checksum_sha256: String,
+    pub raw_json: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PurgeUserDataResult {
+    pub purged_history_rows: usize,
+    pub purged_sessions_rows: usize,
+    pub purged_cards_rows: usize,
+    pub purged_media_rows: usize,
+    pub timestamp: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct PlatformReleaseStatus {
+    pub platform: String,
+    pub binary_name: String,
+    pub is_signed: bool,
+    pub signature_details: String,
+    pub limitations: Vec<String>,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1201,5 +1392,34 @@ mod tests {
         let shortcuts = GlobalShortcutConfig::default();
         assert!(shortcuts.enabled);
         assert_eq!(shortcuts.quick_translate, "CommandOrControl+Shift+L");
+    }
+
+    #[test]
+    fn test_capability_matrix_stage_7() {
+        let matrix = CapabilityMatrix::stage_7_active();
+        assert_eq!(matrix.dictionary, CapabilityState::Active);
+        assert_eq!(matrix.text_translation, CapabilityState::Active);
+        assert_eq!(matrix.streaming_asr, CapabilityState::Active);
+        assert_eq!(matrix.speech_synthesis, CapabilityState::Active);
+        assert_eq!(matrix.offline_models, CapabilityState::Active);
+        assert_eq!(matrix.live_conversation, CapabilityState::Active);
+        assert_eq!(matrix.media_subtitles, CapabilityState::Active);
+        assert_eq!(matrix.language_learning, CapabilityState::Active);
+    }
+
+    #[test]
+    fn test_stage_7_models_and_defaults() {
+        let privacy = DataPrivacySettings::default();
+        assert!(!privacy.analytics_enabled);
+        assert!(privacy.microphone_consent);
+        assert_eq!(privacy.policy_version_accepted, "2026.10-v1");
+
+        assert_eq!(ReviewRating::from_u8(0), ReviewRating::Blackout);
+        assert_eq!(ReviewRating::from_u8(3), ReviewRating::Good);
+        assert_eq!(ReviewRating::from_u8(5), ReviewRating::Perfect);
+
+        let app_info = AppInfo::default();
+        assert_eq!(app_info.stage, 7);
+        assert_eq!(app_info.stage_name, "Learning & Production Certification");
     }
 }

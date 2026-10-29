@@ -1,5 +1,7 @@
 # LinguaFlow — Code Understanding & Architecture Guide
 
+> For an exhaustive, end-to-end walkthrough covering all crates, algorithms, benchmarks, offline-first mechanisms, and Stage 0–8 subsystems, see **[`docs/PROJECT_WALKTHROUGH.md`](PROJECT_WALKTHROUGH.md)**.
+
 ## 1. System Architecture & Dependency Graph
 
 LinguaFlow decouples presentation, persistence, server networking, and inference orchestration into distinct workspace crates:

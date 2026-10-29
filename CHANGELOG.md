@@ -527,5 +527,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Compile-Time Frontend Fallback Guard in `src-tauri/build.rs`**:
   - Enhanced `src-tauri/build.rs` with a defensive fallback: if `../dist/index.html` is absent and `npm` is unavailable or fails (e.g., in isolated/headless Rust environments), it automatically creates `../dist` and generates a valid minimal fallback HTML placeholder in `../dist/index.html`. This ensures `tauri-codegen` never panics during headless `cargo check` or `cargo clippy` runs, while normal builds continue to package the full Vite production bundle.
 
+### Added
+- **Complete Project Walkthrough & Architecture Guide (`docs/PROJECT_WALKTHROUGH.md`)**:
+  - Created comprehensive documentation detailing system architecture, crate topology, user personas, Stage 0 through Stage 8 feature breakdown, offline-first mechanisms, and empirical benchmark results.
+- **Root Repository Guide (`README.md`)**:
+  - Authored official project `README.md` with status badges, quickstart guides, microbenchmark performance summaries, crate matrices, and navigation links.
+  - Linked `docs/CODE_UNDERSTANDING.md` directly to `docs/PROJECT_WALKTHROUGH.md`.
+
+
 
 

@@ -553,3 +553,11 @@
   - Hardened `src-tauri/build.rs` with defensive fallback creating a minimal `../dist/index.html` placeholder if `npm` is unavailable or fails, preventing macro panic in isolated/headless Rust environments.
   - Verified local `cargo clippy --workspace -- -D warnings` (0 warnings), `cargo fmt --check`, `cargo test --workspace` (120/120 passed), and `npm run check` (0 errors, 0 warnings).
 
+### [2026-10-29 07:05 UTC] Project Walkthrough & Repository Documentation Integration
+- [x] Created comprehensive `docs/PROJECT_WALKTHROUGH.md`:
+  - Detailed system architecture, crate topology, user personas, Stage 0 through Stage 8 deliverables, offline-first mechanisms, and empirical benchmark results.
+- [x] Authored official root `README.md`:
+  - Provided project summary, CI badges, architecture diagram, crate matrix, microbenchmark table, quickstart commands, and documentation links.
+- [x] Updated `docs/CODE_UNDERSTANDING.md` to reference `PROJECT_WALKTHROUGH.md`.
+
+

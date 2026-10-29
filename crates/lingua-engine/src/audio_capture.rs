@@ -87,6 +87,51 @@ impl AudioCaptureManager {
         Ok(result)
     }
 
+    /// Enumerates all available physical audio output devices (speakers / headphones) on the host platform.
+    pub fn list_output_devices() -> Result<Vec<AudioDeviceItem>, LinguaError> {
+        let host = cpal::default_host();
+        let default_device_name = host
+            .default_output_device()
+            .and_then(|d| d.description().ok().map(|desc| desc.name().to_string()));
+
+        let devices = match host.output_devices() {
+            Ok(iter) => iter,
+            Err(e) => {
+                warn!("Failed to query output devices via cpal: {e}");
+                return Ok(vec![Self::mock_default_output_device()]);
+            }
+        };
+
+        let mut result = Vec::new();
+        for (idx, dev) in devices.enumerate() {
+            let name = dev
+                .description()
+                .map(|d| d.name().to_string())
+                .unwrap_or_else(|_| format!("Audio Output {idx}"));
+            let is_default = default_device_name.as_deref() == Some(&name) || idx == 0;
+            let default_config = dev.default_output_config().ok();
+            let sample_rate = default_config
+                .as_ref()
+                .map(|c| c.sample_rate())
+                .unwrap_or(44100);
+            let channels = default_config.as_ref().map(|c| c.channels()).unwrap_or(2);
+
+            result.push(AudioDeviceItem {
+                id: format!("output-device-{idx}"),
+                name,
+                is_default,
+                sample_rate,
+                channels,
+            });
+        }
+
+        if result.is_empty() {
+            result.push(Self::mock_default_output_device());
+        }
+
+        Ok(result)
+    }
+
     fn mock_default_device() -> AudioDeviceItem {
         AudioDeviceItem {
             id: "default-mic".into(),
@@ -94,6 +139,16 @@ impl AudioCaptureManager {
             is_default: true,
             sample_rate: 16000,
             channels: 1,
+        }
+    }
+
+    fn mock_default_output_device() -> AudioDeviceItem {
+        AudioDeviceItem {
+            id: "default-speaker".into(),
+            name: "Default System Speaker".into(),
+            is_default: true,
+            sample_rate: 44100,
+            channels: 2,
         }
     }
 
@@ -222,6 +277,14 @@ mod tests {
     #[test]
     fn test_list_input_devices() {
         let devices = AudioCaptureManager::list_input_devices().expect("device enumeration failed");
+        assert!(!devices.is_empty());
+        assert!(devices.iter().any(|d| d.is_default));
+    }
+
+    #[test]
+    fn test_list_output_devices() {
+        let devices =
+            AudioCaptureManager::list_output_devices().expect("output device enumeration failed");
         assert!(!devices.is_empty());
         assert!(devices.iter().any(|d| d.is_default));
     }

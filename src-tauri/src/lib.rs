@@ -70,6 +70,7 @@ pub fn run() {
             commands::lingua_command_delete_model_pack,
             commands::lingua_command_get_disk_space,
             commands::lingua_command_get_audio_devices,
+            commands::lingua_command_get_audio_output_devices,
             commands::lingua_command_start_speech_session,
             commands::lingua_command_pause_speech_session,
             commands::lingua_command_resume_speech_session,

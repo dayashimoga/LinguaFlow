@@ -309,6 +309,20 @@ export async function getAudioDevices(): Promise<import('./types').AudioDeviceIt
   return data.devices;
 }
 
+export async function getAudioOutputDevices(): Promise<import('./types').AudioDeviceItem[]> {
+  if (isTauri) {
+    const resp = await invokeTauri<import('./types').GetAudioDevicesCmdResponse>('lingua_command_get_audio_output_devices');
+    return resp.devices;
+  }
+  const res = await fetch(`${API_BASE}/speech/output-devices`);
+  if (!res.ok) {
+    // Graceful fallback to input devices if endpoint absent
+    return getAudioDevices();
+  }
+  const data: import('./types').GetAudioDevicesCmdResponse = await res.json();
+  return data.devices;
+}
+
 export async function startSpeechSession(req: import('./types').StartSpeechSessionCmdRequest): Promise<import('./types').SpeechSession> {
   if (isTauri) {
     const resp = await invokeTauri<import('./types').StartSpeechSessionCmdResponse>('lingua_command_start_speech_session', { request: req });

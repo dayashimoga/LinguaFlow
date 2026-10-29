@@ -19,6 +19,8 @@
     synthesizeSpeech,
   } from '../lib/ipc';
 
+  export let onNavigate: ((view: string) => void) | undefined = undefined;
+
   let speakerALang: LanguageCode = 'kn-IN';
   let speakerBLang: LanguageCode = 'en-US';
   let isHandsFree = false;
@@ -332,9 +334,26 @@
   {/if}
 
   {#if errorMessage}
-    <div class="toast-notice error-notice">
-      <span>⚠️ {errorMessage}</span>
-    </div>
+    {#if errorMessage.includes('model pack') || errorMessage.includes('not installed') || errorMessage.includes('Download speech pack')}
+      <div class="speech-pack-banner">
+        <div class="banner-content">
+          <span class="banner-icon">📦</span>
+          <div>
+            <strong>Speech Model Pack Required</strong>
+            <p>{errorMessage}</p>
+          </div>
+        </div>
+        {#if onNavigate}
+          <button class="btn-primary-action" on:click={() => onNavigate?.('downloads')}>
+            Download Speech Pack in Model Manager ➔
+          </button>
+        {/if}
+      </div>
+    {:else}
+      <div class="toast-notice error-notice">
+        <span>⚠️ {errorMessage}</span>
+      </div>
+    {/if}
   {/if}
 
   <!-- Dual-Speaker Cards Section (Flippable for Face-to-Face table layout) -->
@@ -719,6 +738,60 @@
   }
 
   /* Toasts */
+  .speech-pack-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 1rem 1.25rem;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    border-radius: 8px;
+    color: #fde68a;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+
+  .banner-content {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.75rem;
+  }
+
+  .banner-icon {
+    font-size: 1.5rem;
+  }
+
+  .banner-content strong {
+    color: #fbbf24;
+    display: block;
+    margin-bottom: 0.2rem;
+  }
+
+  .banner-content p {
+    margin: 0;
+    font-size: 0.88rem;
+    color: #fef3c7;
+  }
+
+  .btn-primary-action {
+    background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+    color: #1e1e2e;
+    font-weight: 600;
+    padding: 0.55rem 1rem;
+    border-radius: 6px;
+    border: none;
+    cursor: pointer;
+    font-size: 0.88rem;
+    white-space: nowrap;
+    transition: all 0.2s;
+  }
+
+  .btn-primary-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.3);
+  }
+
   .toast-notice {
     padding: 10px 16px;
     border-radius: 8px;

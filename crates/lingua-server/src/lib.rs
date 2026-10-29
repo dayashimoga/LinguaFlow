@@ -37,7 +37,7 @@ mod tests {
         let storage = StorageService::open_in_memory().unwrap();
         let engine = Arc::new(EngineRegistry::new_with_storage(storage.clone()));
         let app_info = AppInfo::default();
-        let state = ServerState::new(storage, engine, app_info);
+        let state = ServerState::new(storage.clone(), engine, app_info);
 
         let app = create_router(state);
 
@@ -91,7 +91,7 @@ mod tests {
         let body = response.into_body().collect().await.unwrap().to_bytes();
         let models: Vec<lingua_core::ModelPackDetailedInfo> =
             serde_json::from_slice(&body).unwrap();
-        assert_eq!(models.len(), 5);
+        assert_eq!(models.len(), 9);
 
         // Test /api/v1/translate
         let translate_payload = serde_json::to_string(&TranslateCmdRequest {
@@ -149,6 +149,18 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(response.status(), axum::http::StatusCode::OK);
+
+        // Install required speech model for kn-IN ASR
+        storage
+            .update_model_pack_install_state(
+                "asr-kn-streaming-sherpa",
+                &lingua_core::ModelInstallState::Installed {
+                    installed_at: chrono::Utc::now(),
+                    install_path: "/test/models/asr-kn".into(),
+                },
+                true,
+            )
+            .unwrap();
 
         // Test /api/v1/speech/session/start
         let start_req = serde_json::to_string(&lingua_core::StartSpeechSessionCmdRequest {
@@ -313,7 +325,7 @@ mod tests {
         let storage = StorageService::open_in_memory().unwrap();
         let engine = Arc::new(EngineRegistry::new_with_storage(storage.clone()));
         let app_info = AppInfo::default();
-        let state = ServerState::new(storage, engine, app_info);
+        let state = ServerState::new(storage.clone(), engine, app_info);
         let app = create_router(state);
 
         // 1. Test /api/v1/learning/decks

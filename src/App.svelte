@@ -274,9 +274,9 @@
       {:else if currentView === 'dictionary'}
         <DictionaryView />
       {:else if currentView === 'speech'}
-        <LiveSpeechView />
+        <LiveSpeechView onNavigate={navigate} />
       {:else if currentView === 'conversation'}
-        <ConversationView />
+        <ConversationView onNavigate={navigate} />
       {:else if currentView === 'intelligence'}
         <IntelligenceView />
       {:else if currentView === 'media'}
@@ -288,7 +288,7 @@
       {:else if currentView === 'downloads'}
         <ModelsView />
       {:else if currentView === 'settings'}
-        <SettingsView settings={userSettings} onSaveSettings={handleSaveSettings} />
+        <SettingsView settings={userSettings} onSaveSettings={handleSaveSettings} onNavigate={navigate} />
       {/if}
     {/if}
   </main>

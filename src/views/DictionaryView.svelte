@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { SUPPORTED_LANGUAGES, type LanguageCode, type DictionaryEntry, type RichDictionaryEntry } from '../lib/types';
-  import { searchDictionary, addFavorite, listFavorites, removeFavorite } from '../lib/ipc';
+  import { searchDictionary, addFavorite, listFavorites, removeFavorite, synthesizeSpeech } from '../lib/ipc';
 
   let searchTerm = '';
   let selectedLang: string = 'all';
@@ -20,6 +20,9 @@
   let favoritesMap: Record<string, string> = {}; // word -> favorite_id
   let playingAudioWord: string | null = null;
   let copiedWord: string | null = null;
+  let dictSpeed = 1.0;
+  let activeAudioContext: AudioContext | null = null;
+  let activeAudioSource: AudioBufferSourceNode | null = null;
 
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 
@@ -158,24 +161,67 @@
     }, 2000);
   }
 
-  function playSpeech(text: string, lang: LanguageCode) {
-    if (!('speechSynthesis' in window)) return;
-    window.speechSynthesis.cancel();
+  async function playSpeech(text: string, lang: LanguageCode) {
+    if (activeAudioSource) {
+      try { activeAudioSource.stop(); } catch (_) {}
+      activeAudioSource = null;
+    }
+    if (activeAudioContext) {
+      try { activeAudioContext.close(); } catch (_) {}
+      activeAudioContext = null;
+    }
+    if (playingAudioWord === text) {
+      playingAudioWord = null;
+      return;
+    }
 
     playingAudioWord = text;
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (lang === 'kn-IN') utterance.lang = 'kn-IN';
-    else if (lang === 'ta-IN') utterance.lang = 'ta-IN';
-    else utterance.lang = 'en-US';
 
-    utterance.rate = 0.9;
-    utterance.onend = () => {
+    try {
+      const resp = await synthesizeSpeech({
+        text,
+        language: lang,
+        speed: dictSpeed,
+        pitch: 1.0,
+      });
+
+      if (resp && resp.audio_samples && resp.audio_samples.length > 0) {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        activeAudioContext = new AudioCtx({ sampleRate: resp.sample_rate || 16000 });
+        const buffer = activeAudioContext.createBuffer(1, resp.audio_samples.length, resp.sample_rate || 16000);
+        const channelData = buffer.getChannelData(0);
+        for (let i = 0; i < resp.audio_samples.length; i++) {
+          const s = resp.audio_samples[i];
+          channelData[i] = Math.abs(s) > 1.0 ? s / 32768.0 : s;
+        }
+
+        activeAudioSource = activeAudioContext.createBufferSource();
+        activeAudioSource.buffer = buffer;
+        activeAudioSource.connect(activeAudioContext.destination);
+        activeAudioSource.onended = () => {
+          playingAudioWord = null;
+        };
+        activeAudioSource.start();
+        return;
+      }
+    } catch (e) {
+      console.warn('Neural TTS synthesis fallback to browser Web Speech API:', e);
+    }
+
+    // Fallback to browser SpeechSynthesis
+    if ('speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      if (lang === 'kn-IN') utterance.lang = 'kn-IN';
+      else if (lang === 'ta-IN') utterance.lang = 'ta-IN';
+      else utterance.lang = 'en-US';
+      utterance.rate = dictSpeed;
+      utterance.onend = () => { playingAudioWord = null; };
+      utterance.onerror = () => { playingAudioWord = null; };
+      window.speechSynthesis.speak(utterance);
+    } else {
       playingAudioWord = null;
-    };
-    utterance.onerror = () => {
-      playingAudioWord = null;
-    };
-    window.speechSynthesis.speak(utterance);
+    }
   }
 </script>
 
@@ -322,14 +368,26 @@
             </div>
 
             <div class="entry-actions">
-              <!-- Audio Speech Button -->
-              <button
-                class="action-btn {playingAudioWord === entry.headword ? 'active-audio' : ''}"
-                on:click={() => playSpeech(entry.headword, entry.language)}
-                title="Listen to authentic pronunciation"
-              >
-                {playingAudioWord === entry.headword ? '🔊 Playing...' : '🔊 Listen'}
-              </button>
+              <!-- Audio Speech Button & Speed Chips -->
+              <div class="audio-action-group">
+                <button
+                  class="action-btn {playingAudioWord === entry.headword ? 'active-audio' : ''}"
+                  on:click={() => playSpeech(entry.headword, entry.language)}
+                  title="Listen to authentic pronunciation"
+                >
+                  {playingAudioWord === entry.headword ? '🔊 Playing...' : '🔊 Listen'}
+                </button>
+                <div class="dict-speed-chips" title="Playback Speed">
+                  {#each [0.75, 1.0, 1.25] as speed}
+                    <button
+                      class="dict-speed-chip {dictSpeed === speed ? 'active' : ''}"
+                      on:click={() => (dictSpeed = speed)}
+                    >
+                      {speed}x
+                    </button>
+                  {/each}
+                </div>
+              </div>
 
               <!-- Copy Button -->
               <button
@@ -427,8 +485,17 @@
               <div class="examples-list">
                 {#each entry.bilingual_examples as ex}
                   <div class="example-box indic-text">
-                    <p class="ex-source">"{ex.source}"</p>
-                    <p class="ex-target">↳ {ex.target}</p>
+                    <div class="example-content">
+                      <p class="ex-source">"{ex.source}"</p>
+                      <p class="ex-target">↳ {ex.target}</p>
+                    </div>
+                    <button
+                      class="mini-audio-btn {playingAudioWord === ex.source ? 'active-audio' : ''}"
+                      on:click={() => playSpeech(ex.source, entry.language)}
+                      title="Listen to example sentence"
+                    >
+                      🔊
+                    </button>
                   </div>
                 {/each}
               </div>
@@ -813,7 +880,48 @@
 
   .entry-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .audio-action-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 2px;
+  }
+
+  .dict-speed-chips {
+    display: inline-flex;
+    align-items: center;
+    gap: 2px;
+    padding-right: 4px;
+  }
+
+  .dict-speed-chip {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 0.70rem;
+    padding: 2px 4px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all 0.15s ease;
+  }
+
+  .dict-speed-chip:hover {
+    color: var(--text-primary);
+  }
+
+  .dict-speed-chip.active {
+    background: var(--primary-color, #24c8db);
+    color: #0f172a;
+    font-weight: 700;
   }
 
   .action-btn {
@@ -971,6 +1079,29 @@
     padding: 10px 14px;
     border-radius: 6px;
     border-left: 3px solid var(--primary-color, #24c8db);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+
+  .example-content {
+    flex: 1;
+  }
+
+  .mini-audio-btn {
+    background: rgba(255, 255, 255, 0.06);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.15s ease;
+  }
+
+  .mini-audio-btn:hover {
+    background: rgba(255, 255, 255, 0.14);
+    transform: scale(1.05);
   }
 
   .ex-source {

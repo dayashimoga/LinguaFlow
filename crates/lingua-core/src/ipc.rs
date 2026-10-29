@@ -377,6 +377,8 @@ pub struct TranslateIntelligenceCmdRequest {
     pub formality: crate::models::FormalityMode,
     pub enable_transliteration: bool,
     pub domain_glossary: Option<String>,
+    #[serde(default)]
+    pub allow_cloud: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]

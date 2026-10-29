@@ -372,6 +372,14 @@ pub fn lingua_command_get_audio_devices() -> IpcResponse<GetAudioDevicesCmdRespo
 }
 
 #[tauri::command]
+pub fn lingua_command_get_audio_output_devices() -> IpcResponse<GetAudioDevicesCmdResponse> {
+    match AudioCaptureManager::list_output_devices() {
+        Ok(devices) => IpcResponse::ok("tauri-ipc", GetAudioDevicesCmdResponse { devices }),
+        Err(e) => IpcResponse::err("tauri-ipc", e),
+    }
+}
+
+#[tauri::command]
 pub async fn lingua_command_start_speech_session(
     state: State<'_, DesktopAppState>,
     request: StartSpeechSessionCmdRequest,
@@ -655,6 +663,7 @@ pub async fn lingua_command_translate_intelligence(
         formality: request.formality,
         enable_transliteration: request.enable_transliteration,
         domain_glossary: request.domain_glossary,
+        allow_cloud: request.allow_cloud,
     };
 
     match state.engine_registry.translate_with_intelligence(req).await {

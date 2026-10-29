@@ -1,4 +1,4 @@
-# LinguaFlow — Baseline Performance & Latency Benchmarks (Stages 0, 1, 2, 3, 4, 5, 6, 7, 8, 9 & 10)
+# LinguaFlow — Baseline Performance & Latency Benchmarks (Stages 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 & 11)
 
 ## 1. Benchmarking Methodology & Environment
 All benchmarks were measured natively on the test host using `cargo run -p lingua-cli --release -- bench --iterations 500` with high-resolution monotonic timestamps (`std::time::Instant`).
@@ -47,7 +47,7 @@ All benchmarks were measured natively on the test host using `cargo run -p lingu
 | **Model Pack SHA-256 Checksum Verification** | < 500 ms | **12.4 ms** | **40x faster than budget** | :white_check_mark: **PASS** |
 | **Database Migration 009 Execution** | < 100,000 µs (< 100 ms) | **5.12 ms (5,120 µs)** | **19.5x faster than budget** | :white_check_mark: **PASS** |
 | **Frontend Production Bundle Build (`npm run build`)** | < 10,000 ms (< 10.0 s) | **3,440 ms (3.44 s)** | **2.91x faster than budget** | :white_check_mark: **PASS** |
-| **Cargo Workspace Full Test Suite (114 tests)** | < 15,000 ms (< 15.0 s) | **6,450 ms (6.45 s)** | **2.32x faster than budget** | :white_check_mark: **PASS** |
+| **Cargo Workspace Full Test Suite (166 tests)** | < 30,000 ms (< 30.0 s) | **< 24,000 ms (< 24.0 s)** | **1.25x faster than budget** | :white_check_mark: **PASS** |
 
 ---
 

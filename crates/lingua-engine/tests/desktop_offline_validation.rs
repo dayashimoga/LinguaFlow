@@ -164,8 +164,8 @@ async fn test_model_manager_offline_catalog_and_integrity() {
         .expect("Failed to list model packs");
     assert_eq!(
         packs.len(),
-        5,
-        "Expected 5 production registered model packs"
+        9,
+        "Expected 9 production registered model packs"
     );
 
     for pack in &packs {

@@ -97,6 +97,10 @@ pub fn create_router(state: ServerState) -> Router {
         .route("/api/v1/favorites/{id}", delete(remove_favorite_handler))
         .route("/api/v1/speech/devices", get(get_speech_devices_handler))
         .route(
+            "/api/v1/speech/output-devices",
+            get(get_speech_output_devices_handler),
+        )
+        .route(
             "/api/v1/speech/session/start",
             post(start_speech_session_handler),
         )
@@ -635,6 +639,14 @@ async fn get_speech_devices_handler(
     }
 }
 
+async fn get_speech_output_devices_handler(
+) -> Result<Json<GetAudioDevicesCmdResponse>, (StatusCode, String)> {
+    match AudioCaptureManager::list_output_devices() {
+        Ok(devices) => Ok(Json(GetAudioDevicesCmdResponse { devices })),
+        Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
+    }
+}
+
 async fn start_speech_session_handler(
     State(state): State<ServerState>,
     Json(payload): Json<StartSpeechSessionCmdRequest>,
@@ -986,6 +998,7 @@ async fn intelligence_translate_handler(
         formality: payload.formality,
         enable_transliteration: payload.enable_transliteration,
         domain_glossary: payload.domain_glossary,
+        allow_cloud: payload.allow_cloud,
     };
     match state.engine_registry.translate_with_intelligence(req).await {
         Ok(res) => Ok(Json(res)),

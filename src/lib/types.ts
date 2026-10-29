@@ -508,6 +508,7 @@ export interface IntelligenceTranslationRequest {
   formality: FormalityMode;
   enable_transliteration: boolean;
   domain_glossary?: string | null;
+  allow_cloud?: boolean;
 }
 
 export interface IntelligenceTranslationResponse {

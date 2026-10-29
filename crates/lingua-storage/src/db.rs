@@ -1020,7 +1020,7 @@ mod tests {
         let detailed_packs = storage
             .list_detailed_model_packs()
             .expect("detailed packs list failed");
-        assert_eq!(detailed_packs.len(), 5);
+        assert_eq!(detailed_packs.len(), 9);
         let kn_en_pack = detailed_packs
             .iter()
             .find(|p| p.id == "model-kn-en-indictrans2")

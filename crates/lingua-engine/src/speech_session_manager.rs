@@ -41,7 +41,7 @@ impl SpeechSessionCoordinator {
             Arc::clone(&registry),
             storage.clone(),
         ));
-        let asr_engine = Arc::new(SherpaStreamingAsrEngine::default());
+        let asr_engine = Arc::new(SherpaStreamingAsrEngine::new_with_storage(storage.clone()));
 
         Self {
             storage,

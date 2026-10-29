@@ -1,4 +1,5 @@
-use lingua_core::{CaptionSegment, LanguageCode, SpeechSessionStatus};
+use chrono::Utc;
+use lingua_core::{CaptionSegment, LanguageCode, ModelInstallState, SpeechSessionStatus};
 use lingua_engine::audio_buffer::AudioRingBuffer;
 use lingua_engine::audio_capture::AudioCaptureManager;
 use lingua_engine::caption_coordinator::CaptionCoordinator;
@@ -102,6 +103,18 @@ async fn test_bilingual_continuous_speech_captions_end_to_end() {
     let storage = StorageService::open_in_memory().expect("open DB failed");
     let registry = Arc::new(EngineRegistry::new_with_storage(storage.clone()));
     let audio_capture = Arc::new(AudioCaptureManager::new(480000));
+
+    // Install required speech model for kn-IN ASR
+    storage
+        .update_model_pack_install_state(
+            "asr-kn-streaming-sherpa",
+            &ModelInstallState::Installed {
+                installed_at: Utc::now(),
+                install_path: "/test/models/asr-kn".into(),
+            },
+            true,
+        )
+        .unwrap();
 
     let coordinator = SpeechSessionCoordinator::new(
         Arc::clone(&registry),
@@ -233,6 +246,18 @@ async fn test_session_lifecycle_pause_resume_stop() {
     let storage = StorageService::open_in_memory().expect("open DB failed");
     let registry = Arc::new(EngineRegistry::new_with_storage(storage.clone()));
     let audio_capture = Arc::new(AudioCaptureManager::new(480000));
+
+    // Install required speech model for ta-IN ASR
+    storage
+        .update_model_pack_install_state(
+            "asr-ta-streaming-sherpa",
+            &ModelInstallState::Installed {
+                installed_at: Utc::now(),
+                install_path: "/test/models/asr-ta".into(),
+            },
+            true,
+        )
+        .unwrap();
 
     let coordinator = SpeechSessionCoordinator::new(
         Arc::clone(&registry),

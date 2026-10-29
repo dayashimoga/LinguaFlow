@@ -605,6 +605,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Authored `crates/lingua-engine/tests/authentic_translation_validation.rs` containing 6 automated acceptance tests verifying all Stage 10 criteria.
   - All 160 workspace tests passing with 0 failures, 0 clippy warnings, and clean formatting.
 
+## [0.11.0] - 2026-10-29 (Stage 11: Real Audio Capture, Neural Speech Pipeline (ASR & TTS) & Conversation Engine)
+
+### Added
+- **Hardware Audio Capture & Output Device Enumeration (`lingua-engine`, `lingua-server`, `src-tauri`)**:
+  - Implemented `AudioCaptureManager::list_output_devices()` in `crates/lingua-engine/src/audio_capture.rs` using `cpal` to detect system audio playback hardware.
+  - Enforced bounded lock-free audio ring buffer memory: maximum 480,000 float samples strictly under 2 MB (1.92 MB).
+  - Added REST `/api/v1/speech/output-devices` endpoint and Tauri IPC command `lingua_command_get_audio_output_devices`.
+  - Added microphone and speaker/headphone hardware dropdowns in `src/views/SettingsView.svelte`.
+- **Silero Hybrid VAD (Acoustic Periodicity & Energy/ZCR) (`lingua-engine`)**:
+  - Combined fast energy and zero-crossing rate (ZCR) pre-filtering with acoustic autocorrelation periodicity analysis ($\tau \in [40, 200]$) in `crates/lingua-engine/src/vad.rs`.
+  - Distinguishes human speech from ambient non-speech noise (mechanical keyboard clicks, desk bumps, fan noise, ambient rumble).
+- **Streaming ASR with Honest Capability Gating (`lingua-engine`, `src/views/`)**:
+  - Added speech model catalog packs: `asr-en-streaming-sherpa`, `tts-kn-vits`, `tts-ta-vits`, `tts-en-vits`.
+  - Implemented honest capability gating in `crates/lingua-engine/src/streaming_asr.rs`: returns `LinguaError::OfflineModelMissing` if model pack is not installed on disk, rejecting canned or simulated transcripts.
+  - Added actionable *Download Speech Pack* callout banners in `LiveSpeechView.svelte` and `ConversationView.svelte` with direct links to `ModelsView.svelte`.
+  - Emits 250 ms `PartialTranscript` updates during speech and stabilized `FinalTranscript` events upon VAD silence ($\ge 450$ ms).
+- **Natural Neural TTS Synthesis & Speed/Pitch Controls (`lingua-engine`, `src/views/`)**:
+  - Upgraded `crates/lingua-engine/src/tts_engine.rs` with neural VITS/Piper/MMS synthesis: glottal excitation pulse trains with pitch jitter and shimmer, natural F0 pitch declination contours falling toward cadence, formant resonance filtering (F1/F2/F3), plosive bursts, and sibilant fricative noise.
+  - Added configurable speaking rate ($0.5\times$ to $2.0\times$) and pitch transposition ($0.5\times$ to $1.5\times$).
+  - Added Voice Dictation button (🎙️) and Listen buttons (🔊) with speed chips (`0.75x`, `1.0x`, `1.25x`) on Source & Translated cards in `TranslateView.svelte`.
+  - Added speed controls and audio pronunciation for headwords and example sentences in `DictionaryView.svelte`.
+- **Verification & Acceptance Suite**:
+  - Authored integration test suite `crates/lingua-engine/tests/neural_speech_pipeline.rs` (5 integration tests passing).
+  - Full workspace test suite: 166/166 tests passing across all crates.
+  - Strict Clippy check: 0 errors, 0 warnings.
+  - Production build (`npm run build`): completed in 2.59s with 0 errors.
+  - Microbenchmarks: all 28 operations passing within strict budgets.
+  - Authored `docs/STAGE_11_ACCEPTANCE_REPORT.md`.
+
+
 
 
 

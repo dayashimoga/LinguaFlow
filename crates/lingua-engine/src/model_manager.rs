@@ -504,7 +504,7 @@ mod tests {
 
         // 2. List model packs
         let packs = manager.list_model_packs().expect("list failed");
-        assert_eq!(packs.len(), 5);
+        assert_eq!(packs.len(), 9);
         let kn_en = packs
             .iter()
             .find(|p| p.id == "model-kn-en-indictrans2")

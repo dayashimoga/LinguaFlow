@@ -995,6 +995,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             );
 
             // Benchmark 9: Continuous Dual Captions Coordinator & Formatting
+            storage.update_model_pack_install_state(
+                "asr-kn-streaming-sherpa",
+                &lingua_core::ModelInstallState::Installed {
+                    installed_at: chrono::Utc::now(),
+                    install_path: "/data/models/asr-kn".into(),
+                },
+                true,
+            )?;
             let coordinator = SpeechSessionCoordinator::new(
                 Arc::clone(&engine),
                 Some(storage.clone()),
@@ -1127,6 +1135,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 formality: FormalityMode::Formal,
                 enable_transliteration: true,
                 domain_glossary: None,
+                allow_cloud: false,
             };
             let start = Instant::now();
             for _ in 0..iterations.min(100) {

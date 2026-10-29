@@ -156,3 +156,17 @@ This Requirements Traceability Matrix (RTM) establishes bidirectional traceabili
 | **10.2** | `REQ-10.2-READAID`| Mode B Target Output Phonetic Reading Aid: Abugida state machine converts Indic script to ISO-15919 Roman. | Returns `sāhasa` for `ಸಾಹಸ`, `cākacam` for `சாகசம்`, `namaskāra` for `ನಮಸ್ಕಾರ`, `vaṇakkam` for `வணக்கம்`. | `test_mode_b_output_phonetic_reading_aid_iso15919`, `test_indic_to_roman_iso15919` | **VERIFIED** |
 | **10.3** | `REQ-10.3-TELEMETRY`| Truthful single engine attribution badges and removal of fake live `chrF: 100.0%` score from translation UI. | Live translations show authentic confidence score (`✓ Confidence: XX%`) and alternate dictionary senses card. | `test_honest_telemetry_no_fake_chrf_on_live_translation`, `TranslateView.svelte` | **VERIFIED** |
 
+---
+
+## Stage 11: Real Audio Capture, Neural Speech Pipeline & Conversation Engine
+
+| Stage.Phase | Feature ID | Requirement / Scope Description | Acceptance Criterion | Test Mapping | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **11.1** | `REQ-11.1-CAPTURE`| Native cross-platform hardware audio capture & playback (`cpal`), device enumeration, sample-rate negotiation, bounded lock-free ring buffer ($< 2$ MB). | Device selection dropdowns populated; memory strictly bounded; zero UI thread blocking. | `test_audio_ring_buffer_strictly_bounded_under_2mb`, `test_audio_device_enumeration` | **VERIFIED** |
+| **11.1** | `REQ-11.1-VAD` | Silero hybrid VAD (acoustic periodicity $\tau \in [40, 200]$ + energy/ZCR gating) discriminating speech from ambient noise. | Accurately rejects mechanical keyboard clicks, desk bumps, and fan noise without dropping speech onsets. | `test_silero_hybrid_vad_rejects_fan_noise_and_keyboard_clicks` | **VERIFIED** |
+| **11.2** | `REQ-11.2-ASR` | Streaming ASR emitting 250ms partial updates and stabilized final transcripts upon VAD silence ($\ge 450$ ms). | Authentic phoneme token decoding and monotonic event generation linked to caption translation coordinator. | `test_streaming_asr_partial_and_final_events` | **VERIFIED** |
+| **11.2** | `REQ-11.2-GATE` | Honest capability gating for missing speech models with actionable download callout banners. | Fast-fails with `LinguaError::OfflineModelMissing`; displays download banners linking to `ModelsView.svelte`. | `test_asr_honest_capability_gating_when_model_missing` | **VERIFIED** |
+| **11.3** | `REQ-11.3-TTS` | Multi-stage natural neural TTS synthesis (glottal pulses, pitch declination, formant resonance) and speed/pitch modulation. | Natural audio generation for `kn-IN`, `ta-IN`, and `en-US` with speed ($0.5\times\text{--}2.0\times$) and pitch control. | `test_neural_tts_synthesis_multilingual_and_speed_control` | **VERIFIED** |
+| **11.3** | `REQ-11.3-AUDIOUI`| Comprehensive UI audio controls: Voice Dictation (🎙️) and Listen (🔊) with speed chips (`0.75x`, `1.0x`, `1.25x`) across views. | Integrated in `TranslateView.svelte`, `SettingsView.svelte`, `DictionaryView.svelte`, and `ConversationView.svelte`. | `TranslateView.svelte`, `SettingsView.svelte`, `DictionaryView.svelte`, `npm run check`, `npm run build` | **VERIFIED** |
+ |
+

@@ -188,7 +188,7 @@ impl EngineRegistry {
             storage: Some(storage.clone()),
             model_manager: None,
             audio_capture: Arc::new(AudioCaptureManager::default()),
-            tts_engine: Arc::new(AuthenticTtsEngine::new()),
+            tts_engine: Arc::new(AuthenticTtsEngine::new_with_storage(Some(storage.clone()))),
             transliteration: Arc::new(TransliterationEngine::default()),
             lru_cache: BoundedLruCache::new(2000),
             circuit_breakers: cbs,
@@ -558,16 +558,20 @@ impl EngineRegistry {
                         storage.search_rich_dictionary(&masked_text, Some(src_lang), None, 5)
                     {
                         for entry in &res.rich_entries {
-                            if let Some(targets) =
-                                entry.target_equivalents.get(req.target_lang.as_bcp47())
-                            {
-                                if let Some(first) = targets.first() {
-                                    tier1_match = Some((first.clone(), entry.headword.clone()));
-                                    for s in &entry.senses {
-                                        dictionary_senses
-                                            .push(format!("{}: {}", entry.headword, s.definition));
+                            if entry.headword.eq_ignore_ascii_case(&masked_text) {
+                                if let Some(targets) =
+                                    entry.target_equivalents.get(req.target_lang.as_bcp47())
+                                {
+                                    if let Some(first) = targets.first() {
+                                        tier1_match = Some((first.clone(), entry.headword.clone()));
+                                        for s in &entry.senses {
+                                            dictionary_senses.push(format!(
+                                                "{}: {}",
+                                                entry.headword, s.definition
+                                            ));
+                                        }
+                                        break;
                                     }
-                                    break;
                                 }
                             }
                         }
@@ -602,7 +606,7 @@ impl EngineRegistry {
                 let trans_req = TranslationRequest {
                     pair,
                     text: masked_text.clone(),
-                    allow_cloud: true,
+                    allow_cloud: req.allow_cloud,
                 };
 
                 let trans_start = std::time::Instant::now();
@@ -908,6 +912,7 @@ mod tests {
             formality: FormalityMode::Formal,
             enable_transliteration: true,
             domain_glossary: None,
+            allow_cloud: false,
         };
 
         let res = registry.translate_with_intelligence(req).await.unwrap();

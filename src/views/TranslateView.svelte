@@ -21,6 +21,7 @@
     addFavorite,
     listFavorites,
     removeFavorite,
+    synthesizeSpeech,
   } from '../lib/ipc';
 
   export let settings: UserSettings | null = null;
@@ -54,6 +55,15 @@
   let showHistory = false;
   let historyList: TranslationRecord[] = [];
   let favoritesList: FavoriteItem[] = [];
+
+  // Stage 11: Real Audio Capture & Neural TTS
+  let isSpeakingSource = false;
+  let isSpeakingTarget = false;
+  let ttsSpeed = 1.0;
+  let activeAudioContext: AudioContext | null = null;
+  let activeAudioSource: AudioBufferSourceNode | null = null;
+  let isDictating = false;
+  let speechRecognition: any = null;
 
   $: if (settings) {
     sourceLang = settings.source_language;
@@ -261,6 +271,123 @@
     targetLang = tgt;
     executeTranslation();
   }
+
+  function stopAudioPlayback() {
+    if (activeAudioSource) {
+      try {
+        activeAudioSource.stop();
+      } catch (_) {}
+      activeAudioSource = null;
+    }
+    if (activeAudioContext) {
+      try {
+        activeAudioContext.close();
+      } catch (_) {}
+      activeAudioContext = null;
+    }
+    isSpeakingSource = false;
+    isSpeakingTarget = false;
+  }
+
+  async function speakText(text: string, lang: LanguageCode, isSource: boolean) {
+    if (!text.trim()) return;
+
+    if ((isSource && isSpeakingSource) || (!isSource && isSpeakingTarget)) {
+      stopAudioPlayback();
+      return;
+    }
+
+    stopAudioPlayback();
+    if (isSource) isSpeakingSource = true;
+    else isSpeakingTarget = true;
+
+    try {
+      const resp = await synthesizeSpeech({
+        text,
+        language: lang,
+        speed: ttsSpeed,
+        pitch: 1.0,
+      });
+
+      if (resp && resp.audio_samples && resp.audio_samples.length > 0) {
+        const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+        activeAudioContext = new AudioCtx({ sampleRate: resp.sample_rate || 16000 });
+        const buffer = activeAudioContext.createBuffer(1, resp.audio_samples.length, resp.sample_rate || 16000);
+        const channelData = buffer.getChannelData(0);
+        for (let i = 0; i < resp.audio_samples.length; i++) {
+          const s = resp.audio_samples[i];
+          channelData[i] = Math.abs(s) > 1.0 ? s / 32768.0 : s;
+        }
+
+        activeAudioSource = activeAudioContext.createBufferSource();
+        activeAudioSource.buffer = buffer;
+        activeAudioSource.connect(activeAudioContext.destination);
+        activeAudioSource.onended = () => {
+          stopAudioPlayback();
+        };
+        activeAudioSource.start();
+      } else {
+        stopAudioPlayback();
+      }
+    } catch (e) {
+      console.error('TTS synthesis failed:', e);
+      stopAudioPlayback();
+    }
+  }
+
+  function toggleDictation() {
+    if (isDictating) {
+      if (speechRecognition) {
+        try {
+          speechRecognition.stop();
+        } catch (_) {}
+      }
+      isDictating = false;
+      return;
+    }
+
+    const SpeechRec = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRec) {
+      alert('Voice dictation is supported in modern browsers (Chrome, Edge, Safari) via Web Speech API.');
+      return;
+    }
+
+    try {
+      speechRecognition = new SpeechRec();
+      speechRecognition.lang = sourceLang === 'kn-IN' ? 'kn-IN' : sourceLang === 'ta-IN' ? 'ta-IN' : 'en-US';
+      speechRecognition.continuous = false;
+      speechRecognition.interimResults = true;
+
+      speechRecognition.onstart = () => {
+        isDictating = true;
+      };
+
+      speechRecognition.onresult = (event: any) => {
+        let transcript = '';
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          transcript += event.results[i][0].transcript;
+        }
+        if (transcript) {
+          sourceText = transcript;
+          handleInput();
+        }
+      };
+
+      speechRecognition.onerror = (event: any) => {
+        console.error('Speech recognition error:', event.error);
+        isDictating = false;
+      };
+
+      speechRecognition.onend = () => {
+        isDictating = false;
+      };
+
+      speechRecognition.start();
+    } catch (e) {
+      console.error('Failed to start speech recognition:', e);
+      isDictating = false;
+    }
+  }
 </script>
 
 <svelte:window on:keydown={handleKeyDown} />
@@ -386,22 +513,58 @@
       {/if}
 
       <div class="panel-footer">
-        <button
-          class="btn-secondary"
-          on:click={() => {
-            sourceText = '';
-            translationResult = null;
-            translationError = null;
-          }}
-          disabled={!sourceText}
-        >
-          Clear
-        </button>
-        {#if sourceText}
-          <button class="btn-secondary" on:click={() => copyText(sourceText)}>
-            {copied ? 'Copied!' : 'Copy'}
+        <div class="footer-actions-left">
+          <button
+            class="btn-audio {isDictating ? 'btn-dictating-active' : ''}"
+            on:click={toggleDictation}
+            title={isDictating ? 'Stop Voice Dictation' : 'Start Voice Dictation (🎙️)'}
+          >
+            {#if isDictating}
+              <span class="pulsing-mic">🔴</span> Listening...
+            {:else}
+              🎙️ Dictate
+            {/if}
           </button>
-        {/if}
+
+          {#if sourceText.trim()}
+            <button
+              class="btn-audio {isSpeakingSource ? 'btn-audio-playing' : ''}"
+              on:click={() => speakText(sourceText, sourceLang, true)}
+              title={isSpeakingSource ? 'Stop Speaking' : 'Listen to Source Text (🔊)'}
+            >
+              {isSpeakingSource ? '⏹ Stop' : '🔊 Listen'}
+            </button>
+            <div class="speed-selector" title="Speech Playback Speed">
+              {#each [0.75, 1.0, 1.25] as speed}
+                <button
+                  class="speed-chip {ttsSpeed === speed ? 'active' : ''}"
+                  on:click={() => (ttsSpeed = speed)}
+                >
+                  {speed}x
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
+
+        <div class="footer-actions-right">
+          <button
+            class="btn-secondary"
+            on:click={() => {
+              sourceText = '';
+              translationResult = null;
+              translationError = null;
+            }}
+            disabled={!sourceText}
+          >
+            Clear
+          </button>
+          {#if sourceText}
+            <button class="btn-secondary" on:click={() => copyText(sourceText)}>
+              {copied ? 'Copied!' : 'Copy'}
+            </button>
+          {/if}
+        </div>
       </div>
     </div>
 
@@ -529,6 +692,24 @@
       <div class="panel-footer">
         {#if translationResult}
           <div class="footer-actions">
+            <button
+              class="btn-audio {isSpeakingTarget ? 'btn-audio-playing' : ''}"
+              on:click={() => speakText(translationResult?.translated_text ?? '', targetLang, false)}
+              title={isSpeakingTarget ? 'Stop Speaking' : 'Listen to Translated Text (🔊)'}
+            >
+              {isSpeakingTarget ? '⏹ Stop' : '🔊 Listen'}
+            </button>
+            <div class="speed-selector" title="Speech Playback Speed">
+              {#each [0.75, 1.0, 1.25] as speed}
+                <button
+                  class="speed-chip {ttsSpeed === speed ? 'active' : ''}"
+                  on:click={() => (ttsSpeed = speed)}
+                >
+                  {speed}x
+                </button>
+              {/each}
+            </div>
+
             <button
               class="btn-secondary"
               on:click={() => copyText(translationResult?.translated_text ?? '')}
@@ -943,7 +1124,103 @@
 
   .footer-actions {
     display: flex;
+    align-items: center;
     gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .footer-actions-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .footer-actions-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-audio {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-primary);
+    padding: 6px 12px;
+    border-radius: var(--radius-sm);
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all var(--transition-fast);
+  }
+
+  .btn-audio:hover {
+    background: var(--bg-elevated);
+    border-color: var(--border-focus);
+    color: var(--text-accent);
+  }
+
+  .btn-audio-playing {
+    background: rgba(16, 185, 129, 0.15) !important;
+    border-color: #10b981 !important;
+    color: #10b981 !important;
+    animation: pulse-audio 1.2s infinite;
+  }
+
+  .btn-dictating-active {
+    background: rgba(239, 68, 68, 0.15) !important;
+    border-color: #ef4444 !important;
+    color: #ef4444 !important;
+    animation: pulse-audio 1s infinite;
+  }
+
+  @keyframes pulse-audio {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.85; transform: scale(0.98); }
+  }
+
+  .pulsing-mic {
+    display: inline-block;
+    animation: blink 0.8s infinite;
+  }
+
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.2; }
+  }
+
+  .speed-selector {
+    display: inline-flex;
+    align-items: center;
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    border-radius: var(--radius-sm);
+    padding: 2px;
+    gap: 2px;
+  }
+
+  .speed-chip {
+    background: transparent;
+    border: none;
+    color: var(--text-muted);
+    font-size: 0.72rem;
+    padding: 2px 6px;
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 500;
+    transition: all var(--transition-fast);
+  }
+
+  .speed-chip:hover {
+    color: var(--text-primary);
+  }
+
+  .speed-chip.active {
+    background: var(--text-accent);
+    color: #ffffff;
   }
 
   .favorited {

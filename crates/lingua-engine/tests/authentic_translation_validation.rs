@@ -34,6 +34,7 @@ async fn test_adventure_translation_en_to_kn_returns_sahasa_and_never_devegouda(
         domain_glossary: None,
         enable_transliteration: true, // Should not mangle English input
         formality: FormalityMode::Neutral,
+        allow_cloud: false,
     };
 
     let intel_res = registry
@@ -85,6 +86,7 @@ async fn test_adventure_translation_en_to_ta_returns_cakacam() {
         domain_glossary: None,
         enable_transliteration: false,
         formality: FormalityMode::Neutral,
+        allow_cloud: false,
     };
 
     let intel_res = registry
@@ -109,6 +111,7 @@ async fn test_transliteration_ime_does_not_mangle_english_adventure_into_indic()
         domain_glossary: None,
         enable_transliteration: true, // User left transliteration IME button active
         formality: FormalityMode::Neutral,
+        allow_cloud: false,
     };
 
     let intel_res = registry
@@ -137,6 +140,7 @@ async fn test_mode_b_output_phonetic_reading_aid_iso15919() {
         domain_glossary: None,
         enable_transliteration: false,
         formality: FormalityMode::Neutral,
+        allow_cloud: false,
     };
 
     let kn_res = registry
@@ -157,6 +161,7 @@ async fn test_mode_b_output_phonetic_reading_aid_iso15919() {
         domain_glossary: None,
         enable_transliteration: false,
         formality: FormalityMode::Neutral,
+        allow_cloud: false,
     };
 
     let ta_res = registry
@@ -182,6 +187,7 @@ async fn test_honest_telemetry_no_fake_chrf_on_live_translation() {
         domain_glossary: None,
         enable_transliteration: false,
         formality: FormalityMode::Neutral,
+        allow_cloud: false,
     };
 
     let res = registry
@@ -212,6 +218,7 @@ async fn test_offline_compositional_gloss_on_uninstalled_nmt() {
         domain_glossary: None,
         enable_transliteration: false,
         formality: FormalityMode::Neutral,
+        allow_cloud: false,
     };
 
     let res = registry

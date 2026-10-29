@@ -3,12 +3,15 @@
   import {
     checkDatabaseHealth,
     exportUserData,
+    getAudioDevices,
+    getAudioOutputDevices,
     getPrivacySettings,
     purgeUserData,
     savePrivacySettings,
   } from '../lib/ipc';
   import {
     SUPPORTED_LANGUAGES,
+    type AudioDeviceItem,
     type DatabaseHealthInfo,
     type DataPrivacySettings,
     type EnginePreference,
@@ -19,6 +22,7 @@
 
   export let settings: UserSettings | null = null;
   export let onSaveSettings: (settings: UserSettings) => Promise<void>;
+  export let onNavigate: ((view: string) => void) | undefined = undefined;
 
   let theme: ThemeMode = settings?.theme ?? 'system';
   let sourceLang: LanguageCode = settings?.source_language ?? 'en-US';
@@ -29,6 +33,10 @@
   let vadSensitivity: number = settings?.audio?.vad_sensitivity ?? 0.5;
   let echoCancel: boolean = settings?.audio?.echo_cancellation ?? true;
   let noiseSuppress: boolean = settings?.audio?.noise_suppression ?? true;
+  let inputDevices: AudioDeviceItem[] = [];
+  let outputDevices: AudioDeviceItem[] = [];
+  let selectedInputDevice = settings?.audio?.input_device_id ?? '';
+  let selectedOutputDevice = settings?.audio?.output_device_id ?? '';
 
   let saving = false;
   let saveSuccess = false;
@@ -47,8 +55,8 @@
         engine_preference: enginePref,
         offline_only: offlineOnly,
         audio: {
-          input_device_id: settings?.audio?.input_device_id ?? null,
-          output_device_id: settings?.audio?.output_device_id ?? null,
+          input_device_id: selectedInputDevice || null,
+          output_device_id: selectedOutputDevice || null,
           sample_rate: 16000,
           channels: 1,
           vad_sensitivity: Number(vadSensitivity),
@@ -147,8 +155,14 @@
     }
   }
 
-  onMount(() => {
+  onMount(async () => {
     loadPrivacy();
+    try {
+      inputDevices = await getAudioDevices();
+      outputDevices = await getAudioOutputDevices();
+    } catch (e) {
+      console.warn('Failed to load audio hardware devices:', e);
+    }
   });
 </script>
 
@@ -214,10 +228,43 @@
 
   <!-- Audio & Speech Settings -->
   <section class="settings-card glass-panel">
-    <h2>Audio & Conversation Hardware</h2>
-    <p class="section-desc">Hardware capture filters, VAD sensitivity, and acoustic feedback elimination.</p>
+    <div class="card-header-row">
+      <div>
+        <h2>Audio & Conversation Hardware</h2>
+        <p class="section-desc">Hardware capture filters, VAD sensitivity, and acoustic feedback elimination.</p>
+      </div>
+      {#if onNavigate}
+        <button class="btn-secondary" on:click={() => onNavigate?.('downloads')}>
+          Model Manager ➔
+        </button>
+      {/if}
+    </div>
 
     <div class="form-grid">
+      <div class="form-group">
+        <label for="input-device">
+          <span class="icon">🎙️</span> Microphone (Audio Input)
+        </label>
+        <select id="input-device" bind:value={selectedInputDevice}>
+          <option value="">Default System Microphone</option>
+          {#each inputDevices as dev}
+            <option value={dev.id}>{dev.name}</option>
+          {/each}
+        </select>
+      </div>
+
+      <div class="form-group">
+        <label for="output-device">
+          <span class="icon">🔊</span> Speaker / Headphones (Audio Output)
+        </label>
+        <select id="output-device" bind:value={selectedOutputDevice}>
+          <option value="">Default System Output</option>
+          {#each outputDevices as dev}
+            <option value={dev.id}>{dev.name}</option>
+          {/each}
+        </select>
+      </div>
+
       <div class="form-group">
         <label for="vad-slider">VAD Speech Sensitivity: {vadSensitivity}</label>
         <input

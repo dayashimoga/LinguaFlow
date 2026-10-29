@@ -270,6 +270,7 @@ async fn test_full_intelligence_translation_pipeline() {
         formality: FormalityMode::Formal,
         enable_transliteration: true,
         domain_glossary: Some("general".into()),
+        allow_cloud: false,
     };
 
     let res = registry.translate_with_intelligence(req).await.unwrap();
@@ -291,6 +292,7 @@ async fn test_full_intelligence_translation_pipeline() {
         formality: FormalityMode::Neutral,
         enable_transliteration: false,
         domain_glossary: None,
+        allow_cloud: false,
     };
     let res2 = registry.translate_with_intelligence(req2).await.unwrap();
     assert_eq!(res2.metadata.engine_selected, "in_memory_lru_cache");

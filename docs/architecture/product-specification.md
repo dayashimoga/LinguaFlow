@@ -39,6 +39,13 @@ The platform bridges desktop, mobile, and web through a unified Rust core with n
 | **Stage 6** | **Media, Captions & Integrations**: Video/audio file subtitling, desktop live overlay, camera OCR, document translation. | Pending Stage 5 Gate |
 | **Stage 7** | **Learning & Production Certification**: Spaced repetition, UX accessibility audit, security hardening, release packaging. | Pending Stage 6 Gate |
 | **Stage 8** | **Commercial & Enterprise Platform**: Multi-tenant workspaces, usage metering, developer APIs, scalable edge gateways. | Pending Stage 7 Gate |
+| **Stage 9** | **Linguistic Data Integrity & Lexicon Seeding**: Production trilingual datasets (en-US, kn-IN, ta-IN), Rust ETL compiler, rich multi-sense schema, FTS5 morphology. | Planned (Part 2) |
+| **Stage 10** | **Authentic Translation & Telemetry Honesty**: Eradication of mock hallucinations, 3-tier offline NMT routing, IME transliteration separation, honest engine attribution. | Planned (Part 2) |
+| **Stage 11** | **Real Speech Pipeline (ASR & TTS)**: Native `cpal` audio capture, Silero VAD ONNX, real offline streaming ASR, neural VITS/Piper TTS. | Planned (Part 2) |
+| **Stage 12** | **Media, Indic OCR & Document Parser**: Symphonia streaming media decoder, bilingual SRT/VTT editor, Indic OCR, multi-format doc parser, borderless overlay. | Planned (Part 2) |
+| **Stage 13** | **UI/UX Polish & Navigation**: Fix truncated selector layouts, remove stage subtitles, consolidate nav drawer, embedded Indic Noto variable webfonts. | Planned (Part 2) |
+| **Stage 14** | **Model Lifecycle & Dynamic Decks**: Resumable HTTP Range model downloads, SHA-256 verification, dictionary-driven SM-2 decks, Axum RBAC middleware. | Planned (Part 2) |
+| **Stage 15** | **Golden Certification & Release**: Curated 500-pair regression suite, automated visual E2E tests, dual-tier benchmarks, certified release artifacts. | Planned (Part 2) |
 
 ---
 

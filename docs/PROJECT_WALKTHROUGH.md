@@ -283,3 +283,4 @@ cargo build --release --workspace
 - **SECURITY.md**: Details vulnerability reporting, bounded memory constraints, cryptographic storage, and the zero-log privacy policy.
 - **LICENSES.md & SBOM.json**: All 200+ dependencies are audited and compliant with permissive Apache-2.0, MIT, BSD-3, and dual-licensed models. Commercial copyleft restrictions are strictly avoided.
 - **Append-Only History**: Both `TODO.md` and `CHANGELOG.md` are strictly append-only, preserving the exact audit trail across all stages of project development.
+

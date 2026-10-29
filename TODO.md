@@ -560,4 +560,17 @@
   - Provided project summary, CI badges, architecture diagram, crate matrix, microbenchmark table, quickstart commands, and documentation links.
 - [x] Updated `docs/CODE_UNDERSTANDING.md` to reference `PROJECT_WALKTHROUGH.md`.
 
+### [2026-10-29 07:20 UTC] Part 2 Specification Creation (Stages 9 – 15)
+- [x] Created Part 2 stage specification documents under `docs/stages/`:
+  - `stage-09-linguistic-integrity.md`: Sourcing open-licensed corpora, Rust ETL compiler (`dict-import`), rich schema migration 010, FTS5 morphology, debounced search UI.
+  - `stage-10-authentic-translation.md`: Eradicating mock hallucinations, 3-tier deterministic offline translation, directional transliteration IME fix, Indic abugida grapheme engine, honest telemetry badges.
+  - `stage-11-neural-speech.md`: Cross-platform `cpal` audio capture, Silero VAD ONNX, offline streaming ASR, neural VITS/Piper TTS voice synthesis, UI audio controls.
+  - `stage-12-media-ocr-docs.md`: Streaming audio demuxing via `symphonia`, timestamped SRT/VTT subtitle editor, Indic OCR, multi-format doc parser, borderless desktop overlay.
+  - `stage-13-ui-ux-polish.md`: Eliminating selector truncations, removing internal development stage headers, consolidated navigation drawer, responsive bottom nav, keyboard shortcuts, embedded Noto Indic webfonts.
+  - `stage-14-model-lifecycle.md`: Resumable HTTP Range model downloads with SHA-256 verification, dictionary-driven SM-2 flashcard decks, microphone pronunciation practice, end-to-end Axum RBAC middleware.
+  - `stage-15-golden-certification.md`: Automated 500-pair golden linguistic regression suite, headless Playwright E2E verification, bifurcated dual-tier benchmarks in `BENCHMARKS.md`, multi-platform signed distribution packages.
+  - `part-2-stages-09-15.md`: Master index and architectural objectives for Part 2 stages.
+- [x] Updated `docs/architecture/product-specification.md` scope table with Stages 9 through 15.
+
+
 

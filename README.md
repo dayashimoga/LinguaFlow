@@ -166,3 +166,4 @@ cargo run -p lingua-cli --release -- bench --iterations 500
 ## License
 
 Licensed under the Apache License, Version 2.0 or the MIT License at your option. See [LICENSE](LICENSE) for details.
+

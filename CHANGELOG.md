@@ -533,6 +533,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Root Repository Guide (`README.md`)**:
   - Authored official project `README.md` with status badges, quickstart guides, microbenchmark performance summaries, crate matrices, and navigation links.
   - Linked `docs/CODE_UNDERSTANDING.md` directly to `docs/PROJECT_WALKTHROUGH.md`.
+- **Part 2 Next-Generation Remediation & Enhancement Stages (Stages 9 – 15)**:
+  - Formulated and added comprehensive stage specifications in `docs/stages/`:
+    - `stage-09-linguistic-integrity.md`: Open-licensed lexicon acquisition (Alar, Wiktextract, Madras Tamil Lexicon), Rust ETL compiler (`lingua-cli dict-import`), rich schema migration 010, FTS5 morphology and debounced search UI.
+    - `stage-10-authentic-translation.md`: Purging mock hallucinations, 3-tier deterministic offline translation, directional transliteration IME fix, Indic abugida grapheme engine, and honest telemetry badges.
+    - `stage-11-neural-speech.md`: Cross-platform `cpal` audio capture, Silero VAD ONNX, offline streaming ASR (`sherpa-onnx`/`whisper`), neural VITS/Piper/MMS-TTS voice synthesis, and UI audio controls.
+    - `stage-12-media-ocr-docs.md`: Streaming audio demuxing via `symphonia`, timestamped SRT/VTT subtitle editor, Unicode Indic OCR, structured doc parser, and borderless desktop overlay.
+    - `stage-13-ui-ux-polish.md`: Eliminating selector truncations, removing internal development stage headers, consolidated navigation drawer, responsive bottom nav, keyboard shortcuts, and embedded Noto Indic webfonts.
+    - `stage-14-model-lifecycle.md`: Resumable HTTP Range model downloads with SHA-256 verification, dictionary-driven SM-2 flashcard decks, microphone pronunciation practice, and end-to-end Axum RBAC middleware.
+    - `stage-15-golden-certification.md`: Automated 500-pair golden linguistic regression suite, headless Playwright E2E verification, bifurcated dual-tier benchmarks in `BENCHMARKS.md`, and multi-platform signed distribution packages.
+    - `part-2-stages-09-15.md`: Master index and architectural objectives for Part 2 stages.
+
 
 
 

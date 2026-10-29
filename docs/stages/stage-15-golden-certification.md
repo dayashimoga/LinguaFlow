@@ -51,3 +51,4 @@ Execute the Global Engineering Contract. Replace stubbed microbenchmarks with se
 2. Playwright/WebDriver headless tests verify zero visual regressions across all views.
 3. `docs/BENCHMARKS.md` clearly bifurcates microsecond-scale pipeline overhead from millisecond-scale neural model execution times.
 4. All CI matrix builds (Windows, Linux, macOS, Android, iOS, Web PWA) compile cleanly with matching SHA-256 manifests.
+

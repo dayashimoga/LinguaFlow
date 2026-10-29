@@ -51,3 +51,4 @@ Execute the Global Engineering Contract. Replace mathematical dummy waveforms (4
 3. Streaming ASR produces authentic partial and final transcripts for supported languages when models are installed.
 4. Missing speech models trigger honest download callouts in `ModelsView.svelte` without emitting dummy transcripts.
 5. Neural TTS synthesizes intelligible, natural-sounding audio for Kannada, Tamil, and English with OS native synthesizer fallback.
+

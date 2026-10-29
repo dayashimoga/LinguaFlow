@@ -52,3 +52,4 @@ Execute the Global Engineering Contract. Fix all visual defects visible in the U
 3. Developer HUD is hidden by default and toggleable via user settings.
 4. Top navigation is consolidated into core views plus an administrative drawer, with responsive mobile bottom bar adaptation.
 5. All Kannada and Tamil complex conjuncts render without clipping or overlapping glyphs using embedded Noto fonts.
+

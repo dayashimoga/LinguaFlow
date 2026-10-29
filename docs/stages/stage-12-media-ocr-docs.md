@@ -44,3 +44,4 @@ Execute the Global Engineering Contract. Replace the 0.52 ms Otsu bounding-box s
 3. OCR extracts Unicode Indic text from images and clipboard screenshots for Kannada, Tamil, and English.
 4. Structured documents (PDF, DOCX, CSV, MD) preserve layout, tables, and markup across batch translation.
 5. Desktop caption overlay creates a borderless, transparent, draggable native multi-window overlay.
+

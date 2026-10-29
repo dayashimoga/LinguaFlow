@@ -64,3 +64,4 @@ Execute the Global Engineering Contract. Eradicate the `"adventure"` $\rightarro
 3. Typing English source text with transliteration enabled does not mangle English into Indic script (no `ಡವೆನಟುರೆ`).
 4. Output phonetic aids correctly display ISO-15919 pronunciations (`sāhasa`, `cākacam`).
 5. Live translation outputs display truthful engine badges and zero self-referential `chrF: 100.0%` scores.
+

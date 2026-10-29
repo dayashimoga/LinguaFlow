@@ -66,3 +66,4 @@ Execute the Global Engineering Contract. Eliminate the empty dictionary failure 
 2. Ingested datasets pass Unicode normalization and script boundary checks with zero malformed characters across $\ge 50,000$ English, $\ge 60,000$ Kannada, and $\ge 60,000$ Tamil headwords.
 3. Morphological lemmatizer resolves inflected forms (`ಸಾಹಸಗಳನ್ನು`, `சாகசங்களை`, `adventures`) to base stems.
 4. All unit, integration, and UI tests pass with zero regressions.
+

@@ -24,3 +24,4 @@ Part 2 establishes an end-to-end engineering roadmap structured as **Stages $\ri
 2. **Linguistic Authenticity**: Ensure common vocabulary (e.g., `"adventure"`) reliably maps to accurate Kannada (**ಸಾಹಸ**) and Tamil (**சாகசம்**) equivalents across both dictionary search and sentence translation.
 3. **Telemetry Truthfulness**: Enforce single-engine attribution badges, display actual wall-clock monotonic latencies, and eliminate self-referential `chrF: 100.0%` scores on live translation outputs.
 4. **Visual & Accessibility Polish**: Resolve control bar clipping, provide fluid responsive navigation, and support proper Unicode rendering for complex Dravidian conjuncts.
+

@@ -47,3 +47,4 @@ Execute the Global Engineering Contract. Ensure `ModelsView`, `LearnView`, and `
 2. Saving words in `TranslateView` or `DictionaryView` immediately creates reviewable cards in `LearnView.svelte`.
 3. Pronunciation assessment evaluates spoken audio against target texts via real ASR phonemes and CER/chrF metrics.
 4. `lingua-server` enforces RBAC policies, API key bearer authentication, and token-bucket quotas with tamper-evident audit logs.
+

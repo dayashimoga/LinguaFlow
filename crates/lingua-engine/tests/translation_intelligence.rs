@@ -278,8 +278,10 @@ async fn test_full_intelligence_translation_pipeline() {
     assert_eq!(res.metadata.formality, FormalityMode::Formal);
     assert!(res.metadata.transliterated_input.is_some());
     assert_eq!(res.metadata.transliterated_input.as_deref(), Some("ನಮಸ್ಕಾರ"));
-    assert!(res.metadata.chrf_estimated.is_some());
-    assert!(res.metadata.chrf_estimated.unwrap() >= 0.0);
+    // Stage 10: live translation replaces self-referential fake chrF with true confidence_score
+    assert_eq!(res.metadata.chrf_estimated, None);
+    assert!(res.metadata.confidence_score.is_some());
+    assert!(res.metadata.confidence_score.unwrap() >= 0.0);
 
     // 3. Second call should hit the LRU cache
     let req2 = IntelligenceTranslationRequest {

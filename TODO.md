@@ -596,6 +596,29 @@
   - Authored `docs/STAGE_9_ACCEPTANCE_REPORT.md` and updated `BENCHMARKS.md`, `requirements-traceability-matrix.md`, `TODO.md`, and `CHANGELOG.md`.
 - [x] Stage 9 certified complete and ready for user review.
 
+### [2026-10-29 09:20 UTC] Stage 10: Authentic Translation Engine, Transliteration Fix & Telemetry Honesty Completion
+- [x] Phase 10.1 — Eradication of Mock/Broken Providers & Authentic Engine Routing:
+  - Eradicated `"adventure"` -> `"ದೇವೇಗೌಡರು"` hallucination by establishing transparent Tier 1 offline verified lexicon lookup prior to external HTTP requests.
+  - Implemented multi-word offline compositional glossing fallback (`is_compositional_gloss: true`, confidence 0.65) with explicit indicator when neural models are uninstalled.
+  - Enforced structured error propagation without falling back to corrupted or unauthenticated public scrapers.
+- [x] Phase 10.2 — Bi-Directional Phonetic Transliteration & Script Rendering Fix:
+  - Fixed English input transliteration bug (`Script: ಡವೆನಟುರೆ`): guarded Mode A IME so English source input is never transliterated into Indic characters.
+  - Implemented Mode B Target Output Phonetic Reading Aid in `crates/lingua-engine/src/transliteration.rs`: `kannada_to_iso15919` and `tamil_to_iso15919` Abugida engines providing standardized ISO-15919 romanization (`ಸಾಹಸ` -> `sāhasa`, `சாகசம்` -> `cākacam`).
+  - Added Mode B card to `src/views/TranslateView.svelte` with pronunciation aid.
+- [x] Phase 10.3 — Honest Telemetry Badges & Removal of Fake Live chrF Scores:
+  - Purged fake self-referential `chrF: 100.0%` score from live translation pipeline and `TranslateView.svelte`.
+  - Added authentic `✓ Confidence: XX%` score and `📖 Alternate Lexicon Senses` preview card.
+  - Unified engine attribution badges: `⚡ Offline Lexicon (FTS5)`, `🧠 Local Neural Model`, `💾 Offline Cache`, `⚠️ Offline Gloss`, and `🌐 Cloud HTTP`.
+- [x] Phase 10.4 — Verification & Release Readiness:
+  - Authored 6 new integration tests in `crates/lingua-engine/tests/authentic_translation_validation.rs` (100% pass rate).
+  - Workspace test suite: 160/160 tests passing across all crates.
+  - Strict Clippy check: 0 errors, 0 warnings.
+  - Frontend typecheck (`npm run check`): 0 errors, 0 warnings.
+  - Production web bundle build (`npm run build`): completed in 2.57s.
+  - Benchmarks: Tier 1 Lexicon lookup < 0.4 ms, LRU Cache lookup < 0.15 ms, Transliteration < 0.001 ms.
+  - Authored `docs/STAGE_10_ACCEPTANCE_REPORT.md` and updated `BENCHMARKS.md`, `requirements-traceability-matrix.md`, `TODO.md`, and `CHANGELOG.md`.
+- [x] Stage 10 certified complete and ready for user review.
+
 
 
 

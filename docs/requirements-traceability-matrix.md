@@ -133,3 +133,26 @@ This Requirements Traceability Matrix (RTM) establishes bidirectional traceabili
 | **8.5** | `REQ-8.5-SCALE`| Distributed inference worker pool, concurrency control, bounded queue backpressure, health checking, and outage drill recovery. | Task queue capacity limit enforcement with `WorkerCapacityExceeded`; live health outage toggle and graceful recovery. | `test_inference_worker_pool_backpressure_and_failover`, `test_worker_pool_dispatch_and_backpressure` | **VERIFIED** |
 | **8.6** | `REQ-8.6-AUDIT`| Enterprise compliance, SOC2/ISO 27001 readiness review, truthful certification disclosure (Contract Rule 13), and commercial release acceptance. | Truthful audit declarations; comprehensive SRE Runbook and User Guide updates; 100% test pass rate across workspace. | `test_audit_event_soc2_compliance_trail`, `cargo test --workspace` (114/114 passed), `lingua doctor` | **VERIFIED** |
 
+---
+
+## Stage 9: Linguistic Data Integrity, Lexicon Seeding & Dictionary UX
+
+| Stage.Phase | Feature ID | Requirement / Scope Description | Acceptance Criterion | Test Mapping | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **9.1** | `REQ-9.1-ETL` | Trilingual open-licensed dataset ETL pipeline (`lingua-cli dict-import`), NFC normalization, script boundary validation. | ODC-By/CC-BY/CC-BY-SA license provenance in `docs/LEXICON_PROVENANCE.md`; clean parsing of JSONL/CSV/TSV. | `test_validate_script_boundaries`, `test_strip_wikitext_and_html` | **VERIFIED** |
+| **9.2** | `REQ-9.2-SCHEMA`| Migration 010: `rich_lexicon_entries` & SQLite FTS5 `rich_dictionary_fts` with `tokenize = 'unicode61 tokenchars ''್்'''`. | Virama/pulli grapheme preservation; BM25 weighted ranking (headword, senses, register); baseline seed vocabulary. | `test_migration_010_schema_version`, `test_adventure_lexicon_entry_integrity`, `test_medical_and_logistics_lexicon_integrity` | **VERIFIED** |
+| **9.3** | `REQ-9.3-MORPH` | Agglutinative Dravidian noun-case/plural stemmers (Kannada & Tamil) and English lemmatizer with typo suggestion. | Authentic suffix stripping without over-stemming; Levenshtein distance $\le 2$ typo suggestions. | `test_kannada_sahasa_and_agglutinative_morphology`, `test_tamil_cakacam_and_morphological_assimilation`, `test_fuzzy_did_you_mean_suggestions` | **VERIFIED** |
+| **9.4** | `REQ-9.4-UX` | Responsive Dictionary studio: 120ms debounced search, POS/domain filter pills, sense cards, offline TTS audio, favorites. | Clean Svelte 5 compilation; instant reactive search; zero UI stutter or layout overflow. | `DictionaryView.svelte`, `svelte-check`, `npm run build` | **VERIFIED** |
+
+---
+
+## Stage 10: Authentic Translation Engine, Transliteration Fix & Telemetry Honesty
+
+| Stage.Phase | Feature ID | Requirement / Scope Description | Acceptance Criterion | Test Mapping | Status |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **10.1** | `REQ-10.1-ROUTING`| Tiered offline pipeline: Tier 1 verified FTS5 lexicon pre-check for words/phrases $\le 3$ tokens prior to cloud HTTP. | Eradicates `"adventure"` $\rightarrow$ `"ದೇವೇಗೌಡರು"` hallucination permanently; zero crowdsourced unauthenticated leakage. | `test_adventure_translation_en_to_kn_returns_sahasa_and_never_devegouda`, `test_adventure_translation_en_to_ta_returns_cakacam` | **VERIFIED** |
+| **10.1** | `REQ-10.1-GLOSS` | Offline multi-word compositional glossing fallback when local neural NMT pack is not installed. | Explicit badge `⚠️ OFFLINE GLOSS (DOWNLOAD NMT MODEL FOR FULL FLUENCY)` and confidence `0.65`. | `test_offline_compositional_gloss_on_uninstalled_nmt` | **VERIFIED** |
+| **10.2** | `REQ-10.2-IMEMODE`| Mode A Input Transliteration IME: active only for Indic languages; English source is never transliterated. | English input `"adventure"` is preserved as-is and never converted to `"ಡವೆನಟುರೆ"`. | `test_transliteration_ime_does_not_mangle_english_adventure_into_indic` | **VERIFIED** |
+| **10.2** | `REQ-10.2-READAID`| Mode B Target Output Phonetic Reading Aid: Abugida state machine converts Indic script to ISO-15919 Roman. | Returns `sāhasa` for `ಸಾಹಸ`, `cākacam` for `சாகசம்`, `namaskāra` for `ನಮಸ್ಕಾರ`, `vaṇakkam` for `வணக்கம்`. | `test_mode_b_output_phonetic_reading_aid_iso15919`, `test_indic_to_roman_iso15919` | **VERIFIED** |
+| **10.3** | `REQ-10.3-TELEMETRY`| Truthful single engine attribution badges and removal of fake live `chrF: 100.0%` score from translation UI. | Live translations show authentic confidence score (`✓ Confidence: XX%`) and alternate dictionary senses card. | `test_honest_telemetry_no_fake_chrf_on_live_translation`, `TranslateView.svelte` | **VERIFIED** |
+

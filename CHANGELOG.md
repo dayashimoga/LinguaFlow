@@ -579,6 +579,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Full workspace test suite: 154/154 tests passing across all crates.
   - Microbenchmarks: SQLite FTS5 rich search latency 0.227 ms / op (Threshold: < 20.0 ms - PASS).
 
+## [0.10.0] - 2026-10-29 (Stage 10: Authentic Translation Engine, Transliteration Fix & Telemetry Honesty)
+
+### Fixed
+- **Eradication of "ದೇವೇಗೌಡರು" Translation Hallucination (`lingua-engine`)**:
+  - Reordered engine selection in `crates/lingua-engine/src/registry.rs`: Tier 1 verified SQLite FTS5 lexicon lookup executes *before* any HTTP cloud provider for terms $\le 3$ words.
+  - Translating `"adventure"` from English to Kannada strictly yields `"ಸಾಹಸ"` and to Tamil strictly yields `"சாகசம்"`, eliminating crowdsourced external news fragments.
+- **English Input Transliteration Mangling (`lingua-engine`)**:
+  - Corrected Mode A IME transliteration condition: `req.enable_transliteration` now ignores English (`en-US`) source input, preventing `"adventure"` from being mangled into Indic characters (`ಡವೆನಟುರೆ`).
+- **Telemetry Honesty & Removal of Fake Live chrF Scores (`lingua-engine` & `TranslateView.svelte`)**:
+  - Purged self-referential `chrF: 100.0%` calculation from live translations (where no ground-truth human reference exists). Live translations now set `chrf_estimated: None`.
+  - Replaced chrF badge in `TranslateView.svelte` with authentic Engine Confidence score (`✓ Confidence: XX%`).
+  - Added `📖 Alternate Lexicon Senses` card showing rich dictionary definitions and synonyms.
+  - Unified engine attribution badges: `⚡ Offline Lexicon (FTS5)`, `🧠 Local Neural Model`, `💾 Offline Cache`, `⚠️ Offline Gloss`, and `🌐 Cloud HTTP`.
+
+### Added
+- **Mode B Target Output Phonetic Reading Aid (ISO-15919) (`lingua-engine`)**:
+  - Implemented `kannada_to_iso15919` ($U+0C80\text{--}U+0CFF$) and `tamil_to_iso15919` ($U+0B80\text{--}U+0BFF$) syllabic state machines in `crates/lingua-engine/src/transliteration.rs`.
+  - Accurately converts Indic script to standard ISO-15919 Roman pronunciations: `ಸಾಹಸ` $\rightarrow$ `sāhasa`, `சாகசம்` $\rightarrow$ `cākacam`, `ನಮಸ್ಕಾರ` $\rightarrow$ `namaskāra`, `வணக்கம்` $\rightarrow$ `vaṇakkam`.
+  - Extended `IntelligenceTranslationMetadata` and `TranslateView.svelte` with Mode B phonetic pronunciation aid card (`🗣️ {target_phonetic} [ISO-15919]`).
+- **Offline Multi-Word Compositional Glossing Fallback (`lingua-engine`)**:
+  - Implemented compositional word segmentation and lexicon glossing fallback when a user translates multi-word sentences offline without an installed local NMT model.
+  - Flags output with `is_compositional_gloss: true`, `confidence_score: 0.65`, and explicit UI pill `⚠️ Compositional Gloss`.
+- **Comprehensive Integration Test Suite**:
+  - Authored `crates/lingua-engine/tests/authentic_translation_validation.rs` containing 6 automated acceptance tests verifying all Stage 10 criteria.
+  - All 160 workspace tests passing with 0 failures, 0 clippy warnings, and clean formatting.
+
 
 
 

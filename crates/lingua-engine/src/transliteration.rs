@@ -46,7 +46,21 @@ impl TransliterationEngine {
         let result = match target_lang {
             LanguageCode::KnIn => self.transliterate_to_kannada(trimmed),
             LanguageCode::TaIn => self.transliterate_to_tamil(trimmed),
-            LanguageCode::EnUs => trimmed.to_string(),
+            LanguageCode::EnUs => {
+                if trimmed
+                    .chars()
+                    .any(|c| ('\u{0C80}'..='\u{0CFF}').contains(&c))
+                {
+                    Self::kannada_to_iso15919(trimmed)
+                } else if trimmed
+                    .chars()
+                    .any(|c| ('\u{0B80}'..='\u{0BFF}').contains(&c))
+                {
+                    Self::tamil_to_iso15919(trimmed)
+                } else {
+                    trimmed.to_string()
+                }
+            }
             _ => trimmed.to_string(),
         };
 
@@ -350,6 +364,236 @@ impl TransliterationEngine {
             res
         }
     }
+
+    /// Transliterate native Indic text (Kannada or Tamil) into Roman phonetic reading aid (ISO-15919).
+    pub fn to_phonetic_reading_aid(&self, text: &str, lang: LanguageCode) -> String {
+        match lang {
+            LanguageCode::KnIn => Self::kannada_to_iso15919(text),
+            LanguageCode::TaIn => Self::tamil_to_iso15919(text),
+            _ => text.to_string(),
+        }
+    }
+
+    /// Converts native Kannada script into standardized ISO-15919 Roman phonetic transliteration.
+    pub fn kannada_to_iso15919(text: &str) -> String {
+        let chars: Vec<char> = text.chars().collect();
+        let n = chars.len();
+        let mut res = String::new();
+        let mut i = 0;
+
+        while i < n {
+            let c = chars[i];
+
+            // 1. Independent vowels
+            let vowel = match c {
+                'ಅ' => Some("a"),
+                'ಆ' => Some("ā"),
+                'ಇ' => Some("i"),
+                'ಈ' => Some("ī"),
+                'ಉ' => Some("u"),
+                'ಊ' => Some("ū"),
+                'ಋ' => Some("r̥"),
+                'ಎ' => Some("e"),
+                'ಏ' => Some("ē"),
+                'ಐ' => Some("ai"),
+                'ಒ' => Some("o"),
+                'ಓ' => Some("ō"),
+                'ಔ' => Some("au"),
+                'ಂ' => Some("ṁ"),
+                'ಃ' => Some("ḥ"),
+                _ => None,
+            };
+
+            if let Some(v) = vowel {
+                res.push_str(v);
+                i += 1;
+                continue;
+            }
+
+            // 2. Consonants with abugida inherent 'a'
+            let consonant = match c {
+                'ಕ' => Some("k"),
+                'ಖ' => Some("kh"),
+                'ಗ' => Some("g"),
+                'ಘ' => Some("gh"),
+                'ಙ' => Some("ṅ"),
+                'ಚ' => Some("c"),
+                'ಛ' => Some("ch"),
+                'ಜ' => Some("j"),
+                'ಝ' => Some("jh"),
+                'ಞ' => Some("ñ"),
+                'ಟ' => Some("ṭ"),
+                'ಠ' => Some("ṭh"),
+                'ಡ' => Some("ḍ"),
+                'ಢ' => Some("ḍh"),
+                'ಣ' => Some("ṇ"),
+                'ತ' => Some("t"),
+                'ಥ' => Some("th"),
+                'ದ' => Some("d"),
+                'ಧ' => Some("dh"),
+                'ನ' => Some("n"),
+                'ಪ' => Some("p"),
+                'ಫ' => Some("ph"),
+                'ಬ' => Some("b"),
+                'ಭ' => Some("bh"),
+                'ಮ' => Some("m"),
+                'ಯ' => Some("y"),
+                'ರ' => Some("r"),
+                'ಱ' => Some("ṟ"),
+                'ಲ' => Some("l"),
+                'ವ' => Some("v"),
+                'ಶ' => Some("ś"),
+                'ಷ' => Some("ṣ"),
+                'ಸ' => Some("s"),
+                'ಹ' => Some("h"),
+                'ಳ' => Some("ḷ"),
+                'ೞ' => Some("ḻ"),
+                _ => None,
+            };
+
+            if let Some(con) = consonant {
+                res.push_str(con);
+                if i + 1 < n {
+                    let next = chars[i + 1];
+                    if next == '್' {
+                        // Virama suppresses inherent vowel
+                        i += 2;
+                        continue;
+                    } else if let Some(matra) = match next {
+                        'ಾ' => Some("ā"),
+                        'ಿ' => Some("i"),
+                        'ೀ' => Some("ī"),
+                        'ು' => Some("u"),
+                        'ೂ' => Some("ū"),
+                        'ೃ' => Some("r̥"),
+                        'ೆ' => Some("e"),
+                        'ೇ' => Some("ē"),
+                        'ೈ' => Some("ai"),
+                        'ೊ' => Some("o"),
+                        'ೋ' => Some("ō"),
+                        'ೌ' => Some("au"),
+                        _ => None,
+                    } {
+                        res.push_str(matra);
+                        i += 2;
+                        continue;
+                    }
+                }
+                // No matra or virama following: append inherent 'a'
+                res.push('a');
+                i += 1;
+                continue;
+            }
+
+            // Pass through punctuation, spaces, numbers, Latin
+            res.push(c);
+            i += 1;
+        }
+
+        res
+    }
+
+    /// Converts native Tamil script into standardized ISO-15919 Roman phonetic transliteration.
+    pub fn tamil_to_iso15919(text: &str) -> String {
+        let chars: Vec<char> = text.chars().collect();
+        let n = chars.len();
+        let mut res = String::new();
+        let mut i = 0;
+
+        while i < n {
+            let c = chars[i];
+
+            // 1. Independent vowels & Aayutha Ezhuthu
+            let vowel = match c {
+                'அ' => Some("a"),
+                'ஆ' => Some("ā"),
+                'இ' => Some("i"),
+                'ஈ' => Some("ī"),
+                'உ' => Some("u"),
+                'ஊ' => Some("ū"),
+                'எ' => Some("e"),
+                'ஏ' => Some("ē"),
+                'ஐ' => Some("ai"),
+                'ஒ' => Some("o"),
+                'ஓ' => Some("ō"),
+                'ஔ' => Some("au"),
+                'ஃ' => Some("ḵ"),
+                _ => None,
+            };
+
+            if let Some(v) = vowel {
+                res.push_str(v);
+                i += 1;
+                continue;
+            }
+
+            // 2. Consonants
+            let consonant = match c {
+                'க' => Some("k"),
+                'ங' => Some("ṅ"),
+                'ச' => Some("c"),
+                'ஞ' => Some("ñ"),
+                'ட' => Some("ṭ"),
+                'ண' => Some("ṇ"),
+                'த' => Some("t"),
+                'ந' => Some("n"),
+                'ப' => Some("p"),
+                'ம' => Some("m"),
+                'ய' => Some("y"),
+                'ர' => Some("r"),
+                'ல' => Some("l"),
+                'வ' => Some("v"),
+                'ழ' => Some("ḻ"),
+                'ள' => Some("ḷ"),
+                'ற' => Some("ṟ"),
+                'ன' => Some("ṉ"),
+                'ஜ' => Some("j"),
+                'ஷ' => Some("ṣ"),
+                'ஸ' => Some("s"),
+                'ஹ' => Some("h"),
+                _ => None,
+            };
+
+            if let Some(con) = consonant {
+                res.push_str(con);
+                if i + 1 < n {
+                    let next = chars[i + 1];
+                    if next == '்' {
+                        // Pulli suppresses inherent vowel
+                        i += 2;
+                        continue;
+                    } else if let Some(matra) = match next {
+                        'ா' => Some("ā"),
+                        'ி' => Some("i"),
+                        'ீ' => Some("ī"),
+                        'ு' => Some("u"),
+                        'ூ' => Some("ū"),
+                        'ெ' => Some("e"),
+                        'ே' => Some("ē"),
+                        'ை' => Some("ai"),
+                        'ொ' => Some("o"),
+                        'ோ' => Some("ō"),
+                        'ௌ' => Some("au"),
+                        _ => None,
+                    } {
+                        res.push_str(matra);
+                        i += 2;
+                        continue;
+                    }
+                }
+                // No matra or pulli following: append inherent 'a'
+                res.push('a');
+                i += 1;
+                continue;
+            }
+
+            // Pass through punctuation, spaces, numbers, Latin
+            res.push(c);
+            i += 1;
+        }
+
+        res
+    }
 }
 
 #[cfg(test)]
@@ -406,5 +650,30 @@ mod tests {
         assert_eq!(res1.transliterated, "ಬೆಂಗಳೂರು");
         assert_eq!(res2.transliterated, "ಬೆಂಗಳೂರು");
         assert_eq!(engine.cache.stats().hits, 1);
+    }
+
+    #[test]
+    fn test_indic_to_roman_iso15919() {
+        let engine = TransliterationEngine::default();
+        // Kannada: ಸಾಹಸ -> sāhasa
+        assert_eq!(
+            engine.to_phonetic_reading_aid("ಸಾಹಸ", LanguageCode::KnIn),
+            "sāhasa"
+        );
+        // Kannada: ನಮಸ್ಕಾರ -> namaskāra
+        assert_eq!(
+            engine.to_phonetic_reading_aid("ನಮಸ್ಕಾರ", LanguageCode::KnIn),
+            "namaskāra"
+        );
+        // Tamil: சாகசம் -> cākacam
+        assert_eq!(
+            engine.to_phonetic_reading_aid("சாகசம்", LanguageCode::TaIn),
+            "cākacam"
+        );
+        // Tamil: வணக்கம் -> vaṇakkam
+        assert_eq!(
+            engine.to_phonetic_reading_aid("வணக்கம்", LanguageCode::TaIn),
+            "vaṇakkam"
+        );
     }
 }

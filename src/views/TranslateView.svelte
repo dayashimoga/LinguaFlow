@@ -292,9 +292,9 @@
         <button
           class="btn-toggle-chip {enableTransliteration ? 'active' : ''}"
           on:click={() => { enableTransliteration = !enableTransliteration; executeTranslation(); }}
-          title="Phonetic transliteration for Romanized Kannada & Tamil (Kanglish / Tanglish)"
+          title={sourceLang === 'en-US' ? 'Transliteration IME is active when typing Kannada/Tamil in Roman script (Kanglish/Tanglish)' : 'Phonetic transliteration for Romanized input'}
         >
-          🔤 Transliterate {enableTransliteration ? 'ON' : 'OFF'}
+          🔤 Transliterate IME {enableTransliteration ? 'ON' : 'OFF'}
         </button>
 
         <select bind:value={formality} on:change={executeTranslation} class="mini-select" title="Formality adaptation">
@@ -412,14 +412,16 @@
         {#if translationResult}
           <div class="badge-group">
             <span class="badge {translationResult.is_offline ? 'badge-offline' : 'badge-online'}">
-              {#if translationResult.is_offline}
-                {#if translationResult.engine_id.includes('cache')}
-                  ⚡ Offline Cache
-                {:else if translationResult.engine_id.includes('indictrans2') || translationResult.engine_id.includes('local')}
-                  ⚡ Local Neural Model
-                {:else}
-                  ⚡ Offline Lexicon
-                {/if}
+              {#if intelligenceMetadata?.is_compositional_gloss}
+                ⚠️ Offline Gloss
+              {:else if intelligenceMetadata?.engine_selected === 'offline_fts5_lexicon' || translationResult.engine_id.includes('lexicon')}
+                ⚡ Offline Lexicon (FTS5)
+              {:else if translationResult.engine_id.includes('cache')}
+                💾 Offline Cache
+              {:else if translationResult.engine_id.includes('indictrans2') || translationResult.engine_id.includes('local')}
+                🧠 Local Neural Model
+              {:else if translationResult.is_offline}
+                ⚡ Offline Local
               {:else}
                 🌐 Cloud HTTP
               {/if}
@@ -460,21 +462,45 @@
             {translationResult.translated_text}
           </div>
 
-          <!-- Stage 5 Metadata pills & Fallback trail -->
+          <!-- Mode B: Indic-to-Roman Phonetic Reading Aid (ISO-15919) -->
+          {#if intelligenceMetadata?.target_phonetic}
+            <div class="phonetic-aid-row animate-fade">
+              <span class="phonetic-icon">🗣️</span>
+              <span class="phonetic-text">{intelligenceMetadata.target_phonetic}</span>
+              <span class="phonetic-tag">ISO-15919</span>
+            </div>
+          {/if}
+
+          <!-- Authentic Metadata pills & Fallback trail -->
           {#if intelligenceMetadata}
             <div class="intel-meta-row">
               {#if intelligenceMetadata.transliterated_input}
-                <span class="intel-pill">🔤 Script: {intelligenceMetadata.transliterated_input}</span>
+                <span class="intel-pill">🔤 Transliterated IME: {intelligenceMetadata.transliterated_input}</span>
               {/if}
               <span class="intel-pill">🎭 {intelligenceMetadata.formality.toUpperCase()}</span>
-              {#if intelligenceMetadata.chrf_estimated !== null && intelligenceMetadata.chrf_estimated !== undefined}
-                <span class="intel-pill pill-chrf">🎯 chrF: {intelligenceMetadata.chrf_estimated.toFixed(1)}%</span>
+              {#if intelligenceMetadata.confidence_score}
+                <span class="intel-pill pill-conf">✓ Confidence: {(intelligenceMetadata.confidence_score * 100).toFixed(0)}%</span>
+              {/if}
+              {#if intelligenceMetadata.is_compositional_gloss}
+                <span class="intel-pill pill-warning">⚠️ Compositional Gloss</span>
               {/if}
               {#if intelligenceMetadata.fallback_trail && intelligenceMetadata.fallback_trail.length > 0}
                 <span class="intel-pill pill-trail" title={intelligenceMetadata.fallback_trail.map(t => `${t.engine_id}: ${t.latency_ms.toFixed(1)}ms (${t.success ? 'OK' : 'Bypassed'})`).join(' ➔ ')}>
                   ⚡ {intelligenceMetadata.engine_selected} ({intelligenceMetadata.fallback_trail.length} hop)
                 </span>
               {/if}
+            </div>
+          {/if}
+
+          <!-- Rich Alternate Lexicon Senses -->
+          {#if intelligenceMetadata?.dictionary_senses && intelligenceMetadata.dictionary_senses.length > 0}
+            <div class="senses-preview-box">
+              <span class="senses-heading">📖 Alternate Lexicon Senses:</span>
+              <ul class="senses-preview-list">
+                {#each intelligenceMetadata.dictionary_senses as sense}
+                  <li>{sense}</li>
+                {/each}
+              </ul>
             </div>
           {/if}
 
@@ -520,7 +546,7 @@
           </div>
           <span class="engine-info">Engine: <code>{translationResult.engine_id}</code></span>
         {:else}
-          <span class="engine-info">Stage 1 Active: Bilingual Lexicon + HTTP Provider</span>
+          <span class="engine-info">Tiered Offline Architecture: SQLite FTS5 Lexicon + IndicTrans2 Neural NMT</span>
         {/if}
       </div>
     </div>
@@ -1161,17 +1187,84 @@
     color: var(--text-muted);
   }
 
-  .intel-pill.pill-chrf {
-    background: rgba(16, 185, 129, 0.15);
-    border-color: rgba(16, 185, 129, 0.3);
-    color: #10b981;
-  }
-
   .intel-pill.pill-trail {
     background: rgba(99, 102, 241, 0.15);
     border-color: rgba(99, 102, 241, 0.3);
     color: #818cf8;
     cursor: help;
+  }
+
+  .intel-pill.pill-conf {
+    background: rgba(6, 182, 212, 0.15);
+    border-color: rgba(6, 182, 212, 0.3);
+    color: #22d3ee;
+  }
+
+  .intel-pill.pill-warning {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.3);
+    color: #f59e0b;
+  }
+
+  .phonetic-aid-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 4px 0 10px 0;
+    padding: 6px 12px;
+    background: rgba(99, 102, 241, 0.08);
+    border-radius: var(--radius-sm);
+    border: 1px solid rgba(99, 102, 241, 0.2);
+  }
+
+  .phonetic-icon {
+    font-size: 0.95rem;
+  }
+
+  .phonetic-text {
+    font-family: var(--font-mono, monospace);
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: var(--text-accent);
+    letter-spacing: 0.02em;
+  }
+
+  .phonetic-tag {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    background: rgba(99, 102, 241, 0.2);
+    color: var(--text-accent);
+    padding: 1px 6px;
+    border-radius: 3px;
+    margin-left: auto;
+  }
+
+  .senses-preview-box {
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border-left: 3px solid var(--text-accent);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+  }
+
+  .senses-heading {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--text-secondary);
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .senses-preview-list {
+    margin: 0;
+    padding-left: 18px;
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .senses-preview-list li {
+    margin: 2px 0;
   }
 
   @keyframes fadeIn {

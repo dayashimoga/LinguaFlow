@@ -687,6 +687,10 @@ pub struct IntelligenceTranslationMetadata {
     pub formality: FormalityMode,
     pub glossary_terms_applied: Vec<String>,
     pub transliterated_input: Option<String>,
+    pub target_phonetic: Option<String>,
+    pub confidence_score: Option<f32>,
+    pub dictionary_senses: Vec<String>,
+    pub is_compositional_gloss: bool,
     pub fallback_trail: Vec<FallbackStep>,
     pub chrf_estimated: Option<f32>,
 }

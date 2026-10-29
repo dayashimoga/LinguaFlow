@@ -490,6 +490,10 @@ export interface FallbackStep {
 export interface IntelligenceTranslationMetadata {
   formality: FormalityMode;
   transliterated_input?: string | null;
+  target_phonetic?: string | null;
+  confidence_score?: number | null;
+  dictionary_senses?: string[];
+  is_compositional_gloss?: boolean;
   protected_terms: string[];
   domain_glossary_used?: string | null;
   fallback_trail: FallbackStep[];

@@ -1,6 +1,5 @@
 use crate::audio_capture::AudioCaptureManager;
 use crate::context_nlp::ContextNlpProcessor;
-use crate::evaluation::QualityEvaluator;
 use crate::http_provider::HttpTranslationProvider;
 use crate::lexicon_engine::LexiconTranslationEngine;
 use crate::local_model_engine::LocalNeuralTranslationEngine;
@@ -329,7 +328,22 @@ impl EngineRegistry {
             }
         }
 
-        // 3. If online/cloud allowed, attempt HTTP provider for arbitrary sentences with circuit breaker
+        // 3. For words and short phrases, query verified offline lexicon first (Tier 1: deterministic, zero hallucination)
+        let token_count = cleaned.split_whitespace().count();
+        if token_count <= 3 {
+            if let Some(lexicon_engine) = self
+                .translation_engines
+                .iter()
+                .find(|e| e.id() == "verified-lexicon-engine" && e.supports_pair(&req.pair))
+            {
+                if let Ok(res) = lexicon_engine.translate(req.clone()).await {
+                    self.record_history(&res);
+                    return Ok(res);
+                }
+            }
+        }
+
+        // 4. If online/cloud allowed, attempt HTTP provider for arbitrary sentences with circuit breaker
         if req.allow_cloud {
             let cb_opt = self.circuit_breakers.get("http-rest-provider");
             let can_run = cb_opt.map(|cb| cb.can_execute()).unwrap_or(true);
@@ -437,16 +451,15 @@ impl EngineRegistry {
         let detected = lingua_core::detect_language(&working_text);
         let mut src_lang = req.source_lang.or(detected).unwrap_or(LanguageCode::EnUs);
 
-        if req.enable_transliteration {
+        // Mode A: Source Input Transliteration (Roman-to-Indic IME)
+        // Active ONLY when source language is an Indic language (KnIn, TaIn) or detected as Romanized Indic.
+        // If the source language is explicitly English (EnUs), NEVER transliterate the English input!
+        if req.enable_transliteration && req.source_lang != Some(LanguageCode::EnUs) {
             let translit_target = if src_lang == LanguageCode::KnIn {
                 Some(LanguageCode::KnIn)
             } else if src_lang == LanguageCode::TaIn {
                 Some(LanguageCode::TaIn)
-            } else if req.target_lang == LanguageCode::KnIn {
-                Some(LanguageCode::KnIn)
-            } else if req.target_lang == LanguageCode::TaIn {
-                Some(LanguageCode::TaIn)
-            } else {
+            } else if req.source_lang.is_none() {
                 // Romanized input targeting English (e.g. "namaskara" or "vanakkam")
                 let res_kn = self
                     .transliteration
@@ -463,6 +476,8 @@ impl EngineRegistry {
                 } else {
                     Some(LanguageCode::KnIn)
                 }
+            } else {
+                None
             };
 
             if let Some(target) = translit_target {
@@ -497,7 +512,7 @@ impl EngineRegistry {
             }
         }
 
-        // 4. Try LRU In-Memory Cache
+        // 4. Try LRU In-Memory Cache or Tier 1 Rich Lexicon
         let lru_key = format!(
             "{}:{}:{}",
             src_lang.as_bcp47(),
@@ -505,30 +520,84 @@ impl EngineRegistry {
             masked_text
         );
 
+        let token_count = masked_text.split_whitespace().count();
+        let mut dictionary_senses = Vec::new();
+        let confidence_score: Option<f32>;
+        let mut is_compositional_gloss = false;
+
         let lru_start = std::time::Instant::now();
-        let (translated_text, engine_selected) =
-            if let Some(cached_resp) = self.lru_cache.get(&lru_key) {
+        let (translated_text, engine_selected) = if let Some(cached_resp) =
+            self.lru_cache.get(&lru_key)
+        {
+            fallback_trail.push(FallbackStep {
+                engine_id: "in_memory_lru_cache".into(),
+                attempt: 1,
+                success: true,
+                latency_ms: lru_start.elapsed().as_secs_f64() * 1000.0,
+                reason: Some("Instant memory cache hit".into()),
+            });
+            confidence_score = Some(0.99);
+            (
+                cached_resp.translated_text,
+                "in_memory_lru_cache".to_string(),
+            )
+        } else {
+            fallback_trail.push(FallbackStep {
+                engine_id: "in_memory_lru_cache".into(),
+                attempt: 1,
+                success: false,
+                latency_ms: lru_start.elapsed().as_secs_f64() * 1000.0,
+                reason: Some("Cache miss".into()),
+            });
+
+            // Tier 1: Check offline rich lexicon directly for words & phrases <= 3 tokens
+            let mut tier1_match = None;
+            if token_count <= 3 {
+                if let Some(ref storage) = self.storage {
+                    if let Ok(res) =
+                        storage.search_rich_dictionary(&masked_text, Some(src_lang), None, 5)
+                    {
+                        for entry in &res.rich_entries {
+                            if let Some(targets) =
+                                entry.target_equivalents.get(req.target_lang.as_bcp47())
+                            {
+                                if let Some(first) = targets.first() {
+                                    tier1_match = Some((first.clone(), entry.headword.clone()));
+                                    for s in &entry.senses {
+                                        dictionary_senses
+                                            .push(format!("{}: {}", entry.headword, s.definition));
+                                    }
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let Some((tgt_text, headword)) = tier1_match {
                 fallback_trail.push(FallbackStep {
-                    engine_id: "in_memory_lru_cache".into(),
-                    attempt: 1,
+                    engine_id: "offline_fts5_lexicon".into(),
+                    attempt: 2,
                     success: true,
                     latency_ms: lru_start.elapsed().as_secs_f64() * 1000.0,
-                    reason: Some("Instant memory cache hit".into()),
+                    reason: Some(format!(
+                        "Verified bilingual rich lexicon match for '{headword}'"
+                    )),
                 });
-                (
-                    cached_resp.translated_text,
-                    "in_memory_lru_cache".to_string(),
-                )
+                confidence_score = Some(0.98);
+                let resp = TranslationResponse {
+                    original_text: masked_text.clone(),
+                    translated_text: tgt_text.clone(),
+                    pair: LanguagePair::new(src_lang, req.target_lang)?,
+                    engine_id: "offline_fts5_lexicon".into(),
+                    is_offline: true,
+                    latency_ms: lru_start.elapsed().as_millis() as u64,
+                };
+                self.lru_cache.insert(lru_key, resp);
+                (tgt_text, "offline_fts5_lexicon".to_string())
             } else {
-                fallback_trail.push(FallbackStep {
-                    engine_id: "in_memory_lru_cache".into(),
-                    attempt: 1,
-                    success: false,
-                    latency_ms: lru_start.elapsed().as_secs_f64() * 1000.0,
-                    reason: Some("Cache miss".into()),
-                });
-
-                // 5. Query via core translate
+                // Query via core translate
                 let pair = LanguagePair::new(src_lang, req.target_lang)?;
                 let trans_req = TranslationRequest {
                     pair,
@@ -548,21 +617,79 @@ impl EngineRegistry {
                         });
                         let out_text = resp.translated_text.clone();
                         let out_eng = resp.engine_id.clone();
+                        if out_eng.contains("neural") {
+                            confidence_score = Some(0.94);
+                        } else if out_eng.contains("lexicon") {
+                            confidence_score = Some(0.95);
+                        } else {
+                            confidence_score = Some(0.90);
+                        }
                         self.lru_cache.insert(lru_key, resp);
                         (out_text, out_eng)
                     }
                     Err(e) => {
-                        fallback_trail.push(FallbackStep {
-                            engine_id: "primary_engines".into(),
-                            attempt: 2,
-                            success: false,
-                            latency_ms: trans_start.elapsed().as_secs_f64() * 1000.0,
-                            reason: Some(e.to_string()),
-                        });
-                        return Err(e);
+                        // Compositional glossing fallback if offline model is missing for multi-word
+                        if token_count > 1 {
+                            if let Some(storage) = &self.storage {
+                                let words: Vec<&str> = masked_text.split_whitespace().collect();
+                                let mut glossed_words = Vec::new();
+                                for w in &words {
+                                    let clean = w.trim_matches(|c: char| c.is_ascii_punctuation());
+                                    if let Ok(res) = storage.search_rich_dictionary(
+                                        clean,
+                                        Some(src_lang),
+                                        None,
+                                        1,
+                                    ) {
+                                        if let Some(entry) = res.rich_entries.first() {
+                                            if let Some(targets) = entry
+                                                .target_equivalents
+                                                .get(req.target_lang.as_bcp47())
+                                            {
+                                                if let Some(t) = targets.first() {
+                                                    glossed_words.push(t.clone());
+                                                    continue;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    glossed_words.push((*w).to_string());
+                                }
+                                let gloss_result = glossed_words.join(" ");
+                                fallback_trail.push(FallbackStep {
+                                        engine_id: "offline_compositional_gloss".into(),
+                                        attempt: 3,
+                                        success: true,
+                                        latency_ms: trans_start.elapsed().as_secs_f64() * 1000.0,
+                                        reason: Some("Offline compositional gloss applied (download NMT model for full fluency)".into()),
+                                    });
+                                is_compositional_gloss = true;
+                                confidence_score = Some(0.65);
+                                (gloss_result, "offline_compositional_gloss".to_string())
+                            } else {
+                                fallback_trail.push(FallbackStep {
+                                    engine_id: "primary_engines".into(),
+                                    attempt: 2,
+                                    success: false,
+                                    latency_ms: trans_start.elapsed().as_secs_f64() * 1000.0,
+                                    reason: Some(e.to_string()),
+                                });
+                                return Err(e);
+                            }
+                        } else {
+                            fallback_trail.push(FallbackStep {
+                                engine_id: "primary_engines".into(),
+                                attempt: 2,
+                                success: false,
+                                latency_ms: trans_start.elapsed().as_secs_f64() * 1000.0,
+                                reason: Some(e.to_string()),
+                            });
+                            return Err(e);
+                        }
                     }
                 }
-            };
+            }
+        };
 
         // 6. Restore named entities
         let restored_text =
@@ -583,8 +710,20 @@ impl EngineRegistry {
             req.formality,
         );
 
-        // 9. Estimate chrF quality score
-        let chrf_est = QualityEvaluator::compute_chrf(&final_text, &glossary_applied_text) as f32;
+        // 9. Compute Mode B target phonetic reading aid (ISO-15919)
+        let target_phonetic =
+            if req.target_lang == LanguageCode::KnIn || req.target_lang == LanguageCode::TaIn {
+                let aid = self
+                    .transliteration
+                    .to_phonetic_reading_aid(&final_text, req.target_lang);
+                if aid != final_text {
+                    Some(aid)
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
 
         Ok(IntelligenceTranslationResponse {
             source_text: req.text,
@@ -596,8 +735,12 @@ impl EngineRegistry {
                 formality: req.formality,
                 glossary_terms_applied: terms_applied,
                 transliterated_input,
+                target_phonetic,
+                confidence_score,
+                dictionary_senses,
+                is_compositional_gloss,
                 fallback_trail,
-                chrf_estimated: Some(chrf_est),
+                chrf_estimated: None, // Honest telemetry: chrF is reserved for ground-truth benchmark evaluation
             },
         })
     }

@@ -517,4 +517,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **CI Windows Desktop Smoke Test**: Added automated smoke test step to `.github/workflows/ci.yml` that launches the packaged `LinguaFlow.exe` on Windows runners, verifies process initialization and responsiveness, and validates clean lifecycle termination.
   - **Automated Regression Suite**: Created `crates/lingua-engine/tests/desktop_offline_validation.rs` with 6 automated tests validating offline dictionary search, lexicon translation without network, model pack inventory, VAD, and embedded binary assets without leaked dev URLs.
 
+---
+
+## [0.8.3] - 2026-10-29
+
+### Fixed
+- **CI Quality Gates Step Order**: Reordered workflow steps in `.github/workflows/ci.yml` within the `quality-gates` job so that `Setup Node.js`, `npm ci`, `npm run check`, and `npm run build` execute before `cargo fmt`, `cargo clippy --workspace -- -D warnings`, and `cargo test --workspace`.
+  - **Root Cause**: `cargo clippy` compiles crate `lingua-tauri`, which invokes `tauri::generate_context!()`. This macro verifies the existence of `frontendDist: "../dist"` at compile time. In the previous workflow configuration, Rust checks executed before Node.js and npm were set up on Ubuntu runners, causing `tauri-codegen` to panic with `"The frontendDist configuration is set to '../dist' but this path doesn't exist"`.
+- **Compile-Time Frontend Fallback Guard in `src-tauri/build.rs`**:
+  - Enhanced `src-tauri/build.rs` with a defensive fallback: if `../dist/index.html` is absent and `npm` is unavailable or fails (e.g., in isolated/headless Rust environments), it automatically creates `../dist` and generates a valid minimal fallback HTML placeholder in `../dist/index.html`. This ensures `tauri-codegen` never panics during headless `cargo check` or `cargo clippy` runs, while normal builds continue to package the full Vite production bundle.
+
+
 

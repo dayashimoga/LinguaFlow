@@ -545,3 +545,11 @@
   - Validated local release binary startup, offline FTS5 dictionary search (Kannada/Tamil/English in < 1ms), and zero dev URL leaks in compiled binary.
   - Updated `docs/TROUBLESHOOTING.md` and `docs/architecture/product-specification.md`.
   - Verified full test suite (120/120 passing), Clippy (0 warnings), and formatting.
+
+### [2026-10-29 05:50 UTC] CI Quality Gates Job Step Order & Dist Fallback Guard
+- [x] Resolved CI failure in `quality-gates` during `cargo clippy --workspace -- -D warnings`:
+  - Identified root cause: `cargo clippy` compiles crate `lingua-tauri` which invokes `tauri::generate_context!()`, requiring `frontendDist: "../dist"` to exist at compile time. In `.github/workflows/ci.yml`, Rust checks ran before Node.js and npm were set up.
+  - Reordered `.github/workflows/ci.yml` `quality-gates` job steps to setup Node.js, run `npm ci`, `npm run check`, and `npm run build` before `cargo fmt`, `cargo clippy`, and `cargo test`.
+  - Hardened `src-tauri/build.rs` with defensive fallback creating a minimal `../dist/index.html` placeholder if `npm` is unavailable or fails, preventing macro panic in isolated/headless Rust environments.
+  - Verified local `cargo clippy --workspace -- -D warnings` (0 warnings), `cargo fmt --check`, `cargo test --workspace` (120/120 passed), and `npm run check` (0 errors, 0 warnings).
+

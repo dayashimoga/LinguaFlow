@@ -34,15 +34,6 @@ jobs:
         with:
           components: clippy, rustfmt
 
-      - name: Rust Formatting Check
-        run: cargo fmt --check
-
-      - name: Rust Clippy Strict Check
-        run: cargo clippy --workspace -- -D warnings
-
-      - name: Rust Workspace Unit & Integration Tests
-        run: cargo test --workspace --verbose
-
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -64,6 +55,15 @@ jobs:
           name: linguaflow-web-bundle
           path: dist/
           retention-days: 14
+
+      - name: Rust Formatting Check
+        run: cargo fmt --check
+
+      - name: Rust Clippy Strict Check
+        run: cargo clippy --workspace -- -D warnings
+
+      - name: Rust Workspace Unit & Integration Tests
+        run: cargo test --workspace --verbose
 
   desktop-build-matrix:
     name: Desktop Binary Matrix (${{ matrix.platform }})

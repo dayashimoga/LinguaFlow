@@ -26,4 +26,5 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 
 [features]
+default = ["custom-protocol"]
 custom-protocol = ["tauri/custom-protocol"]

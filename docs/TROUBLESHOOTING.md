@@ -39,3 +39,12 @@
     ```bash
     lingua serve --port 8085
     ```
+
+### 1.6 Windows Application Displays 'localhost refused to connect' (ERR_CONNECTION_REFUSED)
+- **Symptom**: Packaged Windows app `LinguaFlow.exe` opens with a window titled "LinguaFlow — Multilingual Communication" but displays a Chromium error: `localhost refused to connect` / `ERR_CONNECTION_REFUSED`.
+- **Cause**: The application was compiled with the `custom-protocol` Cargo feature omitted or with `devUrl` pointing to `localhost:5173`. In Tauri 2, if `custom-protocol` is not enabled, Tauri defines `cfg(dev)` and attempts to navigate WebView2 to the `devUrl` on `localhost:5173` instead of embedding and serving the static bundle from `frontendDist`.
+- **Resolution**:
+  - `src-tauri/Cargo.toml` includes `default = ["custom-protocol"]` so that all standard `cargo build` and release compilations embed production assets.
+  - `src-tauri/tauri.conf.json` omits `devUrl` in production configuration, ensuring WebView2 always loads the bundled offline assets from `frontendDist: "../dist"` via the native `tauri://localhost` scheme.
+  - `src-tauri/build.rs` automatically validates that `../dist/index.html` exists prior to `tauri_build::build()`, running `npm run build` if missing.
+  - All desktop operations (SQLite persistence, bilingual dictionary search, offline translation, TTS synthesis, model management) operate 100% offline in-process via direct Rust-to-UI IPC without requiring `lingua.exe`, Node.js, or any background HTTP server.

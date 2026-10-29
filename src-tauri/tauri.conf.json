@@ -5,7 +5,6 @@
   "identifier": "org.linguaflow.app",
   "build": {
     "beforeDevCommand": "npm run build",
-    "devUrl": "http://localhost:5173",
     "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },

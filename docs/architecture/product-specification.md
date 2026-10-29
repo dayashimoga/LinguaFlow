@@ -46,9 +46,9 @@ The platform bridges desktop, mobile, and web through a unified Rust core with n
 
 | Target Platform | Runtime Architecture | Distribution Format | Signing Status (Stage 0) | Limitations & Requirements |
 | :--- | :--- | :--- | :--- | :--- |
-| **Windows** | x86_64, aarch64 | NSIS Installer, Portable `.exe` | Unsigned test binary (Authenticode signing ready in CI) | Windows 10+ (WebView2 runtime installed by default) |
-| **Linux** | x86_64, aarch64 | AppImage, `.deb` | GPG signed release metadata ready | Requires WebKitGTK 4.1, libayatana-appindicator |
-| **macOS** | Universal (x86_64 + Apple Silicon) | `.app`, `.dmg` | Ad-hoc unsigned local build; Apple Developer ID in CI | macOS 11.0+ (Big Sur or newer) |
+| **Windows** | x86_64, aarch64 | NSIS Installer, Portable `.exe` | Unsigned test binary (Authenticode signing ready in CI) | Windows 10+ (WebView2 pre-installed); 100% offline embedded assets via native custom protocol (`tauri://localhost`); no localhost HTTP dev server required |
+| **Linux** | x86_64, aarch64 | AppImage, `.deb` | GPG signed release metadata ready | Requires WebKitGTK 4.1, libayatana-appindicator, ALSA; 100% offline embedded assets |
+| **macOS** | Universal (x86_64 + Apple Silicon) | `.app`, `.dmg` | Ad-hoc unsigned local build; Apple Developer ID in CI | macOS 11.0+ (Big Sur or newer); 100% offline embedded assets |
 | **Android** | aarch64, armv7, x86_64 | `.apk`, `.aab` | Debug unsigned keystore in development; Release keystore in CI | Android 8.0+ (API Level 26+), Audio record permissions |
 | **iOS** | arm64 | Xcode Archive, Simulator `.app` | Unsigned archive in CI; Apple Development Certificate required for physical provisioning | iOS 14.0+, Microphone privacy string in Info.plist |
 | **Web** | WebAssembly / Modern Browsers | Static PWA bundle | Web origin HTTPS / TLS | Web Audio API & MediaDevices permissions required |

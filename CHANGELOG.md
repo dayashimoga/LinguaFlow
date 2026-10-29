@@ -504,4 +504,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **CI & Release Linux Build Dependencies**: Added Linux system dependencies (`libwebkit2gtk-4.1-dev`, `libayatana-appindicator3-dev`, `librsvg2-dev`, `libssl-dev`, `libasound2-dev`, etc.) to the `quality-gates` job in `.github/workflows/ci.yml` and `release-package` job in `.github/workflows/release.yml`. Fixes `glib-sys` and `gobject-sys` missing package error (`glib-2.0` / `gobject-2.0` not found in `pkg-config`) during `cargo clippy --workspace` and `cargo test --workspace`.
 - **Desktop Artifact Packaging**: Corrected binary packaging paths in `.github/workflows/ci.yml` and `.github/workflows/release.yml`. Cargo names the desktop executable according to crate package name `lingua-tauri` (with hyphen, e.g. `lingua-tauri.exe`), whereas previous packaging steps looked for `lingua_tauri.exe` (with underscore). Added dual detection for both hyphenated and underscored binary names across Windows, Linux, and macOS matrix runners.
 
+---
+
+## [0.8.2] - 2026-10-29
+
+### Fixed
+- **P0 Production Defect: Desktop Application 'localhost refused to connect'**: Resolved critical startup defect where packaged `LinguaFlow.exe` opened with Chromium error `localhost refused to connect` (`ERR_CONNECTION_REFUSED`).
+  - **Root Cause**: `src-tauri/Cargo.toml` omitted `custom-protocol` from default features, and `src-tauri/tauri.conf.json` configured `"devUrl": "http://localhost:5173"`. When compiling with standard `cargo build --release`, Tauri evaluated `cfg!(not(feature = "custom-protocol"))` as `dev = true`, failing to bundle static assets and instructing WebView2 to connect to an unavailable local Vite development server on port 5173.
+  - **Embedded Offline Asset Guarantee**: Added `default = ["custom-protocol"]` to `src-tauri/Cargo.toml` and stripped `devUrl` from `tauri.conf.json`. Tauri now compiles strictly with embedded production assets from `frontendDist: "../dist"` via the native `tauri://localhost` custom protocol scheme.
+  - **Automatic Frontend Build Hook**: Enhanced `src-tauri/build.rs` to detect if `../dist/index.html` is absent and invoke `npm run build` automatically prior to running `tauri_build::build()`.
+  - **In-Process Native Rust IPC**: Confirmed and enforced that all desktop operations (SQLite persistence, dictionary FTS5 search, bilingual translation, TTS synthesis, model manager, audio capture) operate 100% offline via in-process Tauri commands (`invokeTauri`) without requiring `lingua.exe`, Node.js, or any HTTP server.
+  - **CI Windows Desktop Smoke Test**: Added automated smoke test step to `.github/workflows/ci.yml` that launches the packaged `LinguaFlow.exe` on Windows runners, verifies process initialization and responsiveness, and validates clean lifecycle termination.
+  - **Automated Regression Suite**: Created `crates/lingua-engine/tests/desktop_offline_validation.rs` with 6 automated tests validating offline dictionary search, lexicon translation without network, model pack inventory, VAD, and embedded binary assets without leaked dev URLs.
+
 

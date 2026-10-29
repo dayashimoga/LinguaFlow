@@ -53,3 +53,5 @@ coverage/
 .podman-data/
 *.log
 scratch/
+release-artifacts/
+release-distribution/

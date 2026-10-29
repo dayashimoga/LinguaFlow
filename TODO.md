@@ -533,3 +533,15 @@
   - Fixed binary filename mismatch where packaging scripts expected `lingua_tauri.exe` / `lingua_tauri` with underscore, whereas Cargo names output binaries based on crate name `lingua-tauri` (`lingua-tauri.exe` / `lingua-tauri`).
   - Implemented dual filename fallback detection in `.github/workflows/ci.yml` and `.github/workflows/release.yml`.
   - Pushed fix commit to remote repository.
+
+### [2026-10-29 03:30 UTC] P0 Production Defect Fix: Desktop App 'localhost refused to connect'
+- [x] Diagnosed and fixed packaged Windows application startup defect:
+  - Identified root cause: `src-tauri/Cargo.toml` lacked `custom-protocol` in default features, and `src-tauri/tauri.conf.json` configured `"devUrl": "http://localhost:5173"`. Plain `cargo build --release` evaluated `cfg!(not(feature = "custom-protocol"))` as `dev: true`, omitting embedded assets and defaulting to the unavailable dev server.
+  - Added `default = ["custom-protocol"]` to `src-tauri/Cargo.toml`.
+  - Removed `devUrl` from `src-tauri/tauri.conf.json` ensuring 100% offline embedded asset loading via `tauri://localhost`.
+  - Enhanced `src-tauri/build.rs` to automatically run `npm run build` if `../dist/index.html` is absent.
+  - Added Windows desktop startup smoke test to `.github/workflows/ci.yml`.
+  - Created automated regression suite `crates/lingua-engine/tests/desktop_offline_validation.rs` (6/6 tests passing).
+  - Validated local release binary startup, offline FTS5 dictionary search (Kannada/Tamil/English in < 1ms), and zero dev URL leaks in compiled binary.
+  - Updated `docs/TROUBLESHOOTING.md` and `docs/architecture/product-specification.md`.
+  - Verified full test suite (120/120 passing), Clippy (0 warnings), and formatting.

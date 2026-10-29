@@ -162,6 +162,32 @@ jobs:
           sha256sum * > SHA256SUMS.txt
           cat SHA256SUMS.txt
 
+      - name: Smoke Test Windows Desktop Application Startup
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          echo ">>> Verifying LinguaFlow.exe exists in release-artifacts..."
+          if (-not (Test-Path "release-artifacts/LinguaFlow.exe")) {
+            throw "LinguaFlow.exe is missing from release-artifacts"
+          }
+
+          echo ">>> Verifying CLI companion diagnostics..."
+          & "release-artifacts/lingua.exe" status
+
+          echo ">>> Launching LinguaFlow.exe to verify startup and clean initialization..."
+          $proc = Start-Process -FilePath "release-artifacts/LinguaFlow.exe" -PassThru
+          Start-Sleep -Seconds 4
+          if ($proc.HasExited) {
+            $exitCode = $proc.ExitCode
+            if ($exitCode -ne 0) {
+              throw "LinguaFlow.exe failed on startup with exit code $exitCode"
+            }
+          } else {
+            echo ">>> LinguaFlow.exe started cleanly with PID $($proc.Id). Stopping test process."
+            Stop-Process -Id $proc.Id -Force
+            echo ">>> Windows desktop smoke test verified successfully."
+          }
+
       - name: Upload Platform Build Artifacts
         uses: actions/upload-artifact@v4
         with:

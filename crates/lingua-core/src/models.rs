@@ -325,6 +325,38 @@ pub struct DictionaryExample {
     pub target: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
+pub struct LexiconSense {
+    pub sense_index: u32,
+    pub part_of_speech: String,
+    pub definition: String,
+    pub register: String,
+    pub synonyms: Vec<String>,
+    pub antonyms: Vec<String>,
+    pub examples: Vec<DictionaryExample>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct RichDictionaryEntry {
+    pub id: String,
+    pub headword: String,
+    pub normalized_stem: String,
+    pub language: LanguageCode,
+    pub ipa_pronunciation: Option<String>,
+    pub native_phonetic_respelling: Option<String>,
+    pub part_of_speech: String,
+    pub gender_inflection_notes: Option<String>,
+    pub register: String,
+    pub senses: Vec<LexiconSense>,
+    pub bilingual_examples: Vec<DictionaryExample>,
+    pub synonyms: Vec<String>,
+    pub antonyms: Vec<String>,
+    pub derived_forms: Vec<String>,
+    pub target_equivalents: std::collections::HashMap<String, Vec<String>>,
+    pub frequency_rank: u32,
+    pub provenance: String,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct DictionaryEntry {
     pub id: String,

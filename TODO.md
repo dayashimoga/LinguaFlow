@@ -572,5 +572,30 @@
   - `part-2-stages-09-15.md`: Master index and architectural objectives for Part 2 stages.
 - [x] Updated `docs/architecture/product-specification.md` scope table with Stages 9 through 15.
 
+### [2026-10-29 08:30 UTC] Stage 9: Linguistic Data Integrity, Comprehensive Lexicon Seeding & Dictionary UX Overhaul Completion
+- [x] Phase 9.1 — Open-Licensed Trilingual Lexicon Acquisition & ETL Pipeline:
+  - Authored `docs/LEXICON_PROVENANCE.md` detailing Alar (ODC-By/CC-BY-4.0), Wiktextract (CC-BY-SA 4.0), and Madras Tamil Lexicon (Public Domain).
+  - Updated `docs/compliance/LICENSES.md` with complete upstream open-source license declarations.
+  - Implemented automated Rust ETL compiler (`lingua-cli dict-import` in `crates/lingua-cli/src/dict_import.rs`) parsing JSONL, TSV, and CSV sources.
+  - Enforced strict Unicode NFC normalization, markup sanitization, and script boundary validation (U+0C80–U+0CFF for Kannada, U+0B80–U+0BFF for Tamil, Latin for English).
+- [x] Phase 9.2 — Lexicon Schema Migration 010 & Indic FTS5 Engine:
+  - SQLite Migration 010: created `rich_lexicon_entries` table with multi-sense support, register metadata, frequency rank, and cross-language target equivalents.
+  - Configured `rich_dictionary_fts` virtual table using `tokenize = 'unicode61 tokenchars ''್்'''` preserving Indic virama and pulli.
+  - Implemented BM25 column weighting (headword 10.0, prefix 5.0, senses 2.0, register 1.0) with seamless fallback to legacy dictionary entries.
+  - Seeded trilingual vocabulary in `seed_stage_9_rich_lexicon` covering core terms ("adventure" -> Kannada "ಸಾಹಸ", Tamil "சாகசம்"), medical terminology (doctor, hospital, fever, medicine, prescription, emergency), and logistics freight concepts (freight, shipment, warehouse, customs, cargo).
+- [x] Phase 9.3 — Agglutinative Indic Morphology & Fuzzy Typo Tolerant Search:
+  - Implemented `crates/lingua-engine/src/morphology.rs` with agglutinative stemmers for Kannada noun cases/plurals, Tamil neuter assimilation (`-ம்` -> `-த்த-`), and English lemmatizer.
+  - Fuzzy typo suggestions using bounded Levenshtein distance (<= 2) and trigram similarity ("Did you mean: ...?").
+- [x] Phase 9.4 — Dictionary UX Overhaul:
+  - Overhauled `src/views/DictionaryView.svelte` with 120 ms debounced reactive search, POS/domain filter pills, rich entry cards, TTS audio playback, favorites bookmarking, and clickable synonyms/antonyms.
+- [x] Phase 9.5 — Verification & Benchmarks:
+  - 8 new integration tests in `crates/lingua-engine/tests/linguistic_data_integrity.rs` (100% pass rate).
+  - Full workspace test suite: 154/154 tests passing across all crates.
+  - Clippy `-D warnings` and `cargo fmt --check` clean with 0 warnings.
+  - Svelte check (`npm run check`) 0 errors, 0 warnings; production bundle build (`npm run build`) succeeded in 2.64s.
+  - Authored `docs/STAGE_9_ACCEPTANCE_REPORT.md` and updated `BENCHMARKS.md`, `requirements-traceability-matrix.md`, `TODO.md`, and `CHANGELOG.md`.
+- [x] Stage 9 certified complete and ready for user review.
+
+
 
 

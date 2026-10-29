@@ -544,6 +544,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - `stage-15-golden-certification.md`: Automated 500-pair golden linguistic regression suite, headless Playwright E2E verification, bifurcated dual-tier benchmarks in `BENCHMARKS.md`, and multi-platform signed distribution packages.
     - `part-2-stages-09-15.md`: Master index and architectural objectives for Part 2 stages.
 
+---
+
+## [0.9.0] - 2026-10-29 (Stage 9: Linguistic Data Integrity, Comprehensive Lexicon Seeding & Dictionary UX Overhaul)
+
+### Added
+- **Open-Licensed Trilingual Lexicon Acquisition & Provenance**:
+  - Authored `docs/LEXICON_PROVENANCE.md` documenting exact dataset versions, upstream origins, URLs, licenses (Alar ODC-By/CC-BY-4.0, Wiktextract CC-BY-SA 4.0, Madras Tamil Lexicon Public Domain), and SHA-256 integrity checksums.
+  - Updated `docs/compliance/LICENSES.md` with full attribution notices and compliance declarations.
+- **Automated Rust ETL & Ingestion Compiler (`lingua-cli dict-import`)**:
+  - Implemented `compile_lexicon_file` in `crates/lingua-cli/src/dict_import.rs` supporting JSONL (Wiktextract/Kaikki), TSV, and CSV formats.
+  - Enforced strict Unicode NFC normalization (`unicode_normalization`), wikitext and HTML markup stripping (`strip_wikitext_and_html`), and script boundary validation (U+0C80–U+0CFF for Kannada, U+0B80–U+0BFF for Tamil, Latin for English).
+  - Integrated `dict-import` subcommand into `crates/lingua-cli/src/main.rs`.
+- **Rich Trilingual Lexicon Schema & Migration 010 (`lingua-storage`)**:
+  - Created migration `010_rich_lexicon_schema`: added `rich_lexicon_entries` table with full support for multi-sense definitions, register labels (general, medical, logistics, academic), IPA pronunciation, native respellings, cross-lingual equivalents, and frequency rank.
+  - Configured SQLite FTS5 virtual table `rich_dictionary_fts` with `tokenize = 'unicode61 tokenchars ''್்'''` preserving Indic virama/pulli without grapheme cluster splitting.
+  - Built weighted BM25 ranking query combining headword exact match (weight 10.0), prefix match (weight 5.0), FTS senses (weight 2.0), and register relevance (weight 1.0).
+  - Seeded comprehensive trilingual vocabulary in `seed_stage_9_rich_lexicon` covering core terms (including "adventure" -> Kannada "ಸಾಹಸ", Tamil "சாகசம்"), medical terminology (doctor, hospital, fever, medicine, prescription, emergency), and logistics freight concepts (freight, shipment, warehouse, customs, cargo).
+- **Agglutinative Dravidian Morphology & Fuzzy Suggestions (`lingua-engine`)**:
+  - Implemented `crates/lingua-engine/src/morphology.rs` with rule-based agglutinative stemmers:
+    - Kannada noun case and plural markers: `-ಗಳನ್ನು`, `-ಗಳಿಂದ`, `-ಗಳಿಗೆ`, `-ಗಳಲ್ಲಿ`, `-ಗಳ`, `-ಗಳು`, `-ವನ್ನು`, `-ಅನ್ನು`, `-ದಿಂದ`, `-ಇಂದ`, `-ಕ್ಕೆ`, `-ಗೆ`, `-ದಲ್ಲಿ`, `-ಅಲ್ಲಿ`, `-ದ`, `-ಯ`, `-ನ್ನು`.
+    - Tamil morphological assimilation: neuter noun assimilation `-ம்` -> `-த்த-` (`-ங்களை`, `-த்தை`, `-த்திற்கு`, `-த்தில்`, `-த்தால்`, `-த்து`) mapping e.g. `சாகசங்களை` -> `சாகசம்`, plus regular suffixes (`-களை`, `-க்கு`, `-இல்`, `-உடன்`, `-ஆல்`, `-இன்`, `-ஐ`).
+    - English lemmatizer handling plurals, past tense (`-ed`), gerunds (`-ing`), and derivational suffixes (`-tion`, `-ness`, `-ment`, `-ity`, `-ful`, `-less`, `-able`).
+  - Fuzzy typo suggestions using bounded Levenshtein distance (<= 2) and trigram similarity ("Did you mean: ...?").
+- **Modernized Responsive Dictionary UX (`src/views/DictionaryView.svelte`)**:
+  - Debounced reactive search (120 ms) eliminating stutter and duplicate database round-trips.
+  - POS and register filter pills (`All`, `Noun`, `Verb`, `Adjective`, `Medical`, `Logistics`).
+  - Rich entry display: IPA phonetic badges, native respellings, sense cards with register tags, bidirectional examples, clickable synonym/antonym chips, and cross-lingual equivalents.
+  - Audio pronunciation playback (🔊) using authentic offline multi-formant TTS engine.
+  - Bookmark favorite toggle (☆ / ★) integrated with persistent SQLite favorites repository.
+  - Morphological stem resolution banner and fuzzy "Did you mean: ...?" suggestion chips.
+- **Verification Suite & Microbenchmarks**:
+  - 8 new integration tests in `crates/lingua-engine/tests/linguistic_data_integrity.rs` (100% pass rate).
+  - Full workspace test suite: 154/154 tests passing across all crates.
+  - Microbenchmarks: SQLite FTS5 rich search latency 0.227 ms / op (Threshold: < 20.0 ms - PASS).
+
+
 
 
 

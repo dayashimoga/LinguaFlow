@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 9;
+pub const CURRENT_SCHEMA_VERSION: u32 = 10;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -57,6 +57,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 9 {
         apply_migration_009(conn)?;
+    }
+    if current_version < 10 {
+        apply_migration_010(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -892,5 +895,63 @@ fn apply_migration_009(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 009: {e}")))?;
 
     info!("Migration 009 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_010(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!("Applying LinguaFlow Database Migration 010 — Rich Lexicon Schema & Indic FTS5 unicode61 tokenizer");
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    tx.execute_batch(
+        "
+        -- Rich Lexicon Entries table (Stage 9: Linguistic Data Integrity)
+        CREATE TABLE IF NOT EXISTS rich_lexicon_entries (
+            id TEXT PRIMARY KEY,
+            headword TEXT NOT NULL,
+            normalized_stem TEXT NOT NULL,
+            language_code TEXT NOT NULL,
+            ipa_pronunciation TEXT,
+            native_phonetic_respelling TEXT,
+            part_of_speech TEXT NOT NULL,
+            gender_inflection_notes TEXT,
+            register TEXT NOT NULL DEFAULT 'general',
+            senses_json TEXT NOT NULL,
+            bilingual_examples_json TEXT NOT NULL,
+            synonyms_json TEXT NOT NULL,
+            antonyms_json TEXT NOT NULL,
+            derived_forms_json TEXT NOT NULL,
+            target_equivalents_json TEXT NOT NULL,
+            frequency_rank INTEGER DEFAULT 1000,
+            provenance TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_rich_lex_lang_stem ON rich_lexicon_entries(language_code, normalized_stem);
+        CREATE INDEX IF NOT EXISTS idx_rich_lex_headword ON rich_lexicon_entries(headword);
+        CREATE INDEX IF NOT EXISTS idx_rich_lex_pos ON rich_lexicon_entries(part_of_speech);
+        CREATE INDEX IF NOT EXISTS idx_rich_lex_register ON rich_lexicon_entries(register);
+
+        -- FTS5 Virtual Table with unicode61 tokenizer preserving Indic virama (tokenchars=್்)
+        CREATE VIRTUAL TABLE IF NOT EXISTS rich_dictionary_fts USING fts5(
+            headword,
+            normalized_stem,
+            native_phonetic_respelling,
+            senses_text,
+            tokenize = 'unicode61 tokenchars ''್்'''
+        );
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (10, datetime('now'), 'Stage 9: Rich Lexicon Schema, Indic FTS5 unicode61 tokenizer & Trilingual Synsets');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 010: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 010: {e}")))?;
+
+    info!("Migration 010 applied successfully");
     Ok(())
 }

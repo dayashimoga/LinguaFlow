@@ -159,16 +159,51 @@ export interface TranslateCmdResponse {
   latency_ms: number;
 }
 
+export interface LexiconSense {
+  sense_index: number;
+  part_of_speech: string;
+  definition: string;
+  register: string;
+  synonyms: string[];
+  antonyms: string[];
+  examples: DictionaryExample[];
+}
+
+export interface RichDictionaryEntry {
+  id: string;
+  headword: string;
+  normalized_stem: string;
+  language: LanguageCode;
+  ipa_pronunciation?: string | null;
+  native_phonetic_respelling?: string | null;
+  part_of_speech: string;
+  gender_inflection_notes?: string | null;
+  register: string;
+  senses: LexiconSense[];
+  bilingual_examples: DictionaryExample[];
+  synonyms: string[];
+  antonyms: string[];
+  derived_forms: string[];
+  target_equivalents: Record<string, string[]>;
+  frequency_rank: number;
+  provenance: string;
+}
+
 export interface DictionarySearchCmdRequest {
   query: string;
   language?: LanguageCode | null;
+  part_of_speech?: string | null;
   limit?: number;
 }
 
 export interface DictionarySearchCmdResponse {
   entries: DictionaryEntry[];
+  rich_entries?: RichDictionaryEntry[];
+  resolved_stem?: string | null;
+  did_you_mean?: string[];
   query: string;
   total_matches: number;
+  latency_ms?: number;
 }
 
 export interface DetectLanguageCmdRequest {

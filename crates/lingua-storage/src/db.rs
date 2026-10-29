@@ -1,7 +1,8 @@
 use crate::conversation_repo;
 use crate::dictionary_repo::{
-    get_dictionary_entry, get_entry_by_exact_word, import_dictionary_entries, search_dictionary,
-    seed_stage_1_dictionary,
+    get_dictionary_entry, get_entry_by_exact_word, import_dictionary_entries,
+    import_rich_lexicon_entries, search_dictionary, search_rich_dictionary,
+    seed_stage_1_dictionary, seed_stage_9_rich_lexicon,
 };
 use crate::enterprise_repo::EnterpriseRepository;
 use crate::history_repo::{
@@ -21,9 +22,10 @@ use crate::settings_repo::{get_user_settings, save_user_settings};
 use chrono::{DateTime, Utc};
 use lingua_core::{
     CachedTranslation, CaptionSegment, ConversationSession, ConversationTurnItem,
-    DatabaseHealthInfo, DictionaryEntry, FavoriteItem, LanguageCode, LinguaError,
-    ModelInstallState, ModelPackDetailedInfo, ModelPackInfo, ModelPackManifest, MorphologyEntry,
-    SpeakerId, SpeechSession, SpeechSessionStatus, TranslationRecord, UserSettings,
+    DatabaseHealthInfo, DictionaryEntry, DictionarySearchCmdResponse, FavoriteItem, LanguageCode,
+    LinguaError, ModelInstallState, ModelPackDetailedInfo, ModelPackInfo, ModelPackManifest,
+    MorphologyEntry, RichDictionaryEntry, SpeakerId, SpeechSession, SpeechSessionStatus,
+    TranslationRecord, UserSettings,
 };
 use rusqlite::Connection;
 use std::path::{Path, PathBuf};
@@ -46,6 +48,7 @@ impl StorageService {
         seed_initial_model_catalog(&conn)?;
         seed_stage_1_dictionary(&conn)?;
         seed_initial_morphology(&conn)?;
+        seed_stage_9_rich_lexicon(&conn)?;
 
         Ok(Self {
             conn: Arc::new(Mutex::new(conn)),
@@ -72,6 +75,7 @@ impl StorageService {
         seed_initial_model_catalog(&conn)?;
         seed_stage_1_dictionary(&conn)?;
         seed_initial_morphology(&conn)?;
+        seed_stage_9_rich_lexicon(&conn)?;
 
         info!(
             "Opened LinguaFlow SQLite database at {}",
@@ -136,6 +140,31 @@ impl StorageService {
             .lock()
             .map_err(|e| LinguaError::Database(e.to_string()))?;
         search_dictionary(&conn, query, lang, limit)
+    }
+
+    pub fn search_rich_dictionary(
+        &self,
+        query: &str,
+        lang: Option<LanguageCode>,
+        part_of_speech: Option<&str>,
+        limit: usize,
+    ) -> Result<DictionarySearchCmdResponse, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        search_rich_dictionary(&conn, query, lang, part_of_speech, limit)
+    }
+
+    pub fn import_rich_lexicon_entries(
+        &self,
+        entries: &[RichDictionaryEntry],
+    ) -> Result<usize, LinguaError> {
+        let conn = self
+            .conn
+            .lock()
+            .map_err(|e| LinguaError::Database(e.to_string()))?;
+        import_rich_lexicon_entries(&conn, entries)
     }
 
     pub fn get_dictionary_entry(&self, id: &str) -> Result<Option<DictionaryEntry>, LinguaError> {

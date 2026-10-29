@@ -33,14 +33,18 @@ LinguaFlow strictly audits third-party libraries, linguistic corpora, and neural
 
 ---
 
-## 3. Planned AI Models & Linguistic Datasets Catalog
+## 3. Linguistic Datasets & AI Models Catalog
 
 | Component | Target Artifact / Source | License | Attribution Requirement |
 | :--- | :--- | :--- | :--- |
-| **Dictionary Index** | Curated Public Domain & Wiktionary Dumps | CC-BY-SA 3.0 / 4.0 | Retain dictionary attribution manifest in app |
+| **Kannada Lexicon (Stage 9)** | Alar Dictionary (V. Krishna) / Wiktextract (`kn`) | CC-BY-4.0 / ODC-By | Attribute V. Krishna, Alar.ink & Wiktextract |
+| **Tamil Lexicon (Stage 9)** | Univ. of Madras Tamil Lexicon / Open-Tamil / Wiktextract (`ta`) | Public Domain / CC-BY / MIT | Attribute Univ. of Madras & Project Madurai |
+| **English Lexical Core (Stage 9)** | WordNet 3.1 / Wiktextract (`en`) | WordNet BSD-style / CC-BY-SA 4.0 | Attribute Princeton University & Wiktionary |
 | **Local Translation (Stage 2)** | IndicTrans2 / Small ONNX quantized export | MIT / Permissive | AI4Bharat attribution manifest |
 | **Streaming ASR (Stage 3)** | Next-gen Kaldi / sherpa-onnx Indic models | Apache-2.0 | Sherpa ONNX attribution |
 | **Neural TTS (Stage 4)** | Piper TTS / Indic-TTS | MIT | Piper / Open Audio attribution |
+
+> Detailed URLs, dataset versions, and cryptographic hashes are documented in [`docs/LEXICON_PROVENANCE.md`](../LEXICON_PROVENANCE.md).
 
 ---
 

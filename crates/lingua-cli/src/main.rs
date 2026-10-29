@@ -1,3 +1,5 @@
+mod dict_import;
+
 use clap::{Parser, Subcommand};
 use lingua_core::{
     AccountTier, ApiKeyRecord, AppInfo, AuditEvent, CaptionFormat, DocumentFormat,
@@ -61,9 +63,28 @@ enum Commands {
         /// Optional language filter (kn-IN, ta-IN, en-US)
         #[arg(short, long)]
         lang: Option<String>,
+        /// Optional part-of-speech filter (noun, verb, adjective)
+        #[arg(short, long)]
+        pos: Option<String>,
         /// Maximum number of results
         #[arg(short = 'n', long, default_value_t = 10)]
         limit: usize,
+    },
+    /// Ingest and compile raw dictionary sources (JSONL/CSV/TSV) into the rich lexicon database (Stage 9)
+    DictImport {
+        /// Path to raw dictionary file
+        #[arg(short, long)]
+        file: String,
+        /// Target language BCP-47 code (en-US, kn-IN, ta-IN)
+        #[arg(short, long)]
+        lang: String,
+        /// Provenance attribution tag
+        #[arg(
+            short,
+            long,
+            default_value = "Alar / Wiktextract / Madras Tamil Lexicon (CC-BY-4.0)"
+        )]
+        provenance: String,
     },
     /// Model pack manager commands
     #[command(subcommand)]
@@ -642,7 +663,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
             }
         }
-        Commands::Dictionary { query, lang, limit } => {
+        Commands::Dictionary {
+            query,
+            lang,
+            pos,
+            limit,
+        } => {
             let lang_code = if let Some(l) = lang {
                 Some(LanguageCode::from_str(&l)?)
             } else {
@@ -650,45 +676,118 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             };
 
             println!(
-                "Searching dictionary for '{}' (lang: {:?}, limit: {})...",
-                query, lang_code, limit
+                "Searching Stage 9 rich dictionary for '{}' (lang: {:?}, pos: {:?}, limit: {})...",
+                query, lang_code, pos, limit
             );
 
-            let start = Instant::now();
-            let entries = storage.search_dictionary(&query, lang_code, limit)?;
-            let elapsed = start.elapsed();
+            let res = storage.search_rich_dictionary(&query, lang_code, pos.as_deref(), limit)?;
+
+            if let Some(ref stem) = res.resolved_stem {
+                println!(
+                    ">> Morphological Stem Detected: '{}' resolved to root '{}'",
+                    query, stem
+                );
+            }
+
+            if !res.did_you_mean.is_empty() {
+                println!(">> Did you mean: {}?", res.did_you_mean.join(", "));
+            }
 
             println!(
-                "Found {} entry(ies) in {:.2} ms:",
-                entries.len(),
-                elapsed.as_secs_f64() * 1000.0
+                "Found {} entry(ies) in {} ms:",
+                res.total_matches, res.latency_ms
             );
 
-            for (idx, entry) in entries.iter().enumerate() {
-                println!(
-                    "\n{}. {} ({}) [{}]",
-                    idx + 1,
-                    entry.word,
-                    entry.language,
-                    entry.part_of_speech
-                );
-                if let Some(ref ipa) = entry.pronunciation_ipa {
-                    println!("   IPA: {}", ipa);
-                }
-                if let Some(ref trans) = entry.transliteration {
-                    println!("   Transliteration: {}", trans);
-                }
-                println!("   Definition: {}", entry.definition);
-                if !entry.examples.is_empty() {
+            if !res.rich_entries.is_empty() {
+                for (idx, r) in res.rich_entries.iter().enumerate() {
                     println!(
-                        "   Example: {} -> {}",
-                        entry.examples[0].source, entry.examples[0].target
+                        "\n{}. {} ({}) [{}] (Register: {})",
+                        idx + 1,
+                        r.headword,
+                        r.language,
+                        r.part_of_speech,
+                        r.register
                     );
+                    if let Some(ref ipa) = r.ipa_pronunciation {
+                        println!("   IPA: {}", ipa);
+                    }
+                    if let Some(ref trans) = r.native_phonetic_respelling {
+                        println!("   Romanized Phonetic: {}", trans);
+                    }
+
+                    for (s_idx, s) in r.senses.iter().enumerate() {
+                        println!(
+                            "   Sense {}: [{}] {}",
+                            s_idx + 1,
+                            s.part_of_speech,
+                            s.definition
+                        );
+                    }
+
+                    if !r.target_equivalents.is_empty() {
+                        print!("   Target Equivalents: ");
+                        for (target_lang, equivs) in &r.target_equivalents {
+                            print!("[{}: {}] ", target_lang, equivs.join(", "));
+                        }
+                        println!();
+                    }
+
+                    if !r.bilingual_examples.is_empty() {
+                        println!(
+                            "   Example: {} -> {}",
+                            r.bilingual_examples[0].source, r.bilingual_examples[0].target
+                        );
+                    }
+                    if !r.synonyms.is_empty() {
+                        println!("   Synonyms: {}", r.synonyms.join(", "));
+                    }
+                    println!("   Provenance: {}", r.provenance);
                 }
-                if !entry.synonyms.is_empty() {
-                    println!("   Synonyms: {}", entry.synonyms.join(", "));
+            } else {
+                for (idx, entry) in res.entries.iter().enumerate() {
+                    println!(
+                        "\n{}. {} ({}) [{}]",
+                        idx + 1,
+                        entry.word,
+                        entry.language,
+                        entry.part_of_speech
+                    );
+                    if let Some(ref ipa) = entry.pronunciation_ipa {
+                        println!("   IPA: {}", ipa);
+                    }
+                    if let Some(ref trans) = entry.transliteration {
+                        println!("   Transliteration: {}", trans);
+                    }
+                    println!("   Definition: {}", entry.definition);
+                    if !entry.examples.is_empty() {
+                        println!(
+                            "   Example: {} -> {}",
+                            entry.examples[0].source, entry.examples[0].target
+                        );
+                    }
+                    if !entry.synonyms.is_empty() {
+                        println!("   Synonyms: {}", entry.synonyms.join(", "));
+                    }
                 }
             }
+        }
+        Commands::DictImport {
+            file,
+            lang,
+            provenance,
+        } => {
+            let lang_code = LanguageCode::from_str(&lang)?;
+            println!(
+                "Starting Stage 9 dictionary import from '{}' for language '{}'...",
+                file, lang_code
+            );
+            let stats = dict_import::compile_lexicon_file(&file, lang_code, &storage, &provenance)?;
+            println!("\n=== Dictionary Import Complete ===");
+            println!("  Total Lines Read:     {}", stats.total_read);
+            println!("  Valid Entries Stored: {}", stats.valid_entries);
+            println!("  Duplicates Skipped:   {}", stats.duplicates_skipped);
+            println!("  Rejected Invalid:     {}", stats.rejected_invalid);
+            println!("  Compilation Time:     {} ms", stats.duration_ms);
         }
         Commands::Models(sub) => {
             let mm = engine

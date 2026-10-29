@@ -473,6 +473,7 @@ async fn translate_handler(
 struct DictSearchQuery {
     q: Option<String>,
     lang: Option<String>,
+    pos: Option<String>,
     limit: Option<usize>,
 }
 
@@ -483,16 +484,13 @@ async fn dictionary_search_handler(
     let query_str = query.q.unwrap_or_default();
     let lang = query.lang.and_then(|l| l.parse::<LanguageCode>().ok());
     let limit = query.limit.unwrap_or(20);
+    let pos = query.pos.as_deref();
 
-    match state.storage.search_dictionary(&query_str, lang, limit) {
-        Ok(entries) => {
-            let total = entries.len();
-            Ok(Json(DictionarySearchCmdResponse {
-                entries,
-                query: query_str,
-                total_matches: total,
-            }))
-        }
+    match state
+        .storage
+        .search_rich_dictionary(&query_str, lang, pos, limit)
+    {
+        Ok(res) => Ok(Json(res)),
         Err(e) => Err((StatusCode::INTERNAL_SERVER_ERROR, e.to_string())),
     }
 }

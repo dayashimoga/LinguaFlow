@@ -149,15 +149,17 @@ export async function translateText(req: {
 export async function searchDictionary(
   query: string,
   language?: string | null,
-  limit: number = 20
+  limit: number = 20,
+  partOfSpeech?: string | null
 ): Promise<import('./types').DictionarySearchCmdResponse> {
   if (isTauri) {
     return invokeTauri<import('./types').DictionarySearchCmdResponse>('lingua_command_dictionary_search', {
-      request: { query, language, limit },
+      request: { query, language, limit, part_of_speech: partOfSpeech },
     });
   }
   const params = new URLSearchParams({ q: query, limit: limit.toString() });
   if (language) params.append('lang', language);
+  if (partOfSpeech && partOfSpeech !== 'all') params.append('pos', partOfSpeech);
   const res = await fetch(`${API_BASE}/dictionary/search?${params}`);
   if (!res.ok) throw new Error('Dictionary search failed');
   return res.json();

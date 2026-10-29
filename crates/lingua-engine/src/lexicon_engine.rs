@@ -241,6 +241,93 @@ impl LexiconTranslationEngine {
                 "தண்ணீர்",
                 LanguageCode::TaIn,
             ),
+            // Adventure mappings (Stage 9 Linguistic Integrity)
+            (
+                &["adventure", "adventures", "exploit", "venture"],
+                LanguageCode::EnUs,
+                "ಸಾಹಸ",
+                LanguageCode::KnIn,
+            ),
+            (
+                &["adventure", "adventures", "exploit", "venture"],
+                LanguageCode::EnUs,
+                "சாகசம்",
+                LanguageCode::TaIn,
+            ),
+            (
+                &["ಸಾಹಸ", "sahasa", "sāhasa"],
+                LanguageCode::KnIn,
+                "Adventure",
+                LanguageCode::EnUs,
+            ),
+            (
+                &["ಸಾಹಸ", "sahasa", "sāhasa"],
+                LanguageCode::KnIn,
+                "சாகசம்",
+                LanguageCode::TaIn,
+            ),
+            (
+                &["சாகசம்", "cakacam", "cākacam"],
+                LanguageCode::TaIn,
+                "Adventure",
+                LanguageCode::EnUs,
+            ),
+            (
+                &["சாகசம்", "cakacam", "cākacam"],
+                LanguageCode::TaIn,
+                "ಸಾಹಸ",
+                LanguageCode::KnIn,
+            ),
+            // Healthcare & Medical mappings
+            (
+                &["doctor", "physician", "medic"],
+                LanguageCode::EnUs,
+                "ವೈದ್ಯ",
+                LanguageCode::KnIn,
+            ),
+            (
+                &["doctor", "physician", "medic"],
+                LanguageCode::EnUs,
+                "மருத்துவர்",
+                LanguageCode::TaIn,
+            ),
+            (
+                &["hospital", "clinic"],
+                LanguageCode::EnUs,
+                "ಆಸ್ಪತ್ರೆ",
+                LanguageCode::KnIn,
+            ),
+            (
+                &["hospital", "clinic"],
+                LanguageCode::EnUs,
+                "மருத்துவமனை",
+                LanguageCode::TaIn,
+            ),
+            // Freight & Logistics mappings
+            (
+                &["freight", "cargo"],
+                LanguageCode::EnUs,
+                "ಸರಕು ಸಾಗಣೆ",
+                LanguageCode::KnIn,
+            ),
+            (
+                &["freight", "cargo"],
+                LanguageCode::EnUs,
+                "சரக்கு போக்குவரத்து",
+                LanguageCode::TaIn,
+            ),
+            (
+                &["warehouse", "depot", "godown"],
+                LanguageCode::EnUs,
+                "ಗೋದಾಮು",
+                LanguageCode::KnIn,
+            ),
+            (
+                &["warehouse", "depot", "godown"],
+                LanguageCode::EnUs,
+                "கிடங்கு",
+                LanguageCode::TaIn,
+            ),
         ];
 
         for (src_tokens, src_lang, tgt_val, tgt_lang) in mappings {
@@ -248,6 +335,20 @@ impl LexiconTranslationEngine {
                 for token in *src_tokens {
                     if normalize_text_nfc(token).to_lowercase() == norm {
                         return Some((*tgt_val).to_string());
+                    }
+                }
+            }
+        }
+
+        // Check rich lexicon database entries & target equivalents (Stage 9)
+        if let Ok(res) = self
+            .storage
+            .search_rich_dictionary(&norm, Some(source), None, 5)
+        {
+            for entry in res.rich_entries {
+                if let Some(targets) = entry.target_equivalents.get(target.as_bcp47()) {
+                    if let Some(first) = targets.first() {
+                        return Some(first.clone());
                     }
                 }
             }

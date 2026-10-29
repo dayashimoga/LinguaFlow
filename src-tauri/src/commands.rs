@@ -143,21 +143,12 @@ pub fn lingua_command_dictionary_search(
     request: DictionarySearchCmdRequest,
 ) -> IpcResponse<DictionarySearchCmdResponse> {
     let limit = request.limit.unwrap_or(20);
+    let pos = request.part_of_speech.as_deref();
     match state
         .storage
-        .search_dictionary(&request.query, request.language, limit)
+        .search_rich_dictionary(&request.query, request.language, pos, limit)
     {
-        Ok(entries) => {
-            let total = entries.len();
-            IpcResponse::ok(
-                "tauri-ipc",
-                DictionarySearchCmdResponse {
-                    entries,
-                    query: request.query,
-                    total_matches: total,
-                },
-            )
-        }
+        Ok(res) => IpcResponse::ok("tauri-ipc", res),
         Err(e) => IpcResponse::err("tauri-ipc", e),
     }
 }

@@ -125,14 +125,24 @@ pub struct TranslateCmdResponse {
 pub struct DictionarySearchCmdRequest {
     pub query: String,
     pub language: Option<crate::language::LanguageCode>,
+    #[serde(default)]
+    pub part_of_speech: Option<String>,
     pub limit: Option<usize>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq, Default)]
 pub struct DictionarySearchCmdResponse {
     pub entries: Vec<crate::models::DictionaryEntry>,
+    #[serde(default)]
+    pub rich_entries: Vec<crate::models::RichDictionaryEntry>,
+    #[serde(default)]
+    pub resolved_stem: Option<String>,
+    #[serde(default)]
+    pub did_you_mean: Vec<String>,
     pub query: String,
     pub total_matches: usize,
+    #[serde(default)]
+    pub latency_ms: u64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]

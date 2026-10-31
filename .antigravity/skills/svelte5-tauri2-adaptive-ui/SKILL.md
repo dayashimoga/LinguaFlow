@@ -11,3 +11,4 @@ description: Enforces Svelte 5 Runes, binary IPC efficiency, keyboard accessibil
    - Mobile (`< 768px` on Android/iOS): Bottom navigation bar with `padding-bottom: env(safe-area-inset-bottom)`, touch targets `>= 44x44 px`, and swipeable drawer.
 3. **Zero-Copy Binary IPC**:
    - Use `Uint8Array` / `ArrayBuffer` for audio waveforms and image crops across Tauri IPC instead of JSON number arrays.
+

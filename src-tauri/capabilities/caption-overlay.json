@@ -1,0 +1,12 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "caption-overlay",
+  "description": "Minimal read-only event privileges for the secondary borderless caption overlay window",
+  "windows": [
+    "caption-overlay"
+  ],
+  "permissions": [
+    "core:event:default"
+  ]
+}
+

@@ -15,3 +15,4 @@ description: Enforces ultra-low memory footprint, zero-unwrap safety, mmap ONNX 
 4. **Verification Gate**:
    - Run `cargo clippy --workspace --all-targets -- -D warnings -D clippy::unwrap_used`
    - Run `cargo test --workspace`
+

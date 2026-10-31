@@ -1100,6 +1100,30 @@ pub fn lingua_command_save_global_shortcuts(
     IpcResponse::ok("tauri-ipc", true)
 }
 
+#[tauri::command]
+pub fn lingua_command_toggle_desktop_caption_overlay(app: tauri::AppHandle) -> IpcResponse<bool> {
+    match crate::caption_overlay::CaptionOverlayManager::toggle_desktop_overlay(&app) {
+        Ok(visible) => IpcResponse::ok("tauri-ipc", visible),
+        Err(e) => IpcResponse::err("tauri-ipc", LinguaError::Internal(e)),
+    }
+}
+
+#[tauri::command]
+pub fn lingua_command_broadcast_caption_update(
+    app: tauri::AppHandle,
+    source_text: String,
+    translated_text: Option<String>,
+) -> IpcResponse<bool> {
+    match crate::caption_overlay::CaptionOverlayManager::update_caption_text(
+        &app,
+        &source_text,
+        translated_text.as_deref(),
+    ) {
+        Ok(()) => IpcResponse::ok("tauri-ipc", true),
+        Err(e) => IpcResponse::err("tauri-ipc", LinguaError::Internal(e)),
+    }
+}
+
 // ============================================================================
 // Stage 7: Learning & Production Certification Commands
 // ============================================================================

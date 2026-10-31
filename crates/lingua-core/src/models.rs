@@ -1059,6 +1059,7 @@ pub enum DocumentFormat {
     Pdf,
     Csv,
     Html,
+    Docx,
 }
 
 impl DocumentFormat {
@@ -1069,6 +1070,7 @@ impl DocumentFormat {
             Self::Pdf => "pdf",
             Self::Csv => "csv",
             Self::Html => "html",
+            Self::Docx => "docx",
         }
     }
 
@@ -1078,6 +1080,7 @@ impl DocumentFormat {
             "pdf" => Self::Pdf,
             "csv" | "tsv" => Self::Csv,
             "html" | "htm" => Self::Html,
+            "docx" | "doc" => Self::Docx,
             _ => Self::Txt,
         }
     }

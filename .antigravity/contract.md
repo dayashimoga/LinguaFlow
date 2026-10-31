@@ -29,3 +29,4 @@
    - Downloaded model packs require dual `SHA-256` checksum AND `Ed25519` signature verification prior to activation.
    - Zero-Log Privacy mode wraps sensitive audio/text buffers in `zeroize::Zeroizing<T>`.
    - Enterprise API keys (`lf_live_...`) are stored as Argon2id/BLAKE3 hashes and verified in constant time.
+

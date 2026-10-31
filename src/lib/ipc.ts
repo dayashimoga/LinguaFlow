@@ -872,6 +872,23 @@ export async function getOverlayPermission(): Promise<SystemAudioPermission> {
   return res.json();
 }
 
+export async function toggleDesktopCaptionOverlay(): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_toggle_desktop_caption_overlay');
+  }
+  return true;
+}
+
+export async function broadcastCaptionUpdate(sourceText: string, translatedText?: string): Promise<boolean> {
+  if (isTauri) {
+    return invokeTauri<boolean>('lingua_command_broadcast_caption_update', {
+      source_text: sourceText,
+      translated_text: translatedText,
+    });
+  }
+  return true;
+}
+
 export async function getGlobalShortcuts(): Promise<GlobalShortcutConfig> {
   if (isTauri) {
     const res = await invokeTauri<{ config: GlobalShortcutConfig }>('lingua_command_get_global_shortcuts');

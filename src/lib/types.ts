@@ -642,7 +642,7 @@ export interface OcrResult {
   processing_time_ms: number;
 }
 
-export type DocumentFormat = 'txt' | 'markdown' | 'pdf' | 'csv' | 'html';
+export type DocumentFormat = 'txt' | 'markdown' | 'pdf' | 'csv' | 'html' | 'docx';
 export type DocumentJobStatus = 'queued' | 'processing' | 'completed' | 'failed' | 'cancelled';
 
 export interface DocumentBlock {

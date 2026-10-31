@@ -11,3 +11,4 @@ description: Enforces SQLCipher encryption, Ed25519 model & license verification
    - Wrap sensitive patient/enterprise transcripts and PCM audio vectors in `zeroize::Zeroizing` when Zero-Log Privacy Mode is enabled.
 3. **Enterprise Gateway Hardening**:
    - Hash `lf_live_...` API keys with BLAKE3/Argon2id, enforce token bucket rate limits in Axum middleware, and append tamper-evident SHA-256 hash-chained entries to the SQLite audit log.
+

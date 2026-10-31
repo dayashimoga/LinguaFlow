@@ -1,3 +1,4 @@
+pub mod caption_overlay;
 pub mod commands;
 
 use lingua_core::AppInfo;
@@ -109,6 +110,8 @@ pub fn run() {
             commands::lingua_command_get_overlay_permission,
             commands::lingua_command_get_global_shortcuts,
             commands::lingua_command_save_global_shortcuts,
+            commands::lingua_command_toggle_desktop_caption_overlay,
+            commands::lingua_command_broadcast_caption_update,
             // Stage 7 commands
             commands::lingua_command_list_learning_decks,
             commands::lingua_command_get_deck_cards,

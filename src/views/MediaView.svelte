@@ -8,6 +8,7 @@
     performOcr,
     saveOverlaySettings,
     startMediaTranscription,
+    toggleDesktopCaptionOverlay,
     translateDocument,
     updateMediaSegment,
   } from '../lib/ipc';
@@ -63,6 +64,12 @@
   let canvasElement: HTMLCanvasElement | null = null;
   let cameraStream: MediaStream | null = null;
   let ocrImagePreviewUrl: string | null = null;
+  let isCropping = false;
+  let isDraggingCrop = false;
+  let cropBox: { x: number; y: number; width: number; height: number } | null = null;
+  let cropStartPos: { x: number; y: number } | null = null;
+  let lastOcrBytes: Uint8Array | null = null;
+  let lastOcrMime = 'image/png';
 
   // ----------------------------------------------------
   // Tab 3: Document Translator
@@ -103,6 +110,7 @@
   let overlaySaveSuccess = false;
 
   onMount(async () => {
+    window.addEventListener('paste', handleGlobalPaste);
     try {
       const [settings, perm] = await Promise.all([
         getOverlaySettings().catch(() => overlaySettings),
@@ -116,6 +124,7 @@
   });
 
   onDestroy(() => {
+    window.removeEventListener('paste', handleGlobalPaste);
     stopCamera();
     if (playbackTimer) clearInterval(playbackTimer);
   });
@@ -271,13 +280,111 @@
     }, 'image/png');
   }
 
+  async function handleGlobalPaste(e: ClipboardEvent) {
+    if (activeTab !== 'ocr') return;
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.type.startsWith('image/')) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          ocrImagePreviewUrl = URL.createObjectURL(file);
+          const buffer = await file.arrayBuffer();
+          lastOcrBytes = new Uint8Array(buffer);
+          lastOcrMime = file.type || 'image/png';
+          cropBox = null;
+          isCropping = false;
+          runOcrOnBytes(lastOcrBytes, lastOcrMime);
+          break;
+        }
+      }
+    }
+  }
+
+  function toggleCropMode() {
+    isCropping = !isCropping;
+    if (!isCropping) {
+      cropBox = null;
+    }
+  }
+
+  function handleCropMouseDown(e: MouseEvent) {
+    if (!isCropping) return;
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const x = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const y = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    cropStartPos = { x, y };
+    cropBox = { x, y, width: 0, height: 0 };
+    isDraggingCrop = true;
+  }
+
+  function handleCropMouseMove(e: MouseEvent) {
+    if (!isDraggingCrop || !cropStartPos) return;
+    const target = e.currentTarget as HTMLElement;
+    const rect = target.getBoundingClientRect();
+    const curX = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+    const curY = Math.max(0, Math.min(1, (e.clientY - rect.top) / rect.height));
+    const x = Math.min(cropStartPos.x, curX);
+    const y = Math.min(cropStartPos.y, curY);
+    const width = Math.abs(curX - cropStartPos.x);
+    const height = Math.abs(curY - cropStartPos.y);
+    cropBox = { x, y, width, height };
+  }
+
+  function handleCropMouseUp() {
+    isDraggingCrop = false;
+    if (cropBox && (cropBox.width < 0.01 || cropBox.height < 0.01)) {
+      cropBox = null;
+    }
+  }
+
+  async function executeCropOcr() {
+    if (!cropBox || !ocrImagePreviewUrl) return;
+    const img = new Image();
+    img.src = ocrImagePreviewUrl;
+    await img.decode();
+
+    const canvas = document.createElement('canvas');
+    const sx = Math.floor(cropBox.x * img.naturalWidth);
+    const sy = Math.floor(cropBox.y * img.naturalHeight);
+    const sWidth = Math.max(16, Math.floor(cropBox.width * img.naturalWidth));
+    const sHeight = Math.max(16, Math.floor(cropBox.height * img.naturalHeight));
+
+    canvas.width = sWidth;
+    canvas.height = sHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.drawImage(img, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
+
+    canvas.toBlob(async (blob) => {
+      if (blob) {
+        const buffer = await blob.arrayBuffer();
+        const croppedBytes = new Uint8Array(buffer);
+        isCropping = false;
+        runOcrOnBytes(croppedBytes, 'image/png');
+      }
+    }, 'image/png');
+  }
+
+  function cancelCrop() {
+    isCropping = false;
+    cropBox = null;
+  }
+
   async function handleOcrImageUpload(e: Event) {
     const target = e.target as HTMLInputElement;
     if (target.files && target.files.length > 0) {
       const file = target.files[0];
       ocrImagePreviewUrl = URL.createObjectURL(file);
       const buffer = await file.arrayBuffer();
-      runOcrOnBytes(new Uint8Array(buffer), file.type || 'image/bmp');
+      lastOcrBytes = new Uint8Array(buffer);
+      lastOcrMime = file.type || 'image/png';
+      cropBox = null;
+      isCropping = false;
+      runOcrOnBytes(lastOcrBytes, lastOcrMime);
     }
   }
 
@@ -301,13 +408,19 @@
     canvas.toBlob(async (blob) => {
       if (blob) {
         const buffer = await blob.arrayBuffer();
-        runOcrOnBytes(new Uint8Array(buffer), 'image/png');
+        lastOcrBytes = new Uint8Array(buffer);
+        lastOcrMime = 'image/png';
+        cropBox = null;
+        isCropping = false;
+        runOcrOnBytes(lastOcrBytes, lastOcrMime);
       }
     });
   }
 
   async function runOcrOnBytes(bytes: Uint8Array, mime: string) {
     isScanningOcr = true;
+    lastOcrBytes = bytes;
+    lastOcrMime = mime;
     try {
       ocrResult = await performOcr({
         image_bytes: Array.from(bytes),
@@ -333,6 +446,8 @@
       if (file.name.endsWith('.md')) docFormat = 'markdown';
       else if (file.name.endsWith('.pdf')) docFormat = 'pdf';
       else if (file.name.endsWith('.csv')) docFormat = 'csv';
+      else if (file.name.endsWith('.docx') || file.name.endsWith('.doc')) docFormat = 'docx';
+      else if (file.name.endsWith('.html') || file.name.endsWith('.htm')) docFormat = 'html';
       else docFormat = 'txt';
     }
   }
@@ -394,6 +509,15 @@ fn main() {
   }
 
   // --- Overlay Settings Handlers ---
+
+  let isOverlayWindowActive = false;
+  async function handleToggleDesktopOverlay() {
+    try {
+      isOverlayWindowActive = await toggleDesktopCaptionOverlay();
+    } catch (err: any) {
+      alert(`Overlay toggle: ${err.message || err}`);
+    }
+  }
 
   async function updateAndSaveOverlay() {
     try {
@@ -637,6 +761,11 @@ fn main() {
           Capture live camera frame or import images for authentic Otsu binarization and Unicode glyph recognition.
         </p>
 
+        <div class="clipboard-banner">
+          <span>📋</span>
+          <span><strong>Clipboard Ready:</strong> Press <code>Ctrl+V</code> or <code>Cmd+V</code> anywhere to paste a screenshot directly into OCR.</span>
+        </div>
+
         <!-- Viewfinder Box -->
         <div class="viewfinder-container">
           {#if isCameraActive}
@@ -662,16 +791,34 @@ fn main() {
         <div class="camera-actions-row">
           {#if !isCameraActive}
             <button class="btn-primary" on:click={startCamera}>
-              📹 Start Camera Viewfinder
+              📹 Live Webview Camera
             </button>
           {/if}
-          <button class="btn-ghost" on:click={loadSampleOcrImage}>
-            ✨ Load High-Contrast Sample Image
-          </button>
+          <label class="btn-ghost-upload">
+            📸 Mobile Camera Snapshot
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              on:change={handleOcrImageUpload}
+              class="hidden-file-input"
+            />
+          </label>
           <label class="btn-secondary-upload">
-            📁 Upload BMP / PNG / JPEG
+            📁 Gallery Image
             <input type="file" accept="image/*" on:change={handleOcrImageUpload} class="hidden-file-input" />
           </label>
+          <button class="btn-ghost" on:click={loadSampleOcrImage}>
+            ✨ Load Indic Sample
+          </button>
+          {#if ocrImagePreviewUrl}
+            <button
+              class="btn-ghost {isCropping ? 'btn-active-crop' : ''}"
+              on:click={toggleCropMode}
+            >
+              {isCropping ? '✂️ Cancel Crop' : '✂️ Region Crop Tool'}
+            </button>
+          {/if}
         </div>
 
         <div class="form-row">
@@ -703,10 +850,45 @@ fn main() {
             <p>Running Otsu binarization, line segmentation, and glyph classification...</p>
           </div>
         {:else if !ocrResult}
-          <div class="empty-state">
-            <span class="empty-icon">🔍</span>
-            <p>Capture a camera frame or upload an image to begin optical character recognition.</p>
-          </div>
+          {#if ocrImagePreviewUrl}
+            <!-- Image loaded but not yet scanned or cropping -->
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <div
+              class="visual-canvas-container {isCropping ? 'crop-active-cursor' : ''}"
+              role="region"
+              aria-label="Image region selector"
+              on:mousedown={handleCropMouseDown}
+              on:mousemove={handleCropMouseMove}
+              on:mouseup={handleCropMouseUp}
+            >
+              <img src={ocrImagePreviewUrl} alt="Visual Preview" class="annotated-image" />
+              {#if cropBox}
+                <div
+                  class="crop-selection-box"
+                  style="
+                    left: {cropBox.x * 100}%;
+                    top: {cropBox.y * 100}%;
+                    width: {cropBox.width * 100}%;
+                    height: {cropBox.height * 100}%;
+                  "
+                ></div>
+              {/if}
+            </div>
+
+            {#if cropBox}
+              <div class="crop-toolbar">
+                <button class="btn-primary" on:click={executeCropOcr}>
+                  ⚡ Scan Selected Region ({(cropBox.width * 100).toFixed(0)}% × {(cropBox.height * 100).toFixed(0)}%)
+                </button>
+                <button class="btn-ghost" on:click={cancelCrop}>✕ Reset Crop</button>
+              </div>
+            {/if}
+          {:else}
+            <div class="empty-state">
+              <span class="empty-icon">🔍</span>
+              <p>Capture a camera frame, paste screenshot (Ctrl+V), or upload an image to begin optical character recognition.</p>
+            </div>
+          {/if}
         {:else}
           <div class="ocr-stats-banner">
             <span>Language: <strong>{ocrResult.detected_language}</strong></span>
@@ -716,22 +898,52 @@ fn main() {
 
           <!-- Bounding Boxes Visualizer -->
           {#if ocrImagePreviewUrl}
-            <div class="visual-canvas-container">
+            <!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+            <div
+              class="visual-canvas-container {isCropping ? 'crop-active-cursor' : ''}"
+              role="region"
+              aria-label="Image region selector"
+              on:mousedown={handleCropMouseDown}
+              on:mousemove={handleCropMouseMove}
+              on:mouseup={handleCropMouseUp}
+            >
               <img src={ocrImagePreviewUrl} alt="Visual Scan" class="annotated-image" />
-              {#each ocrResult.blocks as b}
+              {#if !isCropping}
+                {#each ocrResult.blocks as b}
+                  <div
+                    class="bounding-box"
+                    style="
+                      left: {b.bounding_box.x * 100}%;
+                      top: {b.bounding_box.y * 100}%;
+                      width: {b.bounding_box.width * 100}%;
+                      height: {b.bounding_box.height * 100}%;
+                    "
+                  >
+                    <span class="overlay-tag">{b.translated_text || b.text}</span>
+                  </div>
+                {/each}
+              {/if}
+              {#if cropBox}
                 <div
-                  class="bounding-box"
+                  class="crop-selection-box"
                   style="
-                    left: {b.bounding_box.x * 100}%;
-                    top: {b.bounding_box.y * 100}%;
-                    width: {b.bounding_box.width * 100}%;
-                    height: {b.bounding_box.height * 100}%;
+                    left: {cropBox.x * 100}%;
+                    top: {cropBox.y * 100}%;
+                    width: {cropBox.width * 100}%;
+                    height: {cropBox.height * 100}%;
                   "
-                >
-                  <span class="overlay-tag">{b.translated_text || b.text}</span>
-                </div>
-              {/each}
+                ></div>
+              {/if}
             </div>
+
+            {#if cropBox}
+              <div class="crop-toolbar">
+                <button class="btn-primary" on:click={executeCropOcr}>
+                  ⚡ Scan Selected Region ({(cropBox.width * 100).toFixed(0)}% × {(cropBox.height * 100).toFixed(0)}%)
+                </button>
+                <button class="btn-ghost" on:click={cancelCrop}>✕ Reset Crop</button>
+              </div>
+            {/if}
           {/if}
 
           <!-- Block Details -->
@@ -763,14 +975,14 @@ fn main() {
       <section class="card glass-panel" aria-label="Document Ingestion">
         <h2 class="card-title">1. Document Ingestion (&lt; 25 MB)</h2>
         <p class="card-desc">
-          Structured document parser with strict code-block preservation (fenced code is never corrupted). Supports TXT, Markdown, PDF streams, CSV.
+          Structured document parser with strict code-block and table preservation. Supports TXT, Markdown, PDF, CSV, and DOCX.
         </p>
 
         <div class="dropzone">
           <input
             type="file"
             id="doc-upload-input"
-            accept=".md,.txt,.pdf,.csv,.tsv"
+            accept=".md,.txt,.pdf,.csv,.tsv,.docx,.doc,.html"
             on:change={handleDocFileSelect}
             class="hidden-file-input"
           />
@@ -779,7 +991,7 @@ fn main() {
             {#if docFile}
               <span class="file-chosen">{docFile.name} ({(docFile.size / 1024).toFixed(1)} KB)</span>
             {:else}
-              <span class="drop-text">Drag & drop document (.md, .txt, .pdf, .csv) or <strong>Browse</strong></span>
+              <span class="drop-text">Drag & drop document (.md, .txt, .pdf, .csv, .docx) or <strong>Browse</strong></span>
             {/if}
           </label>
         </div>
@@ -902,6 +1114,13 @@ fn main() {
               {/if}
             </div>
           </div>
+        </div>
+
+        <div class="overlay-actions-row">
+          <button class="btn-primary" on:click={handleToggleDesktopOverlay}>
+            🖥️ {isOverlayWindowActive ? 'Hide' : 'Launch'} Native Borderless Overlay Window
+          </button>
+          <span class="desktop-badge">Native Parity: #[cfg(desktop)] Transparent Window &bull; #[cfg(mobile)] PiP Floating HUD</span>
         </div>
 
         <!-- Capability & DRM Transparency Disclosures -->
@@ -1495,6 +1714,66 @@ fn main() {
     border-radius: 8px;
     overflow: hidden;
     background: #05070a;
+    user-select: none;
+  }
+
+  .crop-active-cursor {
+    cursor: crosshair;
+  }
+
+  .crop-selection-box {
+    position: absolute;
+    border: 2px dashed #f59e0b;
+    background: rgba(245, 158, 11, 0.25);
+    box-sizing: border-box;
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .crop-toolbar {
+    display: flex;
+    gap: 0.75rem;
+    align-items: center;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .clipboard-banner {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    background: rgba(56, 189, 248, 0.1);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    color: #38bdf8;
+    padding: 0.4rem 0.8rem;
+    border-radius: 6px;
+    font-size: 0.82rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .btn-active-crop {
+    background: rgba(245, 158, 11, 0.2) !important;
+    border-color: #f59e0b !important;
+    color: #f59e0b !important;
+  }
+
+  .btn-ghost-upload {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 0.9rem;
+    background: transparent;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+  }
+
+  .btn-ghost-upload:hover {
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
   }
 
   .annotated-image {
@@ -1652,6 +1931,23 @@ fn main() {
   .sim-tgt {
     margin: 0.3rem 0 0 0;
     font-weight: 700;
+  }
+
+  .overlay-actions-row {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin: 1rem 0;
+    flex-wrap: wrap;
+  }
+
+  .desktop-badge {
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.05);
+    padding: 0.3rem 0.6rem;
+    border-radius: 4px;
+    border: 1px solid var(--border-color);
   }
 
   .policy-box {

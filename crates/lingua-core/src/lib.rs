@@ -72,5 +72,6 @@ pub use models::{
     VadState, WorkerMetrics,
 };
 pub use unicode::{
-    detect_language, detect_script, normalize_text_nfc, sanitize_translation_input, DetectedScript,
+    detect_language, detect_script, normalize_nfc, normalize_text_nfc, sanitize_translation_input,
+    DetectedScript,
 };

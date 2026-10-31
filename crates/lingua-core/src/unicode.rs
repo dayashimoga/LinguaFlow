@@ -15,6 +15,8 @@ pub fn normalize_text_nfc(input: &str) -> String {
     input.nfc().collect::<String>()
 }
 
+pub use normalize_text_nfc as normalize_nfc;
+
 pub fn sanitize_translation_input(input: &str, max_bytes: usize) -> Result<String, LinguaError> {
     if input.len() > max_bytes {
         return Err(LinguaError::Validation(format!(

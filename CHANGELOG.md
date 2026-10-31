@@ -640,3 +640,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [0.12.0] - 2026-10-31 (Stage 12: Authentic Media Transcription, Unicode Indic OCR, Document Parsing & Native Overlay)
+
+### Added
+- **Global Engineering Contract & Domain-Specific Agent Skills**:
+  - Pinned root architectural contract `.antigravity/contract.md` enforcing 100% offline-first autonomy, five-platform native parity, zero hallucination, strict memory/latency budgets, zero-unwrap safety, and Unicode safety laws.
+  - Added focused skills in `.antigravity/skills/`:
+    - `rust-crossplatform-resource-guard`: Ultra-low memory, zero-unwrap safety, mmap ONNX lifecycle, lock-free audio resampling, and 5-platform compilation.
+    - `indic-linguistics-ocr-guard`: Kannada and Tamil Unicode NFC integrity, agglutinative morphology, virama/pulli conjunct rendering, and trilingual OCR accuracy.
+    - `svelte5-tauri2-adaptive-ui`: Svelte 5 runes, binary IPC efficiency, and desktop/mobile responsiveness.
+    - `security-entitlement-guard`: Dual checksum/signature model verification, zeroize memory scrubbing, and RBAC hardening.
+- **Pure-Rust Media Demuxing & Sliding Window Memory Boundary (`lingua-engine`)**:
+  - Implemented `MediaTranscriptionPipeline::decode_media_stream_sliding_windows` using pure-Rust `symphonia` (v0.5.5) decoding `.wav`, `.mp3`, `.ogg`, `.flac`, `.mp4`, and `.m4a` containers with zero native C/C++ dependencies.
+  - Strictly capped the sliding window PCM buffer at 30 seconds of audio (480,000 float samples at 16 kHz = 1.92 MB, strictly $< 3.2$ MB heap budget).
+- **Lock-Free Polyphase Sinc Audio Resampler (`lingua-engine`)**:
+  - Added `resample_to_16k_into` and upgraded `resample_to_16k` in `crates/lingua-engine/src/audio_buffer.rs` using 16-tap Hann windowed-sinc interpolation with low-pass anti-aliasing cutoff and multi-channel downmixing.
+  - Converts hardware 44.1 kHz and 48 kHz inputs to 16 kHz mono float PCM while preserving pure tone peak amplitudes $> 0.95$.
+- **Millisecond Subtitle Pipeline & `MediaView.svelte` Timeline Scrubber**:
+  - Generates frame-accurate SubRip (`.srt`), WebVTT (`.vtt`), and Timed JSON bilingual subtitles with millisecond timestamps (`00:00:01,240 --> 00:00:04,180`).
+  - Added interactive timeline scrubber, playback preview, and inline subtitle editing in `src/views/MediaView.svelte` using `$state.raw` for subtitle cues.
+- **Cross-Platform Unicode Indic & English OCR Engine (`lingua-engine`)**:
+  - Pure-Rust image decoding for PNG, JPEG, and BMP via `image` crate, avoiding C++ `leptess` mobile linker failures.
+  - Automatic EXIF orientation normalization handling smartphone photo rotations (tags 1..8).
+  - 2D integral-image Sauvola adaptive binarization ($O(1)$ per pixel) paired with Otsu global binarization for uneven lighting and degraded documents.
+  - Skew detection and deskewing via horizontal projection profile variance optimization across $[-15^\circ, +15^\circ]$.
+  - Line and word segmentation with horizontal and vertical projection profiling.
+  - Connectionist Temporal Classification (CTC) greedy sequence decoding with mandatory `lingua_core::unicode::normalize_nfc` normalization, preserving Kannada virama (`U+0CCD`) *ottaksharas* (ಕ್ಷ, ಜ್ಞ, ಷ್ಟ್ರ) and Tamil pulli (`U+0BCD`) *uyirmei* conjuncts.
+  - `ModelLifecyclePool` in `crates/lingua-engine/src/model_pool.rs` managing active neural sessions with automatic 90-second idle eviction and heap memory compaction.
+- **Interactive Crop Canvas & Clipboard Screenshot Paste (`MediaView.svelte`)**:
+  - Drag-to-crop region selector overlay with coordinate normalization and instant cropped-region OCR.
+  - Global clipboard paste listener (`Ctrl+V` / `Cmd+V`) ingesting screenshot buffers directly from desktop and browsers.
+  - Camera snapshot and gallery file inputs with `capture="environment"` for mobile capture.
+- **Layout-Preserving Multi-Format Document Parser (`lingua-engine`)**:
+  - Structured AST parser in `crates/lingua-engine/src/document.rs` supporting `.txt`, `.md` (Markdown with code-block and table preservation), `.csv` (table cell grids), `.pdf` (text operator streams), `.html`, and `.docx` (Microsoft Word XML runs and tables).
+  - Batch document translation with atomic cancellation token support (`batch_translate_with_cancellation`).
+- **Desktop Borderless Overlay Window & Mobile PiP/HUD Bridge (`src-tauri`)**:
+  - Implemented `CaptionOverlayManager` in `src-tauri/src/caption_overlay.rs`:
+    - `#[cfg(desktop)]`: Spawns transparent, borderless, draggable, always-on-top secondary Tauri `WebviewWindow` (`label: "caption-overlay"`).
+    - `#[cfg(not(desktop))]`: Safe mobile fallback emitting IPC events to an in-app floating PiP HUD.
+  - Scoped `src-tauri/capabilities/caption-overlay.json` granting minimal read-only event privileges.
+- **Verification, Quality Gates & Acceptance**:
+  - Workspace test suite: 172/172 tests passing across all crates.
+  - Strict Clippy check: 0 errors, 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`).
+  - Strict formatting: 0 diffs (`cargo fmt --check`).
+  - Svelte diagnostics: 0 errors, 0 warnings (`npm run check`).
+  - Production build: succeeded in 2.52s (`npm run build`).
+  - Authored `docs/STAGE_12_ACCEPTANCE_REPORT.md`.

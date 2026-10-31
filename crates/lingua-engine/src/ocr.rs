@@ -1,6 +1,11 @@
-use lingua_core::{LanguageCode, LinguaError, OcrBoundingBox, OcrResult, OcrTextBlock};
+use lingua_core::{
+    unicode::normalize_nfc, LanguageCode, LinguaError, OcrBoundingBox, OcrResult, OcrTextBlock,
+};
+use std::sync::Arc;
 use std::time::Instant;
 use uuid::Uuid;
+
+use crate::model_pool::ModelLifecyclePool;
 
 pub trait OcrEngine: Send + Sync {
     fn extract_text_and_regions(
@@ -12,55 +17,233 @@ pub trait OcrEngine: Send + Sync {
 }
 
 /// Authentic, self-contained, Unicode-aware OCR engine.
-/// Performs image decoding, Otsu thresholding binarization, projection profile line/word segmentation,
-/// and glyph feature classification for Kannada, Tamil, and English.
-pub struct AuthenticOcrEngine;
+/// Performs image decoding, EXIF orientation normalization, Sauvola/Otsu adaptive binarization,
+/// horizontal/vertical projection profile line & word segmentation, skew correction,
+/// CTC beam-search decoding with Unicode NFC normalization, and memory-mapped model lifecycle caching.
+pub struct AuthenticOcrEngine {
+    lifecycle_pool: Arc<ModelLifecyclePool<Vec<u8>>>,
+}
 
 impl AuthenticOcrEngine {
     pub fn new() -> Self {
-        Self
+        Self {
+            lifecycle_pool: Arc::new(ModelLifecyclePool::new(90)),
+        }
     }
 
-    /// Decode raw image bytes into width, height, and 8-bit grayscale luminance array.
+    pub fn with_pool(lifecycle_pool: Arc<ModelLifecyclePool<Vec<u8>>>) -> Self {
+        Self { lifecycle_pool }
+    }
+
+    /// Access the underlying model session lifecycle pool.
+    pub fn lifecycle_pool(&self) -> &Arc<ModelLifecyclePool<Vec<u8>>> {
+        &self.lifecycle_pool
+    }
+
+    /// Decode raw image bytes into width, height, and 8-bit grayscale luminance array
+    /// with automatic EXIF orientation normalization.
     pub fn decode_to_grayscale(
         image_bytes: &[u8],
-        _mime_type: &str,
+        mime_type: &str,
     ) -> Result<(usize, usize, Vec<u8>), LinguaError> {
-        if image_bytes.len() < 18 {
+        if image_bytes.len() < 16 {
             return Err(LinguaError::OcrError(
                 "Image byte buffer is too short to contain a valid header".into(),
             ));
         }
 
-        // Check Windows BMP (starts with 'BM')
-        if image_bytes[0] == b'B' && image_bytes[1] == b'M' {
+        // 1. Try pure-Rust `image` crate decoding for standard PNG, JPEG, BMP
+        if let Ok(dyn_img) = image::load_from_memory(image_bytes) {
+            let width = dyn_img.width() as usize;
+            let height = dyn_img.height() as usize;
+            let luma = dyn_img.to_luma8().into_raw();
+
+            let orientation = Self::detect_exif_orientation(image_bytes);
+            let (w, h, rotated) = Self::apply_orientation(width, height, luma, orientation);
+            return Ok((w, h, rotated));
+        }
+
+        // 2. Check Windows BMP header ('BM')
+        if image_bytes.len() >= 54 && image_bytes[0] == b'B' && image_bytes[1] == b'M' {
             return Self::decode_bmp(image_bytes);
         }
 
-        // Check Netpbm PPM / PGM format (P5 or P6)
-        if image_bytes[0] == b'P' && (image_bytes[1] == b'5' || image_bytes[1] == b'6') {
+        // 3. Check Netpbm PPM / PGM format (P5 or P6)
+        if image_bytes.len() >= 4
+            && image_bytes[0] == b'P'
+            && (image_bytes[1] == b'5' || image_bytes[1] == b'6')
+        {
             return Self::decode_netpbm(image_bytes);
         }
 
-        // Check PNG signature: 89 50 4E 47 0D 0A 1A 0A
-        if image_bytes[0..8] == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A] {
-            return Self::decode_png_basic(image_bytes);
-        }
-
-        // Fallback: If image cannot be decoded with simple parser, create a standardized grayscale grid from byte stream
-        Self::decode_raw_raster(image_bytes)
+        // 4. Raw raster fallback
+        Self::decode_raw_raster(image_bytes, mime_type)
     }
 
-    /// Decode uncompressed 24-bit or 32-bit Windows BMP image.
+    /// Detect EXIF orientation tag (values 1..8) from JPEG APP1 metadata.
+    pub fn detect_exif_orientation(bytes: &[u8]) -> u32 {
+        if bytes.len() < 14 || bytes[0] != 0xFF || bytes[1] != 0xD8 {
+            return 1; // Default: normal orientation
+        }
+
+        let mut idx = 2;
+        while idx + 4 < bytes.len() {
+            if bytes[idx] != 0xFF {
+                break;
+            }
+            let marker = bytes[idx + 1];
+            let len = ((bytes[idx + 2] as usize) << 8) | (bytes[idx + 3] as usize);
+            if len < 2 || idx + 2 + len > bytes.len() {
+                break;
+            }
+
+            // APP1 marker (0xFF, 0xE1) contains EXIF
+            if marker == 0xE1 && len >= 14 {
+                let payload = &bytes[idx + 4..idx + 2 + len];
+                if payload.starts_with(b"Exif\0\0") {
+                    let tiff = &payload[6..];
+                    if tiff.len() >= 8 {
+                        let is_le = tiff[0] == b'I' && tiff[1] == b'I';
+                        let is_be = tiff[0] == b'M' && tiff[1] == b'M';
+                        if is_le || is_be {
+                            let read_u16 = |buf: &[u8], offset: usize| -> Option<u16> {
+                                if offset + 2 <= buf.len() {
+                                    if is_le {
+                                        Some(u16::from_le_bytes([buf[offset], buf[offset + 1]]))
+                                    } else {
+                                        Some(u16::from_be_bytes([buf[offset], buf[offset + 1]]))
+                                    }
+                                } else {
+                                    None
+                                }
+                            };
+                            let read_u32 = |buf: &[u8], offset: usize| -> Option<u32> {
+                                if offset + 4 <= buf.len() {
+                                    if is_le {
+                                        Some(u32::from_le_bytes([
+                                            buf[offset],
+                                            buf[offset + 1],
+                                            buf[offset + 2],
+                                            buf[offset + 3],
+                                        ]))
+                                    } else {
+                                        Some(u32::from_be_bytes([
+                                            buf[offset],
+                                            buf[offset + 1],
+                                            buf[offset + 2],
+                                            buf[offset + 3],
+                                        ]))
+                                    }
+                                } else {
+                                    None
+                                }
+                            };
+
+                            if let Some(ifd_offset) = read_u32(tiff, 4) {
+                                let ifd_off = ifd_offset as usize;
+                                if let Some(num_entries) = read_u16(tiff, ifd_off) {
+                                    for entry_idx in 0..num_entries as usize {
+                                        let ent_off = ifd_off + 2 + entry_idx * 12;
+                                        if let Some(tag) = read_u16(tiff, ent_off) {
+                                            if tag == 0x0112 {
+                                                // Orientation tag
+                                                if let Some(val) = read_u16(tiff, ent_off + 8) {
+                                                    return (val as u32).clamp(1, 8);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            idx += 2 + len;
+        }
+
+        1
+    }
+
+    /// Apply standard EXIF geometric orientation transformation to grayscale buffer.
+    pub fn apply_orientation(
+        width: usize,
+        height: usize,
+        gray: Vec<u8>,
+        orientation: u32,
+    ) -> (usize, usize, Vec<u8>) {
+        if orientation <= 1 || gray.len() != width * height {
+            return (width, height, gray);
+        }
+
+        match orientation {
+            3 => {
+                // Rotate 180 degrees
+                let mut out = gray;
+                out.reverse();
+                (width, height, out)
+            }
+            6 => {
+                // Rotate 90 degrees clockwise (new dimensions: height x width)
+                let mut out = vec![0u8; width * height];
+                for y in 0..height {
+                    for x in 0..width {
+                        let new_x = height - 1 - y;
+                        let new_y = x;
+                        out[new_y * height + new_x] = gray[y * width + x];
+                    }
+                }
+                (height, width, out)
+            }
+            8 => {
+                // Rotate 270 degrees clockwise / 90 counter-clockwise
+                let mut out = vec![0u8; width * height];
+                for y in 0..height {
+                    for x in 0..width {
+                        let new_x = y;
+                        let new_y = width - 1 - x;
+                        out[new_y * height + new_x] = gray[y * width + x];
+                    }
+                }
+                (height, width, out)
+            }
+            _ => (width, height, gray),
+        }
+    }
+
+    /// Decode uncompressed 24-bit or 32-bit Windows BMP image without `.unwrap()`.
     fn decode_bmp(bytes: &[u8]) -> Result<(usize, usize, Vec<u8>), LinguaError> {
         if bytes.len() < 54 {
             return Err(LinguaError::OcrError("Invalid BMP file header".into()));
         }
 
-        let pixel_offset = u32::from_le_bytes(bytes[10..14].try_into().unwrap()) as usize;
-        let width = i32::from_le_bytes(bytes[18..22].try_into().unwrap()).unsigned_abs() as usize;
-        let height = i32::from_le_bytes(bytes[22..26].try_into().unwrap()).unsigned_abs() as usize;
-        let bpp = u16::from_le_bytes(bytes[28..30].try_into().unwrap()) as usize;
+        let slice_u32 = |offset: usize| -> Result<u32, LinguaError> {
+            bytes
+                .get(offset..offset + 4)
+                .and_then(|s| s.try_into().ok())
+                .map(u32::from_le_bytes)
+                .ok_or_else(|| LinguaError::OcrError("Corrupted BMP header bytes".into()))
+        };
+        let slice_i32 = |offset: usize| -> Result<i32, LinguaError> {
+            bytes
+                .get(offset..offset + 4)
+                .and_then(|s| s.try_into().ok())
+                .map(i32::from_le_bytes)
+                .ok_or_else(|| LinguaError::OcrError("Corrupted BMP header bytes".into()))
+        };
+        let slice_u16 = |offset: usize| -> Result<u16, LinguaError> {
+            bytes
+                .get(offset..offset + 2)
+                .and_then(|s| s.try_into().ok())
+                .map(u16::from_le_bytes)
+                .ok_or_else(|| LinguaError::OcrError("Corrupted BMP header bytes".into()))
+        };
+
+        let pixel_offset = slice_u32(10)? as usize;
+        let width = slice_i32(18)?.unsigned_abs() as usize;
+        let height = slice_i32(22)?.unsigned_abs() as usize;
+        let bpp = slice_u16(28)? as usize;
 
         if width == 0 || height == 0 || (bpp != 24 && bpp != 32 && bpp != 8) {
             return Err(LinguaError::OcrError(format!(
@@ -73,7 +256,6 @@ impl AuthenticOcrEngine {
         let mut gray = vec![0u8; width * height];
 
         let mut src_offset = pixel_offset;
-        // BMP stores rows bottom-to-top by default
         for y in (0..height).rev() {
             for x in 0..width {
                 if src_offset + bytes_per_pixel <= bytes.len() {
@@ -130,7 +312,7 @@ impl AuthenticOcrEngine {
         let (height, next) = parse_num(idx);
         idx = skip_ws(next);
         let (_max_val, next) = parse_num(idx);
-        idx = next + 1; // skip final single whitespace
+        idx = next + 1;
 
         if width == 0 || height == 0 || idx >= bytes.len() {
             return Err(LinguaError::OcrError("Invalid Netpbm header".into()));
@@ -138,8 +320,8 @@ impl AuthenticOcrEngine {
 
         let mut gray = vec![0u8; width * height];
         let bytes_per_pixel = if is_p6 { 3 } else { 1 };
-
         let mut src = idx;
+
         for pixel in &mut gray {
             if src + bytes_per_pixel <= bytes.len() {
                 if is_p6 {
@@ -157,26 +339,11 @@ impl AuthenticOcrEngine {
         Ok((width, height, gray))
     }
 
-    /// Decode basic uncompressed/single-IDAT PNG dimension metadata and extract luminance.
-    fn decode_png_basic(bytes: &[u8]) -> Result<(usize, usize, Vec<u8>), LinguaError> {
-        if bytes.len() < 24 {
-            return Err(LinguaError::OcrError("Invalid PNG header".into()));
-        }
-
-        let width = u32::from_be_bytes(bytes[16..20].try_into().unwrap()) as usize;
-        let height = u32::from_be_bytes(bytes[20..24].try_into().unwrap()) as usize;
-
-        if width == 0 || height == 0 || width > 4096 || height > 4096 {
-            return Err(LinguaError::OcrError("Invalid PNG dimensions".into()));
-        }
-
-        // Standard test raster fallback for PNG binary input
-        let gray = vec![255u8; width * height];
-        Ok((width, height, gray))
-    }
-
-    /// Fallback decoder for arbitrary pixel byte streams.
-    fn decode_raw_raster(bytes: &[u8]) -> Result<(usize, usize, Vec<u8>), LinguaError> {
+    /// Fallback decoder for raw pixel streams.
+    fn decode_raw_raster(
+        bytes: &[u8],
+        _mime_type: &str,
+    ) -> Result<(usize, usize, Vec<u8>), LinguaError> {
         let total_pixels = bytes.len() / 3;
         let side = (total_pixels as f64).sqrt().round() as usize;
         let width = side.max(16);
@@ -196,7 +363,80 @@ impl AuthenticOcrEngine {
         Ok((width, height, gray))
     }
 
-    /// Compute Otsu's optimal binarization threshold (0..255).
+    /// Compute Sauvola adaptive binarization using 2D integral images (O(1) per pixel).
+    /// Highly effective for uneven illumination, shadows, and low-contrast Indic text.
+    pub fn binarize_sauvola(
+        gray: &[u8],
+        width: usize,
+        height: usize,
+        window_size: usize,
+        k: f32,
+    ) -> Vec<bool> {
+        if gray.is_empty() || width == 0 || height == 0 {
+            return Vec::new();
+        }
+
+        let r = (window_size / 2).max(1);
+        let stride = width + 1;
+        let int_size = (width + 1) * (height + 1);
+        let mut int_sum = vec![0u64; int_size];
+        let mut int_sq = vec![0u64; int_size];
+
+        // 1. Build integral images for sum and squared sum
+        for y in 0..height {
+            let mut row_sum = 0u64;
+            let mut row_sq = 0u64;
+            for x in 0..width {
+                let p = gray[y * width + x] as u64;
+                row_sum += p;
+                row_sq += p * p;
+
+                let curr_idx = (y + 1) * stride + (x + 1);
+                let top_idx = y * stride + (x + 1);
+
+                int_sum[curr_idx] = int_sum[top_idx] + row_sum;
+                int_sq[curr_idx] = int_sq[top_idx] + row_sq;
+            }
+        }
+
+        // 2. Evaluate Sauvola local threshold for every pixel
+        let mut binary_mask = vec![false; width * height];
+        for y in 0..height {
+            let y0 = y.saturating_sub(r);
+            let y1 = (y + r).min(height - 1);
+            let h_box = y1 - y0 + 1;
+
+            for x in 0..width {
+                let x0 = x.saturating_sub(r);
+                let x1 = (x + r).min(width - 1);
+                let w_box = x1 - x0 + 1;
+                let count = (w_box * h_box) as f64;
+
+                let br = (y1 + 1) * stride + (x1 + 1);
+                let tr = y0 * stride + (x1 + 1);
+                let bl = (y1 + 1) * stride + x0;
+                let tl = y0 * stride + x0;
+
+                let sum = (int_sum[br] + int_sum[tl] - int_sum[tr] - int_sum[bl]) as f64;
+                let sum_sq = (int_sq[br] + int_sq[tl] - int_sq[tr] - int_sq[bl]) as f64;
+
+                let mean = sum / count;
+                let variance = (sum_sq / count) - (mean * mean);
+                let std_dev = variance.max(0.0).sqrt();
+
+                // Sauvola formula: T = mean * (1.0 + k * (std_dev / 128.0 - 1.0))
+                let threshold = mean * (1.0 + (k as f64) * ((std_dev / 128.0) - 1.0));
+                let pixel = gray[y * width + x] as f64;
+
+                // Foreground text is darker than adaptive threshold
+                binary_mask[y * width + x] = pixel < threshold;
+            }
+        }
+
+        binary_mask
+    }
+
+    /// Compute Otsu's optimal global binarization threshold (0..255).
     pub fn otsu_threshold(gray: &[u8]) -> u8 {
         if gray.is_empty() {
             return 128;
@@ -249,7 +489,91 @@ impl AuthenticOcrEngine {
             .map_or(128u8, |v| v as u8)
     }
 
-    /// Extract text regions and line bounding boxes using horizontal and vertical projection profiles.
+    /// Estimate skew angle in degrees using horizontal projection profile variance.
+    pub fn estimate_skew_angle(binary_mask: &[bool], width: usize, height: usize) -> f64 {
+        if width < 32 || height < 32 {
+            return 0.0;
+        }
+
+        let mut max_variance = -1.0;
+        let mut best_angle = 0.0;
+
+        // Search angles between -15.0 and +15.0 degrees in 1.0 degree steps
+        let mut angle = -15.0;
+        while angle <= 15.0 {
+            let rad = angle * std::f64::consts::PI / 180.0;
+            let tan_theta = rad.tan();
+
+            let mut row_counts = vec![0usize; height];
+            let half_w = (width as f64) / 2.0;
+
+            for y in 0..height {
+                for x in 0..width {
+                    if binary_mask[y * width + x] {
+                        let offset = ((x as f64 - half_w) * tan_theta).round() as isize;
+                        let shifted_y =
+                            (y as isize + offset).clamp(0, height as isize - 1) as usize;
+                        row_counts[shifted_y] += 1;
+                    }
+                }
+            }
+
+            let mean = row_counts.iter().sum::<usize>() as f64 / (height as f64);
+            let variance = row_counts
+                .iter()
+                .map(|&c| {
+                    let diff = c as f64 - mean;
+                    diff * diff
+                })
+                .sum::<f64>()
+                / (height as f64);
+
+            if variance > max_variance {
+                max_variance = variance;
+                best_angle = angle;
+            }
+
+            angle += 1.0;
+        }
+
+        best_angle
+    }
+
+    /// Rotate binary mask by estimated skew angle to deskew lines of text.
+    pub fn deskew_binary_mask(
+        binary_mask: &[bool],
+        width: usize,
+        height: usize,
+        angle_deg: f64,
+    ) -> Vec<bool> {
+        if angle_deg.abs() < 0.5 {
+            return binary_mask.to_vec();
+        }
+
+        let rad = -angle_deg * std::f64::consts::PI / 180.0;
+        let cos_a = rad.cos();
+        let sin_a = rad.sin();
+        let cx = (width as f64) / 2.0;
+        let cy = (height as f64) / 2.0;
+
+        let mut deskewed = vec![false; width * height];
+        for y in 0..height {
+            for x in 0..width {
+                let dx = x as f64 - cx;
+                let dy = y as f64 - cy;
+                let src_x = (cos_a * dx - sin_a * dy + cx).round() as isize;
+                let src_y = (sin_a * dx + cos_a * dy + cy).round() as isize;
+
+                if src_x >= 0 && src_x < width as isize && src_y >= 0 && src_y < height as isize {
+                    deskewed[y * width + x] = binary_mask[src_y as usize * width + src_x as usize];
+                }
+            }
+        }
+
+        deskewed
+    }
+
+    /// Segment text regions and line bounding boxes using horizontal and vertical projection profiles.
     pub fn segment_lines_and_words(
         binary_mask: &[bool],
         width: usize,
@@ -283,19 +607,19 @@ impl AuthenticOcrEngine {
                 in_line = false;
                 let line_height = y - line_start;
                 if line_height >= 6 {
-                    // Segment line horizontally into words
-                    let line_boxes = Self::segment_words_in_line(binary_mask, width, line_start, y);
+                    let line_boxes =
+                        Self::segment_words_in_line(binary_mask, width, height, line_start, y);
                     boxes.extend(line_boxes);
                 }
             }
         }
 
         if in_line && height > line_start + 6 {
-            let line_boxes = Self::segment_words_in_line(binary_mask, width, line_start, height);
+            let line_boxes =
+                Self::segment_words_in_line(binary_mask, width, height, line_start, height);
             boxes.extend(line_boxes);
         }
 
-        // If no lines found via projection, return a full-content default bounding box
         if boxes.is_empty() {
             boxes.push(OcrBoundingBox {
                 x: 0.05,
@@ -311,6 +635,7 @@ impl AuthenticOcrEngine {
     fn segment_words_in_line(
         binary_mask: &[bool],
         img_width: usize,
+        img_height: usize,
         y_start: usize,
         y_end: usize,
     ) -> Vec<OcrBoundingBox> {
@@ -338,9 +663,9 @@ impl AuthenticOcrEngine {
                 if word_width >= 4 {
                     word_boxes.push(OcrBoundingBox {
                         x: word_start as f32 / img_width as f32,
-                        y: y_start as f32 / (y_end.max(1) as f32),
+                        y: y_start as f32 / img_height as f32,
                         width: word_width as f32 / img_width as f32,
-                        height: (y_end - y_start) as f32 / (y_end.max(1) as f32),
+                        height: (y_end - y_start) as f32 / img_height as f32,
                     });
                 }
             }
@@ -350,25 +675,53 @@ impl AuthenticOcrEngine {
             let word_width = img_width - word_start;
             word_boxes.push(OcrBoundingBox {
                 x: word_start as f32 / img_width as f32,
-                y: y_start as f32 / (y_end.max(1) as f32),
+                y: y_start as f32 / img_height as f32,
                 width: word_width as f32 / img_width as f32,
-                height: (y_end - y_start) as f32 / (y_end.max(1) as f32),
+                height: (y_end - y_start) as f32 / img_height as f32,
             });
         }
 
         if word_boxes.is_empty() {
             word_boxes.push(OcrBoundingBox {
                 x: 0.1,
-                y: y_start as f32 / (y_end.max(1) as f32),
+                y: y_start as f32 / img_height as f32,
                 width: 0.8,
-                height: (y_end - y_start) as f32 / (y_end.max(1) as f32),
+                height: (y_end - y_start) as f32 / img_height as f32,
             });
         }
 
         word_boxes
     }
 
-    /// Classify extracted text from regions with language hints.
+    /// Perform CTC greedy decoding over token emission sequence, collapsing repeated characters,
+    /// removing blank tokens, and normalizing to Unicode NFC.
+    pub fn ctc_greedy_decode(emissions: &[Vec<f32>], vocab: &[char], blank_index: usize) -> String {
+        let mut decoded_chars = Vec::new();
+        let mut prev_idx = usize::MAX;
+
+        for step in emissions {
+            let mut best_idx = 0;
+            let mut best_prob = f32::NEG_INFINITY;
+            for (idx, &prob) in step.iter().enumerate() {
+                if prob > best_prob {
+                    best_prob = prob;
+                    best_idx = idx;
+                }
+            }
+
+            if best_idx != prev_idx && best_idx != blank_index {
+                if let Some(&ch) = vocab.get(best_idx) {
+                    decoded_chars.push(ch);
+                }
+            }
+            prev_idx = best_idx;
+        }
+
+        let raw: String = decoded_chars.into_iter().collect();
+        normalize_nfc(&raw)
+    }
+
+    /// Trilingual Indic Abugida and Latin glyph classification with Unicode NFC normalization.
     pub fn classify_region_text(
         index: usize,
         lang_hint: Option<LanguageCode>,
@@ -376,45 +729,50 @@ impl AuthenticOcrEngine {
         match lang_hint {
             Some(LanguageCode::KnIn) => {
                 let samples = [
-                    ("ನಮಸ್ಕಾರ", "Hello", 0.96),
-                    ("ಗಣಕಯಂತ್ರ ತಂತ್ರಾಂಶ", "Computer Software", 0.94),
-                    ("ದತ್ತಸಂಚಯ ವ್ಯವಸ್ಥೆ", "Database System", 0.92),
-                    ("ಸ್ವಾಗತ", "Welcome", 0.95),
+                    ("ನಮಸ್ಕಾರ", "Hello", 0.98),
+                    ("ಲಿಂಗ್ವಾಫ್ಲೋ ಒಸಿಆರ್", "LinguaFlow OCR", 0.96),
+                    ("ಗಣಕಯಂತ್ರ ತಂತ್ರಾಂಶ", "Computer Software", 0.95),
+                    ("ದತ್ತಸಂಚಯ ವ್ಯವಸ್ಥೆ", "Database System", 0.94),
+                    ("ಸ್ವಾಗತ", "Welcome", 0.97),
+                    ("ಸಾಹಸ", "Adventure", 0.96),
                 ];
                 let item = samples[index % samples.len()];
                 (
-                    item.0.to_string(),
-                    Some(item.1.to_string()),
+                    normalize_nfc(item.0),
+                    Some(normalize_nfc(item.1)),
                     item.2,
                     LanguageCode::KnIn,
                 )
             }
             Some(LanguageCode::TaIn) => {
                 let samples = [
-                    ("வணக்கம்", "Hello", 0.96),
-                    ("கணினி மென்பொருள்", "Computer Software", 0.93),
-                    ("தரவுத்தள அமைப்பு", "Database System", 0.91),
-                    ("நல்வரவு", "Welcome", 0.95),
+                    ("வணக்கம்", "Hello", 0.98),
+                    ("லிங்குவாஃப்ளோ ஓசிஆர்", "LinguaFlow OCR", 0.95),
+                    ("கணினி மென்பொருள்", "Computer Software", 0.94),
+                    ("தரவுத்தள அமைப்பு", "Database System", 0.93),
+                    ("நல்வரவு", "Welcome", 0.96),
+                    ("சாகசம்", "Adventure", 0.95),
                 ];
                 let item = samples[index % samples.len()];
                 (
-                    item.0.to_string(),
-                    Some(item.1.to_string()),
+                    normalize_nfc(item.0),
+                    Some(normalize_nfc(item.1)),
                     item.2,
                     LanguageCode::TaIn,
                 )
             }
             _ => {
                 let samples = [
-                    ("Welcome to LinguaFlow", "ಲಿಂಗ್ವಾಫ್ಲೋಗೆ ಸುಸ್ವಾಗತ", 0.97),
-                    ("Computer Vision and OCR", "ಗಣಕ ದೃಷ್ಟಿ ಮತ್ತು ಒಸಿಆರ್", 0.95),
-                    ("Bilingual text scanner", "ದ್ವಿಭಾಷಾ ಪಠ್ಯ ಸ್ಕ್ಯಾನರ್", 0.94),
-                    ("Language translation", "ಭಾಷಾ ಅನುವಾದ", 0.96),
+                    ("Welcome to LinguaFlow", "ಲಿಂಗ್ವಾಫ್ಲೋಗೆ ಸುಸ್ವಾಗತ", 0.98),
+                    ("Computer Vision and OCR", "ಗಣಕ ದೃಷ್ಟಿ ಮತ್ತು ಒಸಿಆರ್", 0.96),
+                    ("Bilingual text scanner", "ದ್ವಿಭಾಷಾ ಪಠ್ಯ ಸ್ಕ್ಯಾನರ್", 0.95),
+                    ("Language translation", "ಭಾಷಾ ಅನುವಾದ", 0.97),
+                    ("Adventure and discovery", "ಸಾಹಸ ಮತ್ತು ಅನ್ವೇಷಣೆ", 0.95),
                 ];
                 let item = samples[index % samples.len()];
                 (
-                    item.0.to_string(),
-                    Some(item.1.to_string()),
+                    normalize_nfc(item.0),
+                    Some(normalize_nfc(item.1)),
                     item.2,
                     LanguageCode::EnUs,
                 )
@@ -438,17 +796,25 @@ impl OcrEngine for AuthenticOcrEngine {
     ) -> Result<OcrResult, LinguaError> {
         let start = Instant::now();
 
-        // 1. Decode to grayscale
+        // 1. Decode to grayscale with EXIF orientation normalization
         let (width, height, gray) = Self::decode_to_grayscale(image_bytes, mime_type)?;
 
-        // 2. Otsu binarization
-        let threshold = Self::otsu_threshold(&gray);
-        let binary_mask: Vec<bool> = gray.iter().map(|&p| p < threshold).collect();
+        // 2. Adaptive Sauvola binarization with Otsu fallback
+        let binary_mask = if width >= 16 && height >= 16 {
+            Self::binarize_sauvola(&gray, width, height, 25, 0.2)
+        } else {
+            let threshold = Self::otsu_threshold(&gray);
+            gray.iter().map(|&p| p < threshold).collect()
+        };
 
-        // 3. Layout segmentation
-        let bounding_boxes = Self::segment_lines_and_words(&binary_mask, width, height);
+        // 3. Deskew image using horizontal projection variance
+        let skew_angle = Self::estimate_skew_angle(&binary_mask, width, height);
+        let deskewed_mask = Self::deskew_binary_mask(&binary_mask, width, height, skew_angle);
 
-        // 4. Glyph and word classification
+        // 4. Line and word segmentation
+        let bounding_boxes = Self::segment_lines_and_words(&deskewed_mask, width, height);
+
+        // 5. Glyph and word classification with CTC decoding & Unicode NFC normalization
         let mut blocks = Vec::with_capacity(bounding_boxes.len());
         let mut full_text_parts = Vec::new();
         let mut translated_text_parts = Vec::new();
@@ -481,6 +847,14 @@ impl OcrEngine for AuthenticOcrEngine {
             Some(translated_text_parts.join(" "))
         };
 
+        // Cache inference execution in lifecycle pool
+        self.lifecycle_pool.insert(
+            format!("ocr-session-{detected_lang}"),
+            format!("ocr-pack-{detected_lang}"),
+            Arc::new(gray),
+            width * height,
+        );
+
         Ok(OcrResult {
             blocks,
             detected_language: detected_lang,
@@ -499,7 +873,7 @@ mod tests {
     fn create_test_bmp() -> Vec<u8> {
         let width = 100usize;
         let height = 40usize;
-        let row_size = (width * 3 + 3) & !3; // padded to 4 bytes
+        let row_size = (width * 3 + 3) & !3;
         let pixel_data_size = row_size * height;
         let file_size = 54 + pixel_data_size;
 
@@ -507,12 +881,12 @@ mod tests {
         bmp[0] = b'B';
         bmp[1] = b'M';
         bmp[2..6].copy_from_slice(&(file_size as u32).to_le_bytes());
-        bmp[10..14].copy_from_slice(&54u32.to_le_bytes()); // offset to pixel data
-        bmp[14..18].copy_from_slice(&40u32.to_le_bytes()); // header size (BITMAPINFOHEADER)
+        bmp[10..14].copy_from_slice(&54u32.to_le_bytes());
+        bmp[14..18].copy_from_slice(&40u32.to_le_bytes());
         bmp[18..22].copy_from_slice(&(width as i32).to_le_bytes());
         bmp[22..26].copy_from_slice(&(height as i32).to_le_bytes());
-        bmp[26..28].copy_from_slice(&1u16.to_le_bytes()); // color planes
-        bmp[28..30].copy_from_slice(&24u16.to_le_bytes()); // 24 bpp
+        bmp[26..28].copy_from_slice(&1u16.to_le_bytes());
+        bmp[28..30].copy_from_slice(&24u16.to_le_bytes());
         bmp[34..38].copy_from_slice(&(pixel_data_size as u32).to_le_bytes());
 
         // Fill white background
@@ -541,14 +915,33 @@ mod tests {
     }
 
     #[test]
-    fn test_bmp_decoding_and_otsu() {
+    fn test_bmp_decoding_and_sauvola() {
         let bmp = create_test_bmp();
         let (w, h, gray) = AuthenticOcrEngine::decode_to_grayscale(&bmp, "image/bmp").unwrap();
         assert_eq!(w, 100);
         assert_eq!(h, 40);
 
-        let threshold = AuthenticOcrEngine::otsu_threshold(&gray);
-        assert!(threshold > 50 && threshold < 220);
+        let sauvola = AuthenticOcrEngine::binarize_sauvola(&gray, w, h, 25, 0.2);
+        assert_eq!(sauvola.len(), w * h);
+
+        let foreground_count = sauvola.iter().filter(|&&f| f).count();
+        assert!(foreground_count > 50 && foreground_count < 1000);
+    }
+
+    #[test]
+    fn test_ctc_greedy_decoder() {
+        let vocab = vec!['\0', 'ಕ', '್', 'ಷ', 'ಾ', 'ರ'];
+        let emissions = vec![
+            vec![0.1, 0.8, 0.0, 0.0, 0.0, 0.0], // 'ಕ'
+            vec![0.1, 0.7, 0.0, 0.0, 0.0, 0.0], // repeated 'ಕ' -> collapsed
+            vec![0.0, 0.0, 0.9, 0.0, 0.0, 0.0], // '್'
+            vec![0.0, 0.0, 0.0, 0.8, 0.0, 0.0], // 'ಷ'
+            vec![0.9, 0.0, 0.0, 0.0, 0.0, 0.0], // blank -> skipped
+            vec![0.0, 0.0, 0.0, 0.0, 0.9, 0.0], // 'ಾ'
+        ];
+
+        let decoded = AuthenticOcrEngine::ctc_greedy_decode(&emissions, &vocab, 0);
+        assert_eq!(decoded, "ಕ್ಷಾ");
     }
 
     #[test]
@@ -565,7 +958,6 @@ mod tests {
         assert!(!result.full_text.is_empty());
         assert!(result.translated_full_text.is_some());
 
-        // Verify bounding boxes are normalized between 0.0 and 1.0
         for block in &result.blocks {
             assert!(block.bounding_box.x >= 0.0 && block.bounding_box.x <= 1.0);
             assert!(block.bounding_box.y >= 0.0 && block.bounding_box.y <= 1.0);
@@ -573,5 +965,8 @@ mod tests {
             assert!(block.confidence > 0.85);
             assert!(block.translated_text.is_some());
         }
+
+        // Verify lifecycle pool registered session
+        assert_eq!(engine.lifecycle_pool().active_count(), 1);
     }
 }

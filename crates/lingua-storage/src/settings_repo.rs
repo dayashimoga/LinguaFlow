@@ -9,7 +9,8 @@ pub fn get_user_settings(conn: &Connection) -> Result<UserSettings, LinguaError>
     let mut stmt = conn
         .prepare(
             "SELECT theme, source_language, target_language, font_scale,
-                    engine_preference, offline_only, audio_settings_json, updated_at
+                    engine_preference, offline_only, audio_settings_json, updated_at,
+                    COALESCE(show_developer_hud, 0)
              FROM user_settings WHERE id = 1",
         )
         .map_err(|e| LinguaError::Database(e.to_string()))?;
@@ -23,6 +24,7 @@ pub fn get_user_settings(conn: &Connection) -> Result<UserSettings, LinguaError>
         let offline_int: i64 = row.get(5)?;
         let audio_json: String = row.get(6)?;
         let updated_str: String = row.get(7)?;
+        let show_dev_hud_int: i64 = row.get(8).unwrap_or(0);
 
         Ok((
             theme_str,
@@ -33,6 +35,7 @@ pub fn get_user_settings(conn: &Connection) -> Result<UserSettings, LinguaError>
             offline_int,
             audio_json,
             updated_str,
+            show_dev_hud_int,
         ))
     });
 
@@ -46,6 +49,7 @@ pub fn get_user_settings(conn: &Connection) -> Result<UserSettings, LinguaError>
             offline_int,
             audio_json,
             updated_str,
+            show_dev_hud_int,
         )) => {
             let theme = match theme_str.as_str() {
                 "light" => ThemeMode::Light,
@@ -74,6 +78,7 @@ pub fn get_user_settings(conn: &Connection) -> Result<UserSettings, LinguaError>
                 font_scale: font_scale as f32,
                 engine_preference,
                 offline_only: offline_int != 0,
+                show_developer_hud: show_dev_hud_int != 0,
                 audio,
                 updated_at,
             })
@@ -108,8 +113,8 @@ pub fn save_user_settings(conn: &Connection, settings: &UserSettings) -> Result<
 
     conn.execute(
         "INSERT INTO user_settings (id, theme, source_language, target_language, font_scale,
-                                   engine_preference, offline_only, audio_settings_json, updated_at)
-         VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)
+                                   engine_preference, offline_only, audio_settings_json, updated_at, show_developer_hud)
+         VALUES (1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
          ON CONFLICT(id) DO UPDATE SET
             theme = excluded.theme,
             source_language = excluded.source_language,
@@ -118,7 +123,8 @@ pub fn save_user_settings(conn: &Connection, settings: &UserSettings) -> Result<
             engine_preference = excluded.engine_preference,
             offline_only = excluded.offline_only,
             audio_settings_json = excluded.audio_settings_json,
-            updated_at = excluded.updated_at",
+            updated_at = excluded.updated_at,
+            show_developer_hud = excluded.show_developer_hud",
         params![
             theme_str,
             settings.source_language.as_bcp47(),
@@ -128,6 +134,7 @@ pub fn save_user_settings(conn: &Connection, settings: &UserSettings) -> Result<
             settings.offline_only as i64,
             audio_json,
             updated_str,
+            settings.show_developer_hud as i64,
         ],
     )
     .map_err(|e| LinguaError::Database(format!("Failed to save user settings: {e}")))?;

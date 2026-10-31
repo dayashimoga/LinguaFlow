@@ -542,7 +542,7 @@ fn main() {
   <!-- Top Navigation & Header -->
   <header class="studio-header glass-panel">
     <div class="header-left">
-      <div class="badge-stage">STAGE 6 ACTIVE</div>
+      <div class="badge-stage">🎬 Multimedia & Vision</div>
       <h1 class="studio-title">Media, Vision & Live Captions</h1>
       <p class="studio-subtitle">
         Chunked media subtitle generation, authentic OCR vision scanning, structured document translation & transparent desktop overlay.

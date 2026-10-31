@@ -687,3 +687,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Svelte diagnostics: 0 errors, 0 warnings (`npm run check`).
   - Production build: succeeded in 2.52s (`npm run build`).
   - Authored `docs/STAGE_12_ACCEPTANCE_REPORT.md`.
+
+
+## [0.13.0] - 2026-10-31 (Stage 13: UI/UX Polish, Responsive Navigation Shell & Embedded Indic Typography)
+
+### Added
+- **Non-Truncated Language Selectors & One-Click Clipboard Paste (`TranslateView.svelte`)**:
+  - Replaced abbreviated selector labels with full non-truncated names: `English (en-US)`, `ಕನ್ನಡ — Kannada (kn-IN)`, `தமிழ் — Tamil (ta-IN)`.
+  - Enforced `min-width: 190px; max-width: 280px; font-weight: 600;` on dropdown elements to prevent text clipping across viewport dimensions.
+  - Added one-click `📋 Paste` button (reading clipboard text via `navigator.clipboard.readText()`) and `✕ Clear` button directly in the Source Text card header.
+- **Production Branding & Developer HUD Toggle (`lingua-storage`, `SettingsView.svelte`)**:
+  - Replaced internal development stage banners (`STAGE 5 ACTIVE`, `STAGE 8 COMMERCIAL`, etc.) across all views with clean product branding: `LinguaFlow — Offline-First Indic & Global Communication`.
+  - Added `show_developer_hud: bool` to `UserSettings` in `crates/lingua-core/src/models.rs` and `src/lib/types.ts`.
+  - Created SQLite Database Migration 011 in `crates/lingua-storage/src/schema.rs` (`ALTER TABLE user_settings ADD COLUMN show_developer_hud INTEGER NOT NULL DEFAULT 0;`) and updated `crates/lingua-storage/src/settings_repo.rs`.
+  - Added `Show Developer Performance HUD` toggle in `src/views/SettingsView.svelte`, hiding microsecond execution timings and hop trails by default for users while keeping observability on demand.
+- **Consolidated Navigation Shell & Responsive Mobile Drawer (`App.svelte`)**:
+  - Consolidated navigation architecture into:
+    - **Core Workspaces** (7 primary views): Home (🏠), Translate (⇄), Dictionary (📖), Live Captions (🎙️), Conversation (👥), Media & OCR (🎞️), Learn (🗂️).
+    - **System Drawer** (4 platform & administrative views): Intelligence (🧠), Model Packs (📦), Enterprise (🏢), Settings (⚙️).
+  - Desktop header navigation with uncluttered Core Workspace tabs and an interactive `⚙️ System ▾` dropdown menu displaying view descriptions and active view highlights.
+  - Mobile bottom navigation bar ($< 900$px) with safe-area insets (`env(safe-area-inset-bottom)`), minimum touch targets $\ge 48 \times 48$ px, and an active dot indicator.
+  - Slide-up mobile navigation drawer activated by `More ☰` featuring smooth bezier transitions, touch handle bar, categorized grid layout, quick theme toggle, and backdrop touch dismissal.
+- **Global Keyboard Shortcut Coordinator (`App.svelte`, `TranslateView.svelte`, `DictionaryView.svelte`)**:
+  - `Ctrl / Cmd + Enter`: Triggers translation on source text (navigating to Translate view if needed).
+  - `Ctrl / Cmd + Shift + S`: Inverts source and target language pairs.
+  - `Ctrl / Cmd + K`: Navigates to Dictionary view and instantly focuses the search input.
+  - `Esc`: Closes open navigation drawers or shortcut modals, halts active audio playback (`activeAudioSource?.stop()`, `window.speechSynthesis.cancel()`), and clears search fields.
+  - `Alt + 1 .. 7`: Rapid workspace switching between Home, Translate, Dictionary, Captions, Conversation, Media, and Learn.
+  - Added Keyboard Shortcuts dialog (`⌨️`) accessible from desktop header and mobile drawer.
+- **Embedded Offline Indic Webfonts & Anti-Clipping Typography Guarantee (`src/app.css`)**:
+  - Bundled 7 authentic compressed `.woff2` font files in `src/assets/fonts/`:
+    - `NotoSansKannada-Regular.woff2` (400), `NotoSansKannada-Bold.woff2` (700)
+    - `NotoSansTamil-Regular.woff2` (400), `NotoSansTamil-Bold.woff2` (700)
+    - `Inter-Regular.woff2` (400), `Inter-SemiBold.woff2` (600), `Inter-Bold.woff2` (700)
+  - Registered `@font-face` declarations with `font-display: block` and explicit Unicode ranges covering Kannada (`U+0C80–U+0CF3`) and Tamil (`U+0B82–U+0BFA`), eliminating CDN latency, external network leaks, and layout shifts.
+  - Enforced `line-height: 1.65 !important;` and anti-clipping vertical clearance across all Indic text classes (`.indic-text`, `.kannada-text`, `.tamil-text`, `input`, `textarea`, `.seg-source`, `.seg-translated`, etc.) to prevent vertical clipping of Kannada *ottaksharas* (ಕ್ಷ, ಜ್ಞ, ಷ್ಟ್ರ) and Tamil *pulli* conjuncts.
+- **Verification, Quality Gates & Acceptance**:
+  - Workspace Rust Tests: 172 passed, 0 failed across all crates (100% pass rate).
+  - Strict Clippy check: 0 errors, 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`).
+  - Rust formatting: 0 diffs (`cargo fmt --check`).
+  - Svelte check: 0 errors, 0 warnings (`npm run check`).
+  - Production build: succeeded in 2.77s (`npm run build`).
+  - Authored `docs/STAGE_13_ACCEPTANCE_REPORT.md`.

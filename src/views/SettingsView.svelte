@@ -30,6 +30,7 @@
   let fontScale: number = settings?.font_scale ?? 1.0;
   let enginePref: EnginePreference = settings?.engine_preference ?? 'auto_hybrid';
   let offlineOnly: boolean = settings?.offline_only ?? false;
+  let showDeveloperHud: boolean = settings?.show_developer_hud ?? false;
   let vadSensitivity: number = settings?.audio?.vad_sensitivity ?? 0.5;
   let echoCancel: boolean = settings?.audio?.echo_cancellation ?? true;
   let noiseSuppress: boolean = settings?.audio?.noise_suppression ?? true;
@@ -54,6 +55,7 @@
         font_scale: Number(fontScale),
         engine_preference: enginePref,
         offline_only: offlineOnly,
+        show_developer_hud: showDeveloperHud,
         audio: {
           input_device_id: selectedInputDevice || null,
           output_device_id: selectedOutputDevice || null,
@@ -222,6 +224,18 @@
         <div class="scale-preview indic-text" style="font-size: {fontScale}rem;">
           ಕನ್ನಡ ಲಿಪಿ ಪರೀಕ್ಷೆ • தமிழ் எழுத்து வடிவம் • English Typography Preview
         </div>
+      </div>
+
+      <div class="form-group full-width">
+        <label class="checkbox-label" for="show-developer-hud">
+          <input
+            id="show-developer-hud"
+            type="checkbox"
+            bind:checked={showDeveloperHud}
+          />
+          <span>Show Developer Performance HUD (Microsecond Latency & Attribution Badges)</span>
+        </label>
+        <span class="field-hint">Hides internal microbenchmark execution timings by default for a clean consumer experience.</span>
       </div>
     </div>
   </section>

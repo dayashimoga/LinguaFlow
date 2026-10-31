@@ -672,3 +672,41 @@
 
 
 
+
+### [2026-10-31 17:00 UTC] STAGE 13: UI/UX Polish, Responsive Desktop/Mobile Shell & Embedded Indic Typography — Completed
+- [x] Phase 13.1: Visual Defect Remediation & Clean Product Branding:
+  - [x] Subphase 13.1.1: Non-Truncated Language Selectors & One-Click Clipboard Paste:
+    - Replaced abbreviated selector labels with full non-truncated names: `English (en-US)`, `ಕನ್ನಡ — Kannada (kn-IN)`, `தமிழ் — Tamil (ta-IN)`.
+    - Added min/max width constraints (`190px..280px`) and responsive layout to prevent text clipping.
+    - Added one-click `📋 Paste` (using `navigator.clipboard.readText()`) and `✕ Clear` buttons in the Source Text card header.
+  - [x] Subphase 13.1.2: Production Branding & Developer HUD Toggle:
+    - Replaced internal engineering banners (`STAGE 5 ACTIVE`, `STAGE 8 COMMERCIAL`, etc.) with clean product branding: `LinguaFlow — Offline-First Indic & Global Communication`.
+    - Added `show_developer_hud: bool` to `UserSettings` in `crates/lingua-core/src/models.rs` and `src/lib/types.ts`.
+    - Created SQLite Migration 011 in `crates/lingua-storage/src/schema.rs` (`ALTER TABLE user_settings ADD COLUMN show_developer_hud INTEGER NOT NULL DEFAULT 0;`) and updated `crates/lingua-storage/src/settings_repo.rs`.
+    - Added Developer Performance HUD toggle in `src/views/SettingsView.svelte` and gated microsecond execution timings and hop trails.
+- [x] Phase 13.2: Consolidated Navigation Architecture, Mobile Safe-Area Shell & Global Shortcuts:
+  - [x] Subphase 13.2.1: Core Workspace + System Drawer & Responsive Mobile Bottom Bar:
+    - Reorganized 11 views into 7 Core Workspaces (Home, Translate, Dictionary, Live Captions, Conversation, Media & OCR, Learn) and 4 System & Platform views (Intelligence, Model Packs, Enterprise, Settings).
+    - Added desktop `⚙️ System ▾` dropdown menu displaying view descriptions and active view highlights.
+    - Implemented mobile bottom navigation bar with safe-area bottom insets (`env(safe-area-inset-bottom)`), touch targets $\ge 48 \times 48$ px, active dot indicator, and slide-up drawer sheet for secondary views.
+  - [x] Subphase 13.2.2: Global Keyboard Shortcut Engine:
+    - Implemented global shortcut coordinator in `src/App.svelte`:
+      - `Ctrl/Cmd + Enter`: Trigger translation on source text.
+      - `Ctrl/Cmd + Shift + S`: Invert source and target languages.
+      - `Ctrl/Cmd + K`: Jump to Dictionary view and focus search input.
+      - `Esc`: Dismiss open drawers/modals, halt active TTS audio playback, and clear inputs.
+      - `Alt + 1..7`: Direct hotkey jump to primary workspaces.
+    - Added Keyboard Shortcuts dialog (`⌨️`) accessible from desktop header and mobile drawer.
+- [x] Phase 13.3: Embedded Offline Indic Webfonts & Conjunct Rendering Guarantee:
+  - [x] Subphase 13.3.1: Bundled Noto Sans Kannada, Noto Sans Tamil & Inter:
+    - Bundled 7 compressed `.woff2` font files in `src/assets/fonts/` for Noto Sans Kannada (400, 700), Noto Sans Tamil (400, 700), and Inter (400, 600, 700).
+    - Registered `@font-face` declarations in `src/app.css` with `font-display: block` and explicit Unicode ranges covering Kannada (`U+0C80–U+0CF3`) and Tamil (`U+0B82–U+0BFA`).
+    - Enforced `line-height: 1.65 !important;` and anti-clipping vertical padding across all Indic text classes (`.indic-text`, `.kannada-text`, `.tamil-text`, `input`, `textarea`, `.seg-source`, `.seg-translated`, etc.) to prevent vertical clipping of Kannada *ottaksharas* (ಕ್ಷ, ಜ್ಞ, ಷ್ಟ್ರ) and Tamil *pulli* conjuncts.
+- [x] Quality Gates & Verification:
+  - Full workspace test suite: 172/172 tests passing across all crates (100% pass rate).
+  - Strict Clippy check: 0 errors, 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`).
+  - Rust formatting: 0 diffs (`cargo fmt --check`).
+  - Svelte diagnostics: 0 errors, 0 warnings (`npm run check`).
+  - Production build: succeeded in 2.77s (`npm run build`).
+  - Authored `docs/STAGE_13_ACCEPTANCE_REPORT.md`.
+- [x] Stage 13 certified complete and ready for user review.

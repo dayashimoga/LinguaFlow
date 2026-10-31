@@ -272,11 +272,11 @@ async fn test_medical_and_logistics_lexicon_integrity() {
 }
 
 #[test]
-fn test_migration_010_schema_version() {
+fn test_migration_011_schema_version() {
     let storage = StorageService::open_in_memory().expect("in-memory db failed");
     let health = storage.check_health().expect("health check failed");
     assert_eq!(
-        health.schema_version, 10,
-        "Schema version must be 10 after Migration 010"
+        health.schema_version, 11,
+        "Schema version must be 11 after Migration 011 (show_developer_hud)"
     );
 }

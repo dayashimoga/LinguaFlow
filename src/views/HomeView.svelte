@@ -28,7 +28,7 @@
   <section class="hero-card glass-panel">
     <div class="hero-badge-row">
       <span class="badge badge-active">Global Contract Active</span>
-      <span class="badge badge-info">Stage {appInfo?.stage ?? 4}: {appInfo?.stage_name ?? 'Real-Time Voice Conversation'}</span>
+      <span class="badge badge-info">LinguaFlow v1.0 • Offline-First Native Engine</span>
       {#if health?.status === 'healthy'}
         <span class="badge badge-active">SQLite WAL Active</span>
       {/if}
@@ -90,7 +90,7 @@
           <span class="cap-title">FTS5 Dictionary</span>
           <span class="badge badge-pending">{formatCapability(capabilities?.dictionary)}</span>
         </div>
-        <p class="cap-desc">Prefix/fuzzy indexed search and licensed corpora imports (Stage 1).</p>
+        <p class="cap-desc">Prefix and fuzzy indexed search with rich trilingual definitions.</p>
       </div>
 
       <div class="cap-card">
@@ -98,7 +98,7 @@
           <span class="cap-title">Text Translation</span>
           <span class="badge badge-pending">{formatCapability(capabilities?.text_translation)}</span>
         </div>
-        <p class="cap-desc">IndicTrans2 / NLLB verified provider adapters and offline routing (Stage 1 & 2).</p>
+        <p class="cap-desc">Three-tier deterministic offline translation with fallback intelligence.</p>
       </div>
 
       <div class="cap-card">
@@ -106,7 +106,7 @@
           <span class="cap-title">Streaming ASR</span>
           <span class="badge badge-pending">{formatCapability(capabilities?.streaming_asr)}</span>
         </div>
-        <p class="cap-desc">16kHz audio capture with Sherpa-ONNX streaming speech recognition (Stage 3).</p>
+        <p class="cap-desc">16kHz audio capture with Silero VAD and streaming speech recognition.</p>
       </div>
 
       <div class="cap-card">
@@ -114,7 +114,7 @@
           <span class="cap-title">Voice Conversation</span>
           <span class="badge badge-pending">{formatCapability(capabilities?.live_conversation)}</span>
         </div>
-        <p class="cap-desc">Full-duplex conversation state machine, AEC, and neural TTS voice playback (Stage 4).</p>
+        <p class="cap-desc">Full-duplex face-to-face conversation with feedback suppression and natural neural TTS.</p>
       </div>
 
       <div class="cap-card">
@@ -122,7 +122,7 @@
           <span class="cap-title">Media & Subtitles</span>
           <span class="badge badge-pending">{formatCapability(capabilities?.media_subtitles)}</span>
         </div>
-        <p class="cap-desc">Chunked audio/video streaming, OCR text translation, and subtitle export (Stage 6).</p>
+        <p class="cap-desc">Sliding-window audio/video transcription, pure-Rust OCR, and multi-format document translation.</p>
       </div>
     </div>
   </section>

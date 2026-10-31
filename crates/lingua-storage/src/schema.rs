@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 10;
+pub const CURRENT_SCHEMA_VERSION: u32 = 11;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -60,6 +60,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 10 {
         apply_migration_010(conn)?;
+    }
+    if current_version < 11 {
+        apply_migration_011(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -953,5 +956,29 @@ fn apply_migration_010(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 010: {e}")))?;
 
     info!("Migration 010 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_011(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!("Applying LinguaFlow Database Migration 011 — Developer HUD & Settings Polish");
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    tx.execute_batch(
+        "
+        ALTER TABLE user_settings ADD COLUMN show_developer_hud INTEGER NOT NULL DEFAULT 0;
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (11, datetime('now'), 'Stage 13: Developer HUD Toggle & UI Settings Polish');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 011: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 011: {e}")))?;
+
+    info!("Migration 011 applied successfully");
     Ok(())
 }

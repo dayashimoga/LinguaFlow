@@ -34,6 +34,7 @@ export interface UserSettings {
   font_scale: number;
   engine_preference: EnginePreference;
   offline_only: boolean;
+  show_developer_hud?: boolean;
   audio: AudioSettings;
   updated_at: string;
 }

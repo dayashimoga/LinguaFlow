@@ -71,8 +71,28 @@
     allowCloud = !settings.offline_only;
   }
 
-  onMount(async () => {
-    await refreshHistoryAndFavorites();
+  onMount(() => {
+    refreshHistoryAndFavorites();
+
+    const onGlobalTranslate = () => {
+      executeTranslation();
+    };
+    const onGlobalSwap = () => {
+      handleSwap();
+    };
+    const onGlobalEscape = () => {
+      stopAudioPlayback();
+    };
+
+    window.addEventListener('linguaflow:translate', onGlobalTranslate);
+    window.addEventListener('linguaflow:swap-languages', onGlobalSwap);
+    window.addEventListener('linguaflow:escape', onGlobalEscape);
+
+    return () => {
+      window.removeEventListener('linguaflow:translate', onGlobalTranslate);
+      window.removeEventListener('linguaflow:swap-languages', onGlobalSwap);
+      window.removeEventListener('linguaflow:escape', onGlobalEscape);
+    };
   });
 
   async function refreshHistoryAndFavorites() {
@@ -257,6 +277,27 @@
     }
   }
 
+  async function handlePasteSource() {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text) {
+          sourceText = text;
+          handleInput();
+        }
+      }
+    } catch (e) {
+      console.warn('Clipboard read error:', e);
+    }
+  }
+
+  function handleClearSource() {
+    sourceText = '';
+    translationResult = null;
+    translationError = null;
+    isTranslating = false;
+  }
+
   function restoreHistory(rec: TranslationRecord) {
     sourceLang = rec.source_language;
     targetLang = rec.target_language;
@@ -397,20 +438,20 @@
   <div class="controls-card glass-panel">
     <div class="top-row">
       <div class="lang-selector-group">
-        <select bind:value={sourceLang} on:change={executeTranslation} class="lang-select">
-          {#each SUPPORTED_LANGUAGES as lang}
-            <option value={lang.code}>{lang.native} ({lang.name})</option>
-          {/each}
+        <select bind:value={sourceLang} on:change={executeTranslation} class="lang-select" aria-label="Source Language">
+          <option value="kn-IN">ಕನ್ನಡ — Kannada (kn-IN)</option>
+          <option value="ta-IN">தமிழ் — Tamil (ta-IN)</option>
+          <option value="en-US">English (en-US)</option>
         </select>
 
-        <button class="swap-btn" on:click={handleSwap} title="Swap Languages (Ctrl+S)">
+        <button class="swap-btn" on:click={handleSwap} title="Swap Languages (Ctrl+Shift+S / Ctrl+S)">
           ⇄
         </button>
 
-        <select bind:value={targetLang} on:change={executeTranslation} class="lang-select">
-          {#each SUPPORTED_LANGUAGES as lang}
-            <option value={lang.code}>{lang.native} ({lang.name})</option>
-          {/each}
+        <select bind:value={targetLang} on:change={executeTranslation} class="lang-select" aria-label="Target Language">
+          <option value="kn-IN">ಕನ್ನಡ — Kannada (kn-IN)</option>
+          <option value="ta-IN">தமிழ் — Tamil (ta-IN)</option>
+          <option value="en-US">English (en-US)</option>
         </select>
       </div>
 
@@ -485,13 +526,31 @@
     <!-- Source Panel -->
     <div class="panel-box glass-panel">
       <div class="panel-header">
-        <span class="panel-tag">Source Text ({sourceLang})</span>
-        <span class="char-count">{sourceText.length} characters</span>
+        <div class="panel-header-left">
+          <span class="panel-tag">Source Text ({sourceLang})</span>
+          <span class="char-count">{sourceText.length} characters</span>
+        </div>
+        <div class="panel-header-right">
+          <button class="btn-panel-action" on:click={handlePasteSource} title="Paste text from clipboard">
+            📋 Paste
+          </button>
+          {#if sourceText.trim()}
+            <button class="btn-panel-action btn-clear" on:click={handleClearSource} title="Clear source text (Esc)">
+              ✕ Clear
+            </button>
+          {/if}
+        </div>
       </div>
       <textarea
         bind:value={sourceText}
         on:input={handleInput}
-        placeholder="Type or paste words/sentences to translate..."
+        on:keydown={(e) => {
+          if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+            e.preventDefault();
+            executeTranslation();
+          }
+        }}
+        placeholder="Type or paste words/sentences to translate (Ctrl+Enter to translate)..."
         rows="7"
         class="text-area indic-text"
       ></textarea>
@@ -647,7 +706,7 @@
               {#if intelligenceMetadata.is_compositional_gloss}
                 <span class="intel-pill pill-warning">⚠️ Compositional Gloss</span>
               {/if}
-              {#if intelligenceMetadata.fallback_trail && intelligenceMetadata.fallback_trail.length > 0}
+              {#if settings?.show_developer_hud && intelligenceMetadata.fallback_trail && intelligenceMetadata.fallback_trail.length > 0}
                 <span class="intel-pill pill-trail" title={intelligenceMetadata.fallback_trail.map(t => `${t.engine_id}: ${t.latency_ms.toFixed(1)}ms (${t.success ? 'OK' : 'Bypassed'})`).join(' ➔ ')}>
                   ⚡ {intelligenceMetadata.engine_selected} ({intelligenceMetadata.fallback_trail.length} hop)
                 </span>
@@ -843,7 +902,8 @@
 
   .lang-select {
     flex: 1;
-    min-width: 160px;
+    min-width: 190px;
+    max-width: 280px;
     font-weight: 600;
   }
 
@@ -940,6 +1000,50 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .panel-header-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .panel-header-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .btn-panel-action {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-subtle);
+    color: var(--text-secondary);
+    padding: 3px 8px;
+    border-radius: var(--radius-sm);
+    font-size: 0.78rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    transition: all var(--transition-fast);
+  }
+
+  .btn-panel-action:hover {
+    background: var(--bg-elevated);
+    color: var(--text-primary);
+    border-color: var(--text-accent);
+  }
+
+  .btn-clear {
+    color: #ef4444;
+  }
+
+  .btn-clear:hover {
+    border-color: #ef4444;
+    color: #dc2626;
   }
 
   .panel-tag {

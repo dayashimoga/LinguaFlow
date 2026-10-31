@@ -35,10 +35,41 @@
     { id: 'logistics', label: 'Logistics' },
   ];
 
-  onMount(async () => {
-    await loadFavorites();
+  onMount(() => {
+    loadFavorites();
     // Default search for common entry to demonstrate FTS5 instant lookup
     executeSearch('adventure');
+
+    const handleFocusDict = () => {
+      setTimeout(() => {
+        const el = document.getElementById('dict-search-input') as HTMLInputElement | null;
+        if (el) {
+          el.focus();
+          el.select();
+        }
+      }, 50);
+    };
+
+    const handleGlobalEscape = () => {
+      if (activeAudioSource) {
+        try {
+          activeAudioSource.stop();
+        } catch (_) {}
+        activeAudioSource = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      playingAudioWord = null;
+    };
+
+    window.addEventListener('linguaflow:focus-dictionary', handleFocusDict);
+    window.addEventListener('linguaflow:escape', handleGlobalEscape);
+
+    return () => {
+      window.removeEventListener('linguaflow:focus-dictionary', handleFocusDict);
+      window.removeEventListener('linguaflow:escape', handleGlobalEscape);
+    };
   });
 
   async function loadFavorites() {
@@ -260,6 +291,7 @@
       <div class="search-input-wrap">
         <span class="search-icon">🔍</span>
         <input
+          id="dict-search-input"
           type="text"
           bind:value={searchTerm}
           on:input={handleSearchInput}

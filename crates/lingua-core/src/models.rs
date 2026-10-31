@@ -54,6 +54,8 @@ pub struct UserSettings {
     pub font_scale: f32,
     pub engine_preference: EnginePreference,
     pub offline_only: bool,
+    #[serde(default)]
+    pub show_developer_hud: bool,
     pub audio: AudioSettings,
     pub updated_at: DateTime<Utc>,
 }
@@ -67,6 +69,7 @@ impl Default for UserSettings {
             font_scale: 1.0,
             engine_preference: EnginePreference::AutoHybrid,
             offline_only: false,
+            show_developer_hud: false,
             audio: AudioSettings::default(),
             updated_at: Utc::now(),
         }

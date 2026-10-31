@@ -190,7 +190,7 @@
   <!-- Header Bar -->
   <header class="intelligence-header glass-panel">
     <div class="header-titles">
-      <div class="stage-tag">STAGE 5 ACTIVE</div>
+      <div class="stage-tag">🧠 Translation Intelligence & NLP</div>
       <h2>Translation Intelligence & Optimization</h2>
       <p>Multi-Engine Policies, Circuit Breakers, Formality Modes, Glossaries & chrF/WER Benchmarks</p>
     </div>

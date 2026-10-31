@@ -471,7 +471,7 @@ fn main() {
           <input
             type="file"
             id="media-upload-input"
-            accept="audio/*,video/*,.mp4,.webm,.wav,.mp3"
+            accept="audio/*,video/*,.mp4,.webm,.wav,.mp3,.ogg,.flac,.m4a"
             on:change={handleMediaFileSelect}
             class="hidden-file-input"
           />

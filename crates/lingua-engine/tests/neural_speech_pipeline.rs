@@ -56,10 +56,10 @@ fn test_silero_hybrid_vad_discrimination() {
     // 3. Mechanical Click: impulse noise burst with high ZCR (> 0.40) and no pitch periodicity
     let mut click = vec![0.0f32; 512];
     let mut seed: u64 = 123456789;
-    for i in 0..512 {
+    for sample in click.iter_mut().take(512) {
         seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
         let val = ((seed >> 33) as f32 / (1u64 << 31) as f32) - 0.5;
-        click[i] = val * 0.7;
+        *sample = val * 0.7;
     }
     let (prob_click, class_click) = vad.classify_frame(&click);
     assert_eq!(class_click, AcousticClassification::MechanicalNoise);

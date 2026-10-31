@@ -282,3 +282,44 @@ async fn test_platform_integrations_and_overlay_policy() {
     assert!(share.contains("Original:\nನಮಸ್ಕಾರ"));
     assert!(share.contains("Translation:\nHello"));
 }
+
+#[tokio::test]
+async fn test_symphonia_sliding_window_and_vad_subtitle_pipeline() {
+    // 1. Create a 3-second 48 kHz synthetic speech-like WAV
+    let sample_rate = 48000;
+    let num_samples = 48000 * 3;
+    let wav_bytes = create_synthetic_wav(sample_rate, num_samples);
+
+    // 2. Decode in bounded 30s sliding windows
+    let windows =
+        MediaTranscriptionPipeline::decode_media_sliding_windows_with_fallback(&wav_bytes)
+            .expect("decoding failed");
+    assert!(!windows.is_empty());
+
+    for w in &windows {
+        // Strict memory bound: <= 480,000 samples @ 16 kHz = 1.92 MB (< 3.2 MB budget)
+        assert!(w.len() <= lingua_engine::media_transcription::MAX_SLIDING_WINDOW_SAMPLES);
+    }
+
+    // 3. Transcribe windows through VAD and translation
+    let segments = MediaTranscriptionPipeline::transcribe_audio_windows(
+        "sess_test_12",
+        &windows,
+        LanguageCode::KnIn,
+        LanguageCode::EnUs,
+        |src, _, _| format!("Translated: {src}"),
+    )
+    .expect("transcription failed");
+
+    assert!(!segments.is_empty());
+    assert!(segments[0].end_ms > segments[0].start_ms);
+    assert!(segments[0].translated_text.contains("Translated:"));
+
+    // 4. Verify SRT and VTT export formatting
+    let srt = MediaTranscriptionPipeline::format_srt(&segments, false);
+    assert!(srt.contains("-->"));
+    assert!(srt.contains("1\n"));
+
+    let vtt = MediaTranscriptionPipeline::format_vtt(&segments, false);
+    assert!(vtt.starts_with("WEBVTT\n\n"));
+}

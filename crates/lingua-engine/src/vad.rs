@@ -305,10 +305,10 @@ mod tests {
         // Synthetic keyboard click: aperiodic transient noise with high ZCR (> 0.40) and zero pitch periodicity
         let mut click_frame = vec![0.001; 512];
         let mut seed: u64 = 123456789;
-        for i in 0..512 {
+        for sample in click_frame.iter_mut().take(512) {
             seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
             let val = ((seed >> 33) as f32 / (1u64 << 31) as f32) - 0.5;
-            click_frame[i] = val * 0.7;
+            *sample = val * 0.7;
         }
 
         let click_res = vad.process_frame(&click_frame);
@@ -326,11 +326,11 @@ mod tests {
         let mut fan_frame = vec![0.0; 512];
         let mut seed: u64 = 987654321;
         let mut prev = 0.0f32;
-        for i in 0..512 {
+        for sample in fan_frame.iter_mut().take(512) {
             seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
             let white = ((seed >> 33) as f32 / (1u64 << 31) as f32) - 0.5;
             prev = 0.92 * prev + 0.08 * white;
-            fan_frame[i] = prev * 0.2;
+            *sample = prev * 0.2;
         }
         let fan_res = vad.process_frame(&fan_frame);
         assert_eq!(

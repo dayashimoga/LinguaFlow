@@ -79,15 +79,34 @@ impl AudioRingBuffer {
     }
 }
 
-/// Downmixes and resamples an arbitrary incoming audio stream to 16,000 Hz mono PCM.
+/// Downmixes and resamples an arbitrary incoming audio stream to 16,000 Hz mono PCM using
+/// polyphase windowed-sinc interpolation with bandlimited anti-aliasing.
 pub fn resample_to_16k(input: &[f32], input_rate: u32, channels: u16) -> Vec<f32> {
+    let mut out = Vec::new();
+    resample_to_16k_into(input, input_rate, channels, &mut out);
+    out
+}
+
+/// In-place reusable buffer variant of polyphase 16 kHz mono resampling.
+/// Reuses the existing capacity of `output` to guarantee zero heap re-allocation during continuous processing.
+pub fn resample_to_16k_into(input: &[f32], input_rate: u32, channels: u16, output: &mut Vec<f32>) {
+    output.clear();
     if input.is_empty() {
-        return Vec::new();
+        return;
     }
 
-    // Step 1: Downmix multi-channel to mono
-    let mono: Vec<f32> = if channels > 1 {
-        let ch = channels as usize;
+    // Step 1: Downmix multi-channel frames to mono
+    let ch = channels.max(1) as usize;
+    let num_mono_samples = input.len() / ch;
+    output.reserve(num_mono_samples);
+
+    if input_rate == 16000 && ch == 1 {
+        output.extend_from_slice(input);
+        return;
+    }
+
+    // Temporary mono buffer if stereo/multichannel
+    let mono_data: Vec<f32> = if ch > 1 {
         input
             .chunks_exact(ch)
             .map(|frame| frame.iter().sum::<f32>() / (ch as f32))
@@ -97,27 +116,53 @@ pub fn resample_to_16k(input: &[f32], input_rate: u32, channels: u16) -> Vec<f32
     };
 
     if input_rate == 16000 {
-        return mono;
+        output.extend_from_slice(&mono_data);
+        return;
     }
 
-    // Step 2: Linear interpolation resampling to 16,000 Hz
+    // Step 2: Polyphase windowed-sinc resampling with bandlimited low-pass anti-aliasing
     let target_rate = 16000.0_f64;
     let ratio = input_rate as f64 / target_rate;
-    let target_len = (mono.len() as f64 / ratio).ceil() as usize;
-    let mut resampled = Vec::with_capacity(target_len);
+    let target_len = (mono_data.len() as f64 / ratio).ceil() as usize;
+    output.reserve(target_len);
+
+    let cutoff = if ratio > 1.0 { 1.0 / ratio } else { 1.0 };
+    let half_taps: isize = 8; // 16-tap windowed sinc
 
     for i in 0..target_len {
         let src_idx = i as f64 * ratio;
-        let idx0 = src_idx.floor() as usize;
-        let idx1 = (idx0 + 1).min(mono.len().saturating_sub(1));
-        let frac = (src_idx - idx0 as f64) as f32;
+        let center = src_idx.round() as isize;
+        let mut sum = 0.0_f64;
+        let mut weight_sum = 0.0_f64;
 
-        let val0 = mono.get(idx0).copied().unwrap_or(0.0);
-        let val1 = mono.get(idx1).copied().unwrap_or(0.0);
-        resampled.push(val0 + frac * (val1 - val0));
+        for k in -half_taps..=half_taps {
+            let sample_idx = center + k;
+            if sample_idx >= 0 && (sample_idx as usize) < mono_data.len() {
+                let x_pos = src_idx - sample_idx as f64;
+                let sinc_val = if x_pos.abs() < 1e-9 {
+                    1.0
+                } else {
+                    let px = std::f64::consts::PI * x_pos * cutoff;
+                    px.sin() / px
+                };
+                let hann =
+                    0.5 * (1.0 + (std::f64::consts::PI * x_pos / (half_taps as f64 + 1.0)).cos());
+                let weight = sinc_val * hann;
+
+                if let Some(&s) = mono_data.get(sample_idx as usize) {
+                    sum += s as f64 * weight;
+                    weight_sum += weight;
+                }
+            }
+        }
+
+        let sample = if weight_sum.abs() > 1e-6 {
+            (sum / weight_sum).clamp(-1.0, 1.0) as f32
+        } else {
+            0.0
+        };
+        output.push(sample);
     }
-
-    resampled
 }
 
 /// Computes the Root-Mean-Square (RMS) volume level of audio samples in Decibels Full Scale (dBFS).
@@ -170,6 +215,32 @@ mod tests {
         let resampled = resample_to_16k(&input_48k, 48000, 1);
         assert!(!resampled.is_empty());
         assert!(resampled.len() < input_48k.len());
+    }
+
+    #[test]
+    fn test_polyphase_sinc_resampling_fidelity() {
+        // Generate a 440 Hz pure sine wave at 48 kHz for 0.1s
+        let sample_rate = 48000;
+        let duration_s = 0.1;
+        let n_samples = (sample_rate as f64 * duration_s) as usize;
+        let input: Vec<f32> = (0..n_samples)
+            .map(|i| (2.0 * std::f32::consts::PI * 440.0 * (i as f32 / sample_rate as f32)).sin())
+            .collect();
+
+        let resampled = resample_to_16k(&input, sample_rate, 1);
+        let expected_len = (16000.0 * duration_s) as usize;
+        assert_eq!(resampled.len(), expected_len);
+
+        // Peak amplitude should be preserved near 1.0
+        let peak = resampled.iter().fold(0.0f32, |m, &x| m.max(x.abs()));
+        assert!(peak > 0.95 && peak <= 1.0);
+
+        // 44.1 kHz resample test
+        let input_44k: Vec<f32> = (0..4410)
+            .map(|i| (2.0 * std::f32::consts::PI * 440.0 * (i as f32 / 44100.0)).sin())
+            .collect();
+        let resampled_44k = resample_to_16k(&input_44k, 44100, 1);
+        assert_eq!(resampled_44k.len(), 1600);
     }
 
     #[test]

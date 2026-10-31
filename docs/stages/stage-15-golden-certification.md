@@ -1,48 +1,49 @@
-# LinguaFlow — Stage 15: End-to-End Golden Certification, Honest Benchmarking & Release Packaging
+# LinguaFlow — Stage 15: End-to-End Golden Certification, Honest Dual-Tier Benchmarking & 5-Platform Release
 
-Execute the Global Engineering Contract. Replace stubbed microbenchmarks with separate **Deterministic System Microbenchmarks** and **End-to-End Neural/Linguistic Quality Benchmarks**, and certify all platform deliverables across all target platforms.
-
----
-
-## Phase 15.1 — Golden Linguistic & Functional Regression Suite
-
-### Subphase 15.1.1 — Curated 500-Pair Golden Test Suite (`tests/golden_linguistic_suite.rs`)
-- Create an automated integration test suite verifying 500 curated words, medical sentences, logistics invoices, and conversational idioms across all 6 directional pairs:
-  - English $\leftrightarrow$ Kannada (`en-US` $\leftrightarrow$ `kn-IN`)
-  - English $\leftrightarrow$ Tamil (`en-US` $\leftrightarrow$ `ta-IN`)
-  - Kannada $\leftrightarrow$ Tamil (`kn-IN` $\leftrightarrow$ `ta-IN`)
-- **Explicit Regression Gate**:
-  - Assert that translating `"adventure"` (`en-US` $\rightarrow$ `kn-IN`) returns **ಸಾಹಸ** (and never `"ದೇವೇಗೌಡರು"`).
-  - Assert that translating `"adventure"` (`en-US` $\rightarrow$ `ta-IN`) returns **சாகசம்**.
-  - Assert that searching `"adventure"` in the SQLite FTS5 dictionary returns $\ge 1$ complete lexical entry with IPA, examples, and part-of-speech tags.
-
-### Subphase 15.1.2 — Automated Playwright / WebDriver Visual & E2E Verification
-- Run headless UI tests across all views asserting:
-  - Zero truncated dropdowns (verifying `English (English)` selector regression fix).
-  - Zero contradictory engine badges (`OFFLINE LEXICON` and `http-rest-provider` must never appear simultaneously).
-  - Zero `chrF: 100.0%` badges on unreferenced live translations.
-  - Correct target phonetic transliteration (*sāhasa* instead of *ಡವೆನಟುರೆ*).
+Execute the Global Engineering Contract (`.antigravity/contract.md`). Replace stubbed microbenchmarks with separate **Deterministic System Microbenchmarks** and **End-to-End Neural/Linguistic Quality Benchmarks**, and certify all platform deliverables across Windows, Linux, macOS, Android, and iOS.
 
 ---
 
-## Phase 15.2 — Honest Dual-Tier Benchmarking & Documentation Refresh
+## Phase 15.1: Curated 500-Pair Golden Regression Suite & Visual E2E Verification
 
-### Subphase 15.2.1 — Separate In-Memory Overhead from Full Model Inference in `BENCHMARKS.md`
-- Update `lingua-cli bench` and `docs/BENCHMARKS.md` to report two distinct tables:
-  1. **Infrastructure & Memory Pipeline Overhead ($\mu$s scale)**: Ring buffer operations, VAD pre-filtering, FTS5 index lookup, LRU cache hits, RBAC evaluation.
-  2. **End-to-End Real Inference Latency (ms scale)**: Cold/warm SQLite 50k-entry FTS5 query, ONNX INT8 neural sentence translation (`en` $\leftrightarrow$ `kn`, `en` $\leftrightarrow$ `ta`), sherpa-onnx streaming ASR chunk inference, neural VITS TTS waveform synthesis, and Tesseract/ONNX OCR page extraction.
+### Subphase 15.1.1 — 500-Pair Trilingual Golden Suite (`tests/golden_linguistic_suite.rs`)
+- **Minute Details**:
+  - Build an automated integration suite verifying 500 curated clinical, logistics, conversational, and literary pairs across all 6 directional combinations:
+    - English $\leftrightarrow$ Kannada (`en-US` $\leftrightarrow$ `kn-IN`)
+    - English $\leftrightarrow$ Tamil (`en-US` $\leftrightarrow$ `ta-IN`)
+    - Kannada $\leftrightarrow$ Tamil (`kn-IN` $\leftrightarrow$ `ta-IN`)
+  - **Explicit Regression Gate**:
+    - Assert that translating `"adventure"` (`en-US` $\rightarrow$ `kn-IN`) returns **ಸಾಹಸ** (and never `"ದೇವೇಗೌಡರು"`).
+    - Assert that translating `"adventure"` (`en-US` $\rightarrow$ `ta-IN`) returns **சாகசம்**.
+    - Assert that searching `"adventure"` in the SQLite FTS5 dictionary returns $\ge 1$ complete lexical entry with IPA, examples, and part-of-speech tags.
 
-### Subphase 15.2.2 — Final Artifact Generation & Traceability Closure
-- Run the full quality verification suite:
-  ```powershell
-  npm run check
-  npm run build
-  cargo fmt --check
-  cargo clippy --workspace -- -D warnings
-  cargo test --workspace
-  ```
-- Capture updated production screenshots verifying all visual fixes.
-- Update `CHANGELOG.md`, `TODO.md`, `docs/SBOM.json`, `docs/BENCHMARKS.md`, and `docs/PROJECT_WALKTHROUGH.md`.
+### Subphase 15.1.2 — Headless Playwright / WebDriver E2E Suite
+- **Minute Details**:
+  - Verify all 12 Svelte views render with zero console errors, non-truncated language selectors, working keyboard shortcuts, and zero vertical clipping on Indic *ottaksharas*.
+
+---
+
+## Phase 15.2: Honest Dual-Tier Benchmarking (`lingua bench` & `BENCHMARKS.md`)
+
+### Subphase 15.2.1 — Infrastructure vs. Neural Execution Benchmark Split
+- **Minute Details**:
+  - Refactor `crates/lingua-cli` benchmark runner and `docs/BENCHMARKS.md` into two transparent tiers:
+    - **Tier 1 — Deterministic Infrastructure & Algorithmic Overhead ($\mu$s)**: IPC serialization, SQLite WAL reads, FTS5 BM25 lookup, ring buffer soak, VAD frame energy/periodicity, RBAC & rate-limit checks, SM-2 math.
+    - **Tier 2 — End-to-End Neural Model Execution (ms & Peak RSS MB)**: Quantized ONNX NMT inference, streaming ASR chunk decoding, VITS/Piper neural TTS synthesis, and ONNX Indic OCR extraction, along with idle-to-active RAM telemetry.
+
+---
+
+## Phase 15.3: 5-Platform Native Release Packaging (Windows, Linux, macOS, Android, iOS)
+
+### Subphase 15.3.1 — Native Mobile Lifecycle & Permissions (`gen/android` & `gen/apple`)
+- **Minute Details**:
+  - Configure Tauri v2 mobile targets for Android (`RECORD_AUDIO`, `CAMERA`, `arm64-v8a` / universal APK & AAB) and iOS (`NSMicrophoneUsageDescription`, `NSCameraUsageDescription`, `AVAudioSession` interruption recovery, `.ipa` Xcode archive).
+  - Add `cpal` audio stream pause/resume hooks when app backgrounding or phone calls occur.
+
+### Subphase 15.3.2 — Multi-Platform Installer Matrix, CycloneDX SBOM & SHA-256 Manifests
+- **Minute Details**:
+  - Configure release builds and CI/CD pipelines for Windows (`.msi`, `.exe` NSIS), Linux (`.AppImage`, `.deb`), macOS (`.dmg` Universal binary), Android (`.apk`, `.aab`), iOS (`.ipa`), and Web PWA.
+  - Generate CycloneDX SBOM (`sbom.cdx.json`) and signed `SHA256SUMS.txt` integrity manifest.
 
 ---
 
@@ -51,4 +52,3 @@ Execute the Global Engineering Contract. Replace stubbed microbenchmarks with se
 2. Playwright/WebDriver headless tests verify zero visual regressions across all views.
 3. `docs/BENCHMARKS.md` clearly bifurcates microsecond-scale pipeline overhead from millisecond-scale neural model execution times.
 4. All CI matrix builds (Windows, Linux, macOS, Android, iOS, Web PWA) compile cleanly with matching SHA-256 manifests.
-

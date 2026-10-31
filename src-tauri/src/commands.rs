@@ -24,13 +24,12 @@ use lingua_core::{
     ListGlossaryTermsCmdRequest, ListGlossaryTermsCmdResponse, ListInvoicesCmdResponse,
     ListLearningDecksCmdResponse, ListMediaSegmentsCmdRequest, ListMediaSegmentsCmdResponse,
     ListOrgGlossariesCmdResponse, ListOrgMembersCmdResponse, MediaProgressStatus, MediaSession,
-    MediaSubtitleExportFormat, MediaSubtitleSegment, ModelPackInfo, OrgCmdResponse, OrgGlossary,
-    OrgGlossaryStatus, OrgGlossaryTerm, OrgMember, OrgRole, Organization,
-    PauseSpeechSessionCmdRequest, PerformOcrCmdRequest, PerformOcrCmdResponse,
-    PurgeUserDataCmdRequest, PurgeUserDataCmdResponse, RegisterDeviceCmdRequest,
-    RegisterDeviceCmdResponse, ResetCircuitBreakerCmdRequest, ResumeSpeechSessionCmdRequest,
-    ReviewCardCmdRequest, ReviewCardCmdResponse, ReviewRating, RunEvaluationCmdResponse,
-    SaveDataPrivacySettingsCmdRequest, SaveGlobalShortcutsCmdRequest,
+    MediaSubtitleExportFormat, ModelPackInfo, OrgCmdResponse, OrgGlossary, OrgGlossaryStatus,
+    OrgGlossaryTerm, OrgMember, OrgRole, Organization, PauseSpeechSessionCmdRequest,
+    PerformOcrCmdRequest, PerformOcrCmdResponse, PurgeUserDataCmdRequest, PurgeUserDataCmdResponse,
+    RegisterDeviceCmdRequest, RegisterDeviceCmdResponse, ResetCircuitBreakerCmdRequest,
+    ResumeSpeechSessionCmdRequest, ReviewCardCmdRequest, ReviewCardCmdResponse, ReviewRating,
+    RunEvaluationCmdResponse, SaveDataPrivacySettingsCmdRequest, SaveGlobalShortcutsCmdRequest,
     SaveOverlaySettingsCmdRequest, SetResourceProfileCmdRequest, SpeechSession,
     StartConversationCmdRequest, StartMediaTranscriptionCmdRequest,
     StartMediaTranscriptionCmdResponse, StartSpeechSessionCmdRequest,
@@ -810,13 +809,13 @@ pub fn lingua_command_set_resource_profile(
 // Stage 6 Tauri Commands: Media, Captions, OCR, Document & Integrations
 
 #[tauri::command]
-pub fn lingua_command_start_media_transcription(
+pub async fn lingua_command_start_media_transcription(
     state: State<'_, DesktopAppState>,
     request: StartMediaTranscriptionCmdRequest,
-) -> IpcResponse<StartMediaTranscriptionCmdResponse> {
+) -> Result<IpcResponse<StartMediaTranscriptionCmdResponse>, String> {
     let (format, duration_ms) = match MediaTranscriptionPipeline::probe_media(&request.file_bytes) {
         Ok(res) => res,
-        Err(e) => return IpcResponse::err("tauri-ipc", e),
+        Err(e) => return Ok(IpcResponse::err("tauri-ipc", e)),
     };
 
     let session_id = Uuid::new_v4().to_string();
@@ -834,66 +833,59 @@ pub fn lingua_command_start_media_transcription(
     };
 
     if let Err(e) = state.storage.create_media_session(&session) {
-        return IpcResponse::err("tauri-ipc", e);
+        return Ok(IpcResponse::err("tauri-ipc", e));
     }
 
-    let chunks = match MediaTranscriptionPipeline::extract_streaming_audio_chunks(
+    let windows = match MediaTranscriptionPipeline::decode_media_sliding_windows_with_fallback(
         &request.file_bytes,
-        16000,
     ) {
-        Ok(c) => c,
-        Err(e) => return IpcResponse::err("tauri-ipc", e),
+        Ok(w) => w,
+        Err(e) => return Ok(IpcResponse::err("tauri-ipc", e)),
     };
 
-    let mut segments = Vec::new();
-    let chunk_duration_ms = if chunks.is_empty() {
-        duration_ms
-    } else {
-        (duration_ms / chunks.len() as u64).max(1000)
+    let segments = match MediaTranscriptionPipeline::transcribe_audio_windows_async(
+        &session_id,
+        &windows,
+        request.source_lang,
+        request.target_lang,
+        |src, src_l, tgt_l| {
+            let engine = state.engine_registry.clone();
+            let pair = match LanguagePair::new(src_l, tgt_l) {
+                Ok(p) => p,
+                Err(_) => LanguagePair {
+                    source: src_l,
+                    target: tgt_l,
+                },
+            };
+            let src_str = src.to_string();
+            let trans_req = TranslationRequest {
+                pair,
+                text: src_str.clone(),
+                allow_cloud: false,
+            };
+            async move {
+                engine
+                    .translate(trans_req)
+                    .await
+                    .map(|t| t.translated_text)
+                    .unwrap_or_else(|_| format!("{src_str} [{tgt_l}]"))
+            }
+        },
+    )
+    .await
+    {
+        Ok(s) => s,
+        Err(e) => return Ok(IpcResponse::err("tauri-ipc", e)),
     };
-
-    let sample_prompts = [
-        (
-            "ನಮಸ್ಕಾರ, ಲಿಂಗ್ವಾಫ್ಲೋ ಮಾಧ್ಯಮ ಸ್ಟುಡಿಯೋಗೆ ಸುಸ್ವಾಗತ.",
-            "Hello, welcome to LinguaFlow Media Studio.",
-        ),
-        (
-            "ಇದು ನೈಜ-ಸಮಯದ ದ್ವಿಭಾಷಾ ಉಪಶೀರ್ಷಿಕೆ ಪ್ರದರ್ಶನವಾಗಿದೆ.",
-            "This is a real-time bilingual subtitle demonstration.",
-        ),
-        (
-            "ಎಲ್ಲಾ ಶ್ರವ್ಯ ಮತ್ತು ದೃಶ್ಯ ದಾಖಲೆಗಳನ್ನು ಇಲ್ಲಿ ಭಾಷಾಂತರಿಸಲಾಗುತ್ತದೆ.",
-            "All audio and visual documents are translated here.",
-        ),
-        (
-            "ಧನ್ಯವಾದಗಳು ಮತ್ತು ಶುಭದಿನ.",
-            "Thank you and have a wonderful day.",
-        ),
-    ];
-
-    let count = chunks.len().clamp(2, 8);
-    for idx in 0..count {
-        let (src, tgt) = sample_prompts[idx % sample_prompts.len()];
-        let seg = MediaSubtitleSegment {
-            id: Uuid::new_v4().to_string(),
-            session_id: session_id.clone(),
-            seq_id: (idx + 1) as u64,
-            start_ms: idx as u64 * chunk_duration_ms,
-            end_ms: (idx + 1) as u64 * chunk_duration_ms,
-            source_text: src.to_string(),
-            translated_text: tgt.to_string(),
-        };
-        segments.push(seg);
-    }
 
     if let Err(e) = state.storage.add_media_segments_batch(&segments) {
-        return IpcResponse::err("tauri-ipc", e);
+        return Ok(IpcResponse::err("tauri-ipc", e));
     }
 
-    IpcResponse::ok(
+    Ok(IpcResponse::ok(
         "tauri-ipc",
         StartMediaTranscriptionCmdResponse { session, segments },
-    )
+    ))
 }
 
 #[tauri::command]

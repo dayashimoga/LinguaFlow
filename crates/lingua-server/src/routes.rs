@@ -29,9 +29,9 @@ use lingua_core::{
     ListAuditEventsCmdResponse, ListDevicesCmdResponse, ListGlossaryTermsCmdResponse,
     ListInvoicesCmdResponse, ListLearningDecksCmdResponse, ListMediaSegmentsCmdResponse,
     ListOrgGlossariesCmdResponse, ListOrgMembersCmdResponse, MediaProgressStatus, MediaSession,
-    MediaSubtitleExportFormat, MediaSubtitleSegment, ModelPackDetailedInfo, ModelPackInfo,
-    OrgCmdResponse, OrgGlossary, OrgGlossaryStatus, OrgGlossaryTerm, OrgMember, OrgRole,
-    Organization, PauseSpeechSessionCmdRequest, PerformOcrCmdRequest, PerformOcrCmdResponse,
+    MediaSubtitleExportFormat, ModelPackDetailedInfo, ModelPackInfo, OrgCmdResponse, OrgGlossary,
+    OrgGlossaryStatus, OrgGlossaryTerm, OrgMember, OrgRole, Organization,
+    PauseSpeechSessionCmdRequest, PerformOcrCmdRequest, PerformOcrCmdResponse,
     PurgeUserDataCmdRequest, PurgeUserDataCmdResponse, RegisterDeviceCmdRequest,
     RegisterDeviceCmdResponse, ResumeSpeechSessionCmdRequest, ReviewCardCmdResponse, ReviewRating,
     RunEvaluationCmdResponse, SaveDataPrivacySettingsCmdRequest, SaveOverlaySettingsCmdRequest,
@@ -1159,52 +1159,43 @@ async fn media_transcribe_handler(
         .create_media_session(&session)
         .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Extract audio chunks in bounded streaming slices
-    let chunks =
-        MediaTranscriptionPipeline::extract_streaming_audio_chunks(&payload.file_bytes, 16000)
+    // Extract audio windows in bounded 30-second streaming slices (< 3.2 MB heap allocation)
+    let windows =
+        MediaTranscriptionPipeline::decode_media_sliding_windows_with_fallback(&payload.file_bytes)
             .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
-    // Generate bilingual subtitle segments corresponding to audio timeline
-    let mut segments = Vec::new();
-    let chunk_duration_ms = if chunks.is_empty() {
-        duration_ms
-    } else {
-        (duration_ms / chunks.len() as u64).max(1000)
-    };
-
-    let sample_prompts = [
-        (
-            "ನಮಸ್ಕಾರ, ಲಿಂಗ್ವಾಫ್ಲೋ ಮಾಧ್ಯಮ ಸ್ಟುಡಿಯೋಗೆ ಸುಸ್ವಾಗತ.",
-            "Hello, welcome to LinguaFlow Media Studio.",
-        ),
-        (
-            "ಇದು ನೈಜ-ಸಮಯದ ದ್ವಿಭಾಷಾ ಉಪಶೀರ್ಷಿಕೆ ಪ್ರದರ್ಶನವಾಗಿದೆ.",
-            "This is a real-time bilingual subtitle demonstration.",
-        ),
-        (
-            "ಎಲ್ಲಾ ಶ್ರವ್ಯ ಮತ್ತು ದೃಶ್ಯ ದಾಖಲೆಗಳನ್ನು ಇಲ್ಲಿ ಭಾಷಾಂತರಿಸಲಾಗುತ್ತದೆ.",
-            "All audio and visual documents are translated here.",
-        ),
-        (
-            "ಧನ್ಯವಾದಗಳು ಮತ್ತು ಶುಭದಿನ.",
-            "Thank you and have a wonderful day.",
-        ),
-    ];
-
-    let count = chunks.len().clamp(2, 8);
-    for idx in 0..count {
-        let (src, tgt) = sample_prompts[idx % sample_prompts.len()];
-        let seg = MediaSubtitleSegment {
-            id: Uuid::new_v4().to_string(),
-            session_id: session_id.clone(),
-            seq_id: (idx + 1) as u64,
-            start_ms: idx as u64 * chunk_duration_ms,
-            end_ms: (idx + 1) as u64 * chunk_duration_ms,
-            source_text: src.to_string(),
-            translated_text: tgt.to_string(),
-        };
-        segments.push(seg);
-    }
+    // Generate bilingual subtitle segments through VAD and translation
+    let segments = MediaTranscriptionPipeline::transcribe_audio_windows_async(
+        &session_id,
+        &windows,
+        payload.source_lang,
+        payload.target_lang,
+        |src, src_l, tgt_l| {
+            let engine = state.engine_registry.clone();
+            let pair = match LanguagePair::new(src_l, tgt_l) {
+                Ok(p) => p,
+                Err(_) => LanguagePair {
+                    source: src_l,
+                    target: tgt_l,
+                },
+            };
+            let src_str = src.to_string();
+            let trans_req = TranslationRequest {
+                pair,
+                text: src_str.clone(),
+                allow_cloud: false,
+            };
+            async move {
+                engine
+                    .translate(trans_req)
+                    .await
+                    .map(|t| t.translated_text)
+                    .unwrap_or_else(|_| format!("{src_str} [{tgt_l}]"))
+            }
+        },
+    )
+    .await
+    .map_err(|e| (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))?;
 
     state
         .storage

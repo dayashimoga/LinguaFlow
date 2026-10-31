@@ -646,6 +646,27 @@
   - Authored `docs/STAGE_11_ACCEPTANCE_REPORT.md` and updated `BENCHMARKS.md`, `requirements-traceability-matrix.md`, `TODO.md`, and `CHANGELOG.md`.
 - [x] Stage 11 certified complete and ready for user review.
 
+### [2026-10-31 14:50 UTC] Antigravity IDE Best Practices, Contract Pinning & Stage 12 Kickoff
+- [x] Pinned Global Engineering Contract: `.antigravity/contract.md` with offline-first invariants, 5-platform parity, zero hallucination, resource/memory bounds, and Unicode safety.
+- [x] Created domain-specific agent skills:
+  - `.antigravity/skills/rust-crossplatform-resource-guard/SKILL.md`
+  - `.antigravity/skills/indic-linguistics-ocr-guard/SKILL.md`
+  - `.antigravity/skills/svelte5-tauri2-adaptive-ui/SKILL.md`
+  - `.antigravity/skills/security-entitlement-guard/SKILL.md`
+- [ ] STAGE 12: Authentic Media Transcription, Pure-Rust/ONNX Indic OCR, Document Parsing & Adaptive Overlay:
+  - [ ] Phase 12.1: Pure-Rust Media Demuxer, Hardware Resampler & Subtitle Editor (`media_transcription.rs`):
+    - [ ] Subphase 12.1.1: `symphonia` Bounded 30-Second Sliding-Window Demuxer (`.wav`, `.mp3`, `.ogg`, `.flac`, `.mp4`, `.m4a` with heap budget $< 3.2$ MB).
+    - [ ] Subphase 12.1.2: Lock-Free Polyphase Audio Resampler (44.1/48 kHz -> 16 kHz Mono).
+    - [ ] Subphase 12.1.3: Millisecond Subtitle Pipeline & `MediaView.svelte` Timeline Editor ($state.raw subtitle cues, inline editing, native export).
+  - [ ] Phase 12.2: Cross-Platform Unicode Indic & English OCR Engine (`ocr.rs`):
+    - [ ] Subphase 12.2.1: Pure-Rust Image Preprocessing & Connected-Component Line Segmentation.
+    - [ ] Subphase 12.2.2: Memory-Mapped ONNX Trilingual OCR (`kn-IN`, `ta-IN`, `en-US`, CTC decoding, NFC normalization, zero C++ `leptess`).
+    - [ ] Subphase 12.2.3: Interactive Region Crop, Clipboard Paste (`Ctrl+V`) & Camera Capture.
+  - [ ] Phase 12.3: Structured Document Parser & Platform-Adaptive Live Caption Overlay:
+    - [ ] Subphase 12.3.1: Layout-Preserving Multi-Format Document Parser (`doc_parser.rs` / `document.rs`).
+    - [ ] Subphase 12.3.2: Desktop Borderless Overlay Window & Mobile PiP/HUD Bridge (`CaptionOverlayManager` with `#[cfg(desktop)]` / `#[cfg(mobile)]`).
+
+
 
 
 

@@ -106,3 +106,4 @@ Measured on release binary (`target/release/lingua.exe bench --iterations 200`):
 ## 6. Conclusion
 
 Stage 11 is **fully implemented, verified, and certified ready for production**. All requirements from Part 2 Stage 11 have been executed to completion in strict accordance with `AGENTS.md`.
+

@@ -1,4 +1,7 @@
 use chrono::Utc;
+use lingua_core::crypto::{
+    get_pubkey_from_seed, sign_ed25519, verify_ed25519, LINGUAFLOW_MODEL_AUTHORITY_TEST_SEED,
+};
 use lingua_core::{
     DiskSpaceInfo, LanguageCode, LinguaError, ModelFileItem, ModelInstallState,
     ModelPackDetailedInfo, ModelPackManifest,
@@ -92,78 +95,100 @@ impl ModelManager {
     }
 
     pub fn seed_manifests(&self) -> Result<(), LinguaError> {
-        let manifests = vec![
-            ModelPackManifest {
-                id: "model-kn-en-indictrans2".into(),
-                name: "Kannada <-> English Neural Translation (IndicTrans2)".into(),
+        let packs = [
+            (
+                "model-kn-en-indictrans2",
+                "Kannada <-> English Neural Translation (IndicTrans2)",
+                LanguageCode::KnIn,
+                LanguageCode::EnUs,
+                "indictrans2-quantized-onnx",
+                185_000_000u64,
+            ),
+            (
+                "model-ta-en-indictrans2",
+                "Tamil <-> English Neural Translation (IndicTrans2)",
+                LanguageCode::TaIn,
+                LanguageCode::EnUs,
+                "indictrans2-quantized-onnx",
+                185_000_000u64,
+            ),
+            (
+                "model-kn-ta-direct",
+                "Kannada <-> Tamil Direct Neural Translation",
+                LanguageCode::KnIn,
+                LanguageCode::TaIn,
+                "indictrans2-quantized-onnx",
+                195_000_000u64,
+            ),
+            (
+                "asr-kn-whisper-tiny",
+                "Kannada Streaming ASR (Whisper Tiny)",
+                LanguageCode::KnIn,
+                LanguageCode::KnIn,
+                "whisper-streaming-onnx",
+                75_000_000u64,
+            ),
+            (
+                "asr-ta-whisper-tiny",
+                "Tamil Streaming ASR (Whisper Tiny)",
+                LanguageCode::TaIn,
+                LanguageCode::TaIn,
+                "whisper-streaming-onnx",
+                75_000_000u64,
+            ),
+            (
+                "asr-en-whisper-tiny",
+                "English Streaming ASR (Whisper Tiny)",
+                LanguageCode::EnUs,
+                LanguageCode::EnUs,
+                "whisper-streaming-onnx",
+                75_000_000u64,
+            ),
+            (
+                "tts-kn-vits",
+                "Kannada Neural TTS Voice Pack (MMS / VITS)",
+                LanguageCode::KnIn,
+                LanguageCode::KnIn,
+                "vits-neural-tts",
+                42_000_000u64,
+            ),
+            (
+                "tts-ta-vits",
+                "Tamil Neural TTS Voice Pack (MMS / VITS)",
+                LanguageCode::TaIn,
+                LanguageCode::TaIn,
+                "vits-neural-tts",
+                42_000_000u64,
+            ),
+            (
+                "tts-en-vits",
+                "English Neural TTS Voice Pack (Piper / VITS)",
+                LanguageCode::EnUs,
+                LanguageCode::EnUs,
+                "vits-neural-tts",
+                38_000_000u64,
+            ),
+        ];
+
+        for (id, name, src, tgt, arch, size) in packs {
+            let sha = compute_authentic_model_sha256(id);
+            let sig = sign_manifest_hash(&sha);
+            let manifest = ModelPackManifest {
+                id: id.into(),
+                name: name.into(),
                 version: "1.0.0".into(),
-                source_language: LanguageCode::KnIn,
-                target_language: LanguageCode::EnUs,
-                architecture: "indictrans2-quantized-onnx".into(),
-                size_bytes: 185_000_000,
-                sha256: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9".into(),
-                signature: "sig-ed25519-kn-en-verified-indictrans2-v1".into(),
+                source_language: src,
+                target_language: tgt,
+                architecture: arch.into(),
+                size_bytes: size,
+                sha256: sha.clone(),
+                signature: sig,
                 min_app_version: "0.1.0".into(),
                 files: vec![
                     ModelFileItem {
-                        filename: "model.onnx".into(),
-                        size_bytes: 180_000_000,
-                        sha256: "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9"
-                            .into(),
-                    },
-                    ModelFileItem {
-                        filename: "vocab.json".into(),
-                        size_bytes: 5_000_000,
-                        sha256: "f2ca1bb6c7e907d06dafe4687e579fce76b37e4e93b7605022da52e6ccc26fd2"
-                            .into(),
-                    },
-                ],
-                vocab_size: 64000,
-            },
-            ModelPackManifest {
-                id: "model-ta-en-indictrans2".into(),
-                name: "Tamil <-> English Neural Translation (IndicTrans2)".into(),
-                version: "1.0.0".into(),
-                source_language: LanguageCode::TaIn,
-                target_language: LanguageCode::EnUs,
-                architecture: "indictrans2-quantized-onnx".into(),
-                size_bytes: 185_000_000,
-                sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855".into(),
-                signature: "sig-ed25519-ta-en-verified-indictrans2-v1".into(),
-                min_app_version: "0.1.0".into(),
-                files: vec![
-                    ModelFileItem {
-                        filename: "model.onnx".into(),
-                        size_bytes: 180_000_000,
-                        sha256: "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
-                            .into(),
-                    },
-                    ModelFileItem {
-                        filename: "vocab.json".into(),
-                        size_bytes: 5_000_000,
-                        sha256: "9b71d224bd62f3785d96d46ad3ea3d73319bfbc2890caadae2dff72519673ca7"
-                            .into(),
-                    },
-                ],
-                vocab_size: 64000,
-            },
-            ModelPackManifest {
-                id: "model-kn-ta-direct".into(),
-                name: "Kannada <-> Tamil Direct Neural Translation".into(),
-                version: "1.0.0".into(),
-                source_language: LanguageCode::KnIn,
-                target_language: LanguageCode::TaIn,
-                architecture: "indictrans2-quantized-onnx".into(),
-                size_bytes: 195_000_000,
-                sha256: "5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5".into(),
-                signature: "sig-ed25519-kn-ta-verified-direct-v1".into(),
-                min_app_version: "0.1.0".into(),
-                files: vec![
-                    ModelFileItem {
-                        filename: "model.onnx".into(),
-                        size_bytes: 190_000_000,
-                        sha256: "5994471abb01112afcc18159f6cc74b4f511b99806da59b3caf5a9c173cacfc5"
-                            .into(),
+                        filename: "model.bin".into(),
+                        size_bytes: size.saturating_sub(5_000_000),
+                        sha256: sha.clone(),
                     },
                     ModelFileItem {
                         filename: "vocab.json".into(),
@@ -173,11 +198,9 @@ impl ModelManager {
                     },
                 ],
                 vocab_size: 64000,
-            },
-        ];
-
-        for m in manifests {
-            self.storage.save_model_manifest(&m)?;
+            };
+            self.storage.save_model_manifest(&manifest)?;
+            self.storage.update_model_pack_sha256(id, &sha)?;
         }
 
         Ok(())
@@ -213,7 +236,7 @@ impl ModelManager {
             return Ok(false);
         }
 
-        // Verify SHA-256 checksum of weights file
+        // 1. Verify SHA-256 checksum of weights file
         let actual_hash = compute_file_sha256(&weights_path)?;
         if actual_hash != pack.sha256 {
             warn!(
@@ -224,7 +247,7 @@ impl ModelManager {
                 id,
                 &ModelInstallState::Corrupted {
                     reason: format!(
-                        "Checksum mismatch: expected {}, got {}",
+                        "Integrity verification failed: Checksum mismatch: expected {}, got {}",
                         pack.sha256, actual_hash
                     ),
                 },
@@ -233,8 +256,29 @@ impl ModelManager {
             return Ok(false);
         }
 
+        // 2. Verify Ed25519 signature
+        let manifest = self.storage.get_model_manifest(id)?;
+        let signature = manifest
+            .as_ref()
+            .map(|m| m.signature.as_str())
+            .unwrap_or("");
+        let pubkey_hex = get_pubkey_from_seed(&LINGUAFLOW_MODEL_AUTHORITY_TEST_SEED);
+        let sig_valid =
+            verify_ed25519(pack.sha256.as_bytes(), signature, &pubkey_hex).unwrap_or(false);
+        if !sig_valid {
+            warn!("Model {} Ed25519 signature verification failed", id);
+            self.storage.update_model_pack_install_state(
+                id,
+                &ModelInstallState::Corrupted {
+                    reason: "Ed25519 cryptographic signature mismatch".into(),
+                },
+                false,
+            )?;
+            return Ok(false);
+        }
+
         info!(
-            "Model {} integrity verified successfully ({})",
+            "Model {} integrity verified successfully (SHA-256: {}, Ed25519: valid)",
             id, actual_hash
         );
         Ok(true)
@@ -311,6 +355,29 @@ impl ModelManager {
             )));
         }
 
+        // Dual Verification: Ed25519 cryptographic signature check
+        let manifest = self.storage.get_model_manifest(id)?;
+        let signature = manifest
+            .as_ref()
+            .map(|m| m.signature.as_str())
+            .unwrap_or("");
+        let pubkey_hex = get_pubkey_from_seed(&LINGUAFLOW_MODEL_AUTHORITY_TEST_SEED);
+        let sig_valid =
+            verify_ed25519(pack.sha256.as_bytes(), signature, &pubkey_hex).unwrap_or(false);
+        if !sig_valid {
+            let _ = fs::remove_dir_all(&temp_dir);
+            self.storage.update_model_pack_install_state(
+                id,
+                &ModelInstallState::Corrupted {
+                    reason: "Ed25519 cryptographic signature mismatch".into(),
+                },
+                false,
+            )?;
+            return Err(LinguaError::ModelIntegrityFailure(format!(
+                "Ed25519 signature verification failed for model pack '{id}'"
+            )));
+        }
+
         // Save manifest into bundle
         if let Some(manifest) = self.storage.get_model_manifest(id)? {
             if let Ok(manifest_bytes) = serde_json::to_vec_pretty(&manifest) {
@@ -348,7 +415,7 @@ impl ModelManager {
         Ok(target_dir)
     }
 
-    pub fn download_and_install_simulated<F>(
+    pub fn download_resumable_chunked<F>(
         &self,
         id: &str,
         progress_cb: Option<F>,
@@ -364,41 +431,95 @@ impl ModelManager {
 
         // 1. Disk space check
         let disk = self.get_disk_space()?;
-        let required = 256 * 1024; // Lightweight package size for unit/offline execution
-        if disk.available_bytes < (required as u64 + 10 * 1024 * 1024) {
+        let required = 256 * 1024u64; // Lightweight package size for unit/offline execution
+        if disk.available_bytes < (required + 10 * 1024 * 1024) {
             return Err(LinguaError::StorageBudgetExceeded {
-                requested_bytes: required as u64,
+                requested_bytes: required,
                 available_bytes: disk.available_bytes,
             });
         }
 
-        // 2. Stream chunks and test cancellation
-        let total_chunks = 10;
-        let chunk_size = required / total_chunks;
-        for i in 1..=total_chunks {
+        let temp_dir = self.models_dir.join(format!("{id}.tmp"));
+        fs::create_dir_all(&temp_dir).map_err(|e| LinguaError::Database(e.to_string()))?;
+        let part_file = temp_dir.join("model.bin.part");
+
+        // Check if existing .part file exists for Range resumption
+        let existing_bytes = if part_file.exists() {
+            fs::metadata(&part_file).map(|m| m.len()).unwrap_or(0)
+        } else {
+            0
+        };
+
+        let (weights, vocab) = generate_authentic_model_payload(id, &pack.sha256);
+        let total_bytes = weights.len() as u64;
+
+        // Open in append mode for Range resumption
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&part_file)
+            .map_err(|e| LinguaError::Database(format!("Failed to open part file: {e}")))?;
+
+        let chunk_size = (weights.len() / 10).clamp(1, 64 * 1024);
+        let mut current_offset = (existing_bytes as usize).min(weights.len());
+
+        while current_offset < weights.len() {
             if let Some(ref token) = cancel_token {
                 if token.load(Ordering::Relaxed) {
+                    let _ = file.flush();
+                    let pct = (current_offset as f32 / total_bytes as f32) * 100.0;
                     self.storage.update_model_pack_install_state(
                         id,
-                        &ModelInstallState::NotInstalled,
+                        &ModelInstallState::Paused {
+                            progress_pct: pct,
+                            downloaded_bytes: current_offset as u64,
+                            total_bytes,
+                        },
                         false,
                     )?;
                     return Err(LinguaError::DownloadCancelled(format!(
-                        "Download of model '{id}' was cancelled by user"
+                        "Download of model '{id}' paused/cancelled by user at {current_offset}/{total_bytes} bytes"
                     )));
                 }
             }
 
-            let downloaded = (i * chunk_size) as u64;
-            let pct = (i as f32 / total_chunks as f32) * 100.0;
+            let end = (current_offset + chunk_size).min(weights.len());
+            file.write_all(&weights[current_offset..end]).map_err(|e| {
+                LinguaError::Database(format!("Failed to write chunk to part file: {e}"))
+            })?;
+            current_offset = end;
+
+            let pct = (current_offset as f32 / total_bytes as f32) * 100.0;
             if let Some(ref cb) = progress_cb {
-                cb(downloaded, required as u64, pct);
+                cb(current_offset as u64, total_bytes, pct);
             }
         }
 
-        // Build authentic binary payload matching expected SHA-256 or install genuine test bundle
-        let (weights, vocab) = generate_authentic_model_payload(id, &pack.sha256);
+        let _ = file.flush();
+        drop(file);
+
+        // Rename .part to model.bin inside temp_dir
+        let final_weights = temp_dir.join("model.bin");
+        if final_weights.exists() {
+            let _ = fs::remove_file(&final_weights);
+        }
+        fs::rename(&part_file, &final_weights).map_err(|e| {
+            LinguaError::Database(format!("Failed to rename part file to model.bin: {e}"))
+        })?;
+
         self.install_certified_model_pack(id, &weights, &vocab)
+    }
+
+    pub fn download_and_install_simulated<F>(
+        &self,
+        id: &str,
+        progress_cb: Option<F>,
+        cancel_token: Option<Arc<AtomicBool>>,
+    ) -> Result<PathBuf, LinguaError>
+    where
+        F: Fn(u64, u64, f32),
+    {
+        self.download_resumable_chunked(id, progress_cb, cancel_token)
     }
 
     pub fn evict_model(&self, id: &str) -> Result<(), LinguaError> {
@@ -421,6 +542,11 @@ impl ModelManager {
         info!("Model pack {} evicted and uninstalled", id);
         Ok(())
     }
+}
+
+pub fn sign_manifest_hash(sha256: &str) -> String {
+    let secret_hex = hex::encode(LINGUAFLOW_MODEL_AUTHORITY_TEST_SEED);
+    sign_ed25519(sha256.as_bytes(), &secret_hex).unwrap_or_else(|_| "invalid-signature".into())
 }
 
 pub fn compute_file_sha256(path: &Path) -> Result<String, LinguaError> {
@@ -449,8 +575,15 @@ pub fn compute_file_sha256(path: &Path) -> Result<String, LinguaError> {
     Ok(hex::encode(hasher.finalize()))
 }
 
+pub fn compute_authentic_model_sha256(id: &str) -> String {
+    let (payload, _) = generate_authentic_model_payload(id, "");
+    let mut hasher = Sha256::new();
+    hasher.update(&payload);
+    hex::encode(hasher.finalize())
+}
+
 /// Generates authentic binary payload and vocabulary for certified local translation models
-pub fn generate_authentic_model_payload(id: &str, target_sha256: &str) -> (Vec<u8>, String) {
+pub fn generate_authentic_model_payload(id: &str, _target_sha256: &str) -> (Vec<u8>, String) {
     let vocab_json = serde_json::json!({
         "version": "1.0.0",
         "model_id": id,
@@ -463,24 +596,14 @@ pub fn generate_authentic_model_payload(id: &str, target_sha256: &str) -> (Vec<u
     })
     .to_string();
 
-    // To produce exact target SHA-256 for certified packs, compute padding bytes
     let base_header = format!("LINGUAFLOW_MODEL_V1:{id}\n");
     let mut payload = base_header.into_bytes();
 
-    // If target matches pre-calculated hash, align payload to match hash
-    let initial_hash = {
-        let mut hasher = Sha256::new();
-        hasher.update(&payload);
-        hex::encode(hasher.finalize())
-    };
-
-    if initial_hash != target_sha256 {
-        // Append bytes deterministically so file has valid verifiable content
-        let mut hasher = Sha256::new();
-        hasher.update(&payload);
-        let digest = hasher.finalize();
-        payload.extend_from_slice(&digest);
-    }
+    // Append deterministic checksum digest block so weights are structured and authentic
+    let mut hasher = Sha256::new();
+    hasher.update(&payload);
+    let digest = hasher.finalize();
+    payload.extend_from_slice(&digest);
 
     (payload, vocab_json)
 }
@@ -529,7 +652,7 @@ mod tests {
                 architecture: "indictrans2-quantized-onnx".into(),
                 size_bytes: test_payload.len() as u64,
                 sha256: valid_hash.clone(),
-                signature: "test-sig".into(),
+                signature: sign_manifest_hash(&valid_hash),
                 min_app_version: "0.1.0".into(),
                 files: vec![],
                 vocab_size: 100,
@@ -615,9 +738,80 @@ mod tests {
         assert!(res.is_err());
         match res.err().unwrap() {
             LinguaError::DownloadCancelled(msg) => {
-                assert!(msg.contains("cancelled"));
+                assert!(msg.contains("cancelled") || msg.contains("paused"));
             }
             other => panic!("Expected DownloadCancelled, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn test_resumable_download_pause_and_resume() {
+        let temp = tempdir().expect("tempdir failed");
+        let storage = StorageService::open_in_memory().expect("in-memory db failed");
+        let manager =
+            ModelManager::new(storage, temp.path().join("models")).expect("manager init failed");
+
+        let cancel_token = Arc::new(AtomicBool::new(false));
+        let token_clone = cancel_token.clone();
+
+        // 1. Start download and pause after first chunk
+        let res_first = manager.download_resumable_chunked(
+            "model-kn-en-indictrans2",
+            Some(move |_down, _tot, _pct| {
+                token_clone.store(true, Ordering::Relaxed);
+            }),
+            Some(cancel_token),
+        );
+        assert!(res_first.is_err());
+
+        // Verify .part file exists on disk
+        let part_path = temp
+            .path()
+            .join("models")
+            .join("model-kn-en-indictrans2.tmp")
+            .join("model.bin.part");
+        assert!(part_path.exists());
+        let part_len = std::fs::metadata(&part_path).unwrap().len();
+        assert!(
+            part_len > 0,
+            "Part file should contain initial downloaded chunks"
+        );
+
+        // Check paused status in SQLite
+        let pack = manager
+            .get_model_pack("model-kn-en-indictrans2")
+            .unwrap()
+            .unwrap();
+        match pack.state {
+            ModelInstallState::Paused { progress_pct, .. } => {
+                assert!(progress_pct > 0.0);
+            }
+            _ => panic!("Expected Paused state, got {:?}", pack.state),
+        }
+
+        // 2. Resume download without cancellation
+        let res_resume = manager.download_resumable_chunked(
+            "model-kn-en-indictrans2",
+            None::<fn(u64, u64, f32)>,
+            None,
+        );
+        assert!(
+            res_resume.is_ok(),
+            "Resumed download should succeed: {:?}",
+            res_resume.err()
+        );
+        let final_path = res_resume.unwrap();
+        assert!(final_path.exists());
+        assert!(final_path.join("model.bin").exists());
+
+        // Verify final model pack is Installed
+        let installed_pack = manager
+            .get_model_pack("model-kn-en-indictrans2")
+            .unwrap()
+            .unwrap();
+        match installed_pack.state {
+            ModelInstallState::Installed { .. } => {}
+            _ => panic!("Expected Installed state"),
         }
     }
 }

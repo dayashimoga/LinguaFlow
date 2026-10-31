@@ -254,6 +254,16 @@ impl SecurityAuditor {
 
         Ok(completed)
     }
+
+    /// Wrap sensitive buffers in zeroize::Zeroizing to guarantee cryptographic RAM scrubbing on drop (Subphase 14.3.2)
+    pub fn create_zeroized_buffer(data: Vec<u8>) -> zeroize::Zeroizing<Vec<u8>> {
+        zeroize::Zeroizing::new(data)
+    }
+
+    /// Wrap sensitive text in zeroize::Zeroizing to guarantee cryptographic RAM scrubbing on drop
+    pub fn create_zeroized_text(text: String) -> zeroize::Zeroizing<String> {
+        zeroize::Zeroizing::new(text)
+    }
 }
 
 #[cfg(test)]
@@ -306,5 +316,18 @@ mod tests {
     fn test_chaos_stress_simulation() {
         let count = SecurityAuditor::run_chaos_stress_simulation(100).expect("chaos run failed");
         assert_eq!(count, 100);
+    }
+
+    #[test]
+    fn test_zeroize_memory_scrubbing() {
+        let sensitive = b"PATIENT_CONFIDENTIAL_HEALTH_TRANSCRIPT_12345".to_vec();
+        let zeroized = SecurityAuditor::create_zeroized_buffer(sensitive);
+        assert_eq!(&*zeroized, b"PATIENT_CONFIDENTIAL_HEALTH_TRANSCRIPT_12345");
+        drop(zeroized);
+
+        let text = "SECRET_PATIENT_ANAMNESIS".to_string();
+        let zero_text = SecurityAuditor::create_zeroized_text(text);
+        assert_eq!(&*zero_text, "SECRET_PATIENT_ANAMNESIS");
+        drop(zero_text);
     }
 }

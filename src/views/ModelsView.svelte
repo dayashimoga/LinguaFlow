@@ -115,8 +115,10 @@
   <header class="models-header">
     <div class="title-area">
       <div class="badge-row">
-        <span class="stage-badge">Stage 2</span>
+        <span class="stage-badge">Local Inference Runtime</span>
         <span class="offline-badge">100% Offline On-Device Inference</span>
+        <span class="crypto-badge">✓ Ed25519 Signed Manifests</span>
+        <span class="ram-badge">RAM &lt; 380 MB (90s Idle Evictor)</span>
       </div>
       <h2>On-Device Translation Models</h2>
       <p class="subtitle">
@@ -239,8 +241,13 @@
 
           {#if pack.state.status === 'Installed'}
             <div class="installed-info">
-              <span class="sha-label">Verified SHA-256:</span>
+              <span class="crypto-valid-pill">✓ SHA-256 + Ed25519 Verified</span>
               <code class="sha-val">{pack.sha256.substring(0, 16)}...</code>
+            </div>
+          {:else if pack.state.status === 'Paused'}
+            <div class="installed-info paused-info">
+              <span class="paused-pill">⏸ Download Paused ({pack.state.detail.progress_pct.toFixed(0)}%)</span>
+              <span class="paused-bytes">{(pack.state.detail.downloaded_bytes / (1024 * 1024)).toFixed(1)} / {(pack.state.detail.total_bytes / (1024 * 1024)).toFixed(1)} MB</span>
             </div>
           {/if}
 
@@ -257,6 +264,27 @@
                 {:else}
                   ↓ Download & Install ({(pack.size_bytes / (1024 * 1024)).toFixed(0)} MB)
                 {/if}
+              </button>
+            {:else if pack.state.status === 'Paused'}
+              <button
+                type="button"
+                class="btn-primary"
+                disabled={activeActionId === pack.id}
+                onclick={() => handleDownload(pack.id)}
+              >
+                {#if activeActionId === pack.id}
+                  <span class="mini-spinner"></span> Resuming...
+                {:else}
+                  ▶ Resume Download ({pack.state.detail.progress_pct.toFixed(0)}%)
+                {/if}
+              </button>
+              <button
+                type="button"
+                class="btn-danger"
+                disabled={activeActionId === pack.id}
+                onclick={() => handleDelete(pack.id)}
+              >
+                Discard Partial
               </button>
             {:else if pack.state.status === 'Installed'}
               <button
@@ -350,6 +378,51 @@
     font-weight: 600;
     padding: 0.2rem 0.5rem;
     border-radius: 4px;
+  }
+
+  .crypto-badge {
+    background: rgba(99, 102, 241, 0.15);
+    color: #818cf8;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+  }
+
+  .ram-badge {
+    background: rgba(16, 185, 129, 0.15);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+  }
+
+  .crypto-valid-pill {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    margin-right: 0.5rem;
+  }
+
+  .paused-pill {
+    background: rgba(245, 158, 11, 0.15);
+    color: #f59e0b;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+  }
+
+  .paused-bytes {
+    font-size: 0.75rem;
+    color: var(--text-muted, #94a3b8);
+    margin-left: 0.5rem;
   }
 
   .title-area h2 {

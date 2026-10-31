@@ -1,3 +1,4 @@
+pub mod crypto;
 pub mod error;
 pub mod ipc;
 pub mod language;

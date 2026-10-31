@@ -272,11 +272,56 @@ async fn test_medical_and_logistics_lexicon_integrity() {
 }
 
 #[test]
-fn test_migration_011_schema_version() {
+fn test_migration_012_schema_version_and_persona_decks() {
     let storage = StorageService::open_in_memory().expect("in-memory db failed");
     let health = storage.check_health().expect("health check failed");
     assert_eq!(
-        health.schema_version, 11,
-        "Schema version must be 11 after Migration 011 (show_developer_hud)"
+        health.schema_version, 12,
+        "Schema version must be 12 after Migration 012 (persona learning decks)"
     );
+
+    let decks = storage.list_learning_decks().expect("list decks failed");
+    assert!(decks.iter().any(|d| d.id == "deck-persona-ananya"));
+    assert!(decks.iter().any(|d| d.id == "deck-persona-murugan"));
+    assert!(decks.iter().any(|d| d.id == "deck-persona-vikram"));
+    assert!(decks.iter().any(|d| d.id == "deck-user-bookmarks"));
+}
+
+#[test]
+fn test_bookmark_to_sm2_pipeline() {
+    let storage = StorageService::open_in_memory().expect("in-memory db failed");
+
+    // 1. Initial state: deck-user-bookmarks has 0 cards
+    let initial_cards = storage
+        .get_deck_cards("deck-user-bookmarks")
+        .expect("get cards");
+    assert_eq!(initial_cards.len(), 0);
+
+    // 2. User favorites a Kannada dictionary word
+    let fav = lingua_core::FavoriteItem {
+        id: "fav-test-01".into(),
+        source_language: LanguageCode::KnIn,
+        target_language: LanguageCode::EnUs,
+        source_text: "ಸಾಹಸ".into(),
+        translated_text: "Adventure".into(),
+        notes: Some("Key adventure noun".into()),
+        created_at: chrono::Utc::now(),
+    };
+    storage.add_favorite(&fav).expect("add favorite");
+
+    // 3. Verify card was created in deck-user-bookmarks
+    let updated_cards = storage
+        .get_deck_cards("deck-user-bookmarks")
+        .expect("get cards");
+    assert_eq!(updated_cards.len(), 1);
+    assert_eq!(updated_cards[0].source_term, "ಸಾಹಸ");
+    assert_eq!(updated_cards[0].target_term, "Adventure");
+    assert_eq!(updated_cards[0].deck_id, "deck-user-bookmarks");
+
+    // 4. Removing favorite cleans up card
+    storage.remove_favorite(&fav.id).expect("remove favorite");
+    let after_remove = storage
+        .get_deck_cards("deck-user-bookmarks")
+        .expect("get cards");
+    assert_eq!(after_remove.len(), 0);
 }

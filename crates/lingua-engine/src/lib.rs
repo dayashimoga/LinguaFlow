@@ -47,7 +47,10 @@ pub use local_model_engine::LocalNeuralTranslationEngine;
 pub use lru_cache::BoundedLruCache;
 pub use media_transcription::MediaTranscriptionPipeline;
 pub use metering::UsageQuotaManager;
-pub use model_manager::ModelManager;
+pub use model_manager::{
+    compute_authentic_model_sha256, generate_authentic_model_payload, sign_manifest_hash,
+    ModelManager,
+};
 pub use model_pool::{ModelLifecyclePool, ModelSessionEntry};
 pub use morphology::{find_did_you_mean_suggestions, stem_word, StemResult};
 pub use ocr::{AuthenticOcrEngine, OcrEngine};

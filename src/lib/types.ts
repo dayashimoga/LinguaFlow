@@ -226,6 +226,7 @@ export interface AddFavoriteCmdRequest {
 export type ModelInstallStatus =
   | { status: 'NotInstalled' }
   | { status: 'Downloading'; detail: { progress_pct: number; downloaded_bytes: number; total_bytes: number } }
+  | { status: 'Paused'; detail: { progress_pct: number; downloaded_bytes: number; total_bytes: number } }
   | { status: 'Installed'; detail: { installed_at: string; install_path: string } }
   | { status: 'Corrupted'; detail: { reason: string } };
 

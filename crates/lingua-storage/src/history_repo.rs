@@ -103,12 +103,47 @@ pub fn add_favorite(conn: &Connection, item: &FavoriteItem) -> Result<(), Lingua
     )
     .map_err(|e| LinguaError::Database(format!("Failed to add favorite: {e}")))?;
 
+    // Automatically sync favorite to Bookmark-to-SM2 flashcard deck (Phase 14.2.1)
+    let card_id = format!("fav-card-{}", item.id);
+    let note_desc = item
+        .notes
+        .as_deref()
+        .unwrap_or("Bookmarked from dictionary/translate");
+    let _ = conn.execute(
+        "INSERT INTO flashcards (
+            id, deck_id, source_lang, target_lang, source_term, target_term,
+            romanization, ipa, part_of_speech, example_source, example_target,
+            grammar_notes, repetition, interval_days, ease_factor, next_review_at, total_reviews, created_at
+        ) VALUES (
+            ?1, 'deck-user-bookmarks', ?2, ?3, ?4, ?5,
+            NULL, NULL, 'vocabulary', ?4, ?5,
+            ?6, 0, 1.0, 2.5, ?7, 0, ?7
+        ) ON CONFLICT(id) DO UPDATE SET
+            source_term = excluded.source_term,
+            target_term = excluded.target_term,
+            grammar_notes = excluded.grammar_notes",
+        params![
+            card_id,
+            item.source_language.as_bcp47(),
+            item.target_language.as_bcp47(),
+            item.source_text,
+            item.translated_text,
+            note_desc,
+            item.created_at.to_rfc3339(),
+        ],
+    );
+
     Ok(())
 }
 
 pub fn remove_favorite(conn: &Connection, id: &str) -> Result<(), LinguaError> {
     conn.execute("DELETE FROM favorites WHERE id = ?1", params![id])
         .map_err(|e| LinguaError::Database(e.to_string()))?;
+
+    // Also remove from Bookmark-to-SM2 flashcards
+    let card_id = format!("fav-card-{}", id);
+    let _ = conn.execute("DELETE FROM flashcards WHERE id = ?1", params![card_id]);
+
     Ok(())
 }
 

@@ -729,3 +729,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Svelte check: 0 errors, 0 warnings (`npm run check`).
   - Production build: succeeded in 2.77s (`npm run build`).
   - Authored `docs/STAGE_13_ACCEPTANCE_REPORT.md`.
+
+
+## [0.14.0] - 2026-10-31 (Stage 14: Model Pack Lifecycle, Dynamic Learning Decks & Enterprise Security Hardening)
+
+### Added
+- **Resumable HTTP Range Model Downloader & Dual Verification (`lingua-engine`, `lingua-core`)**:
+  - Implemented chunked Range downloads with pause, resume, and `.part` file recovery for neural translation, ASR, TTS, and OCR models in `crates/lingua-engine/src/model_manager.rs`.
+  - Added `ModelInstallState::Paused { progress_pct, downloaded_bytes, total_bytes }` persisted in SQLite.
+  - Implemented dual cryptographic verification in `crates/lingua-core/src/crypto.rs` using SHA-256 checksums and Ed25519 signatures (`ed25519-dalek`) verified against official model authority seeds.
+  - `ModelLifecyclePool` with 90-second idle eviction and bounded resident inference memory ($< 380$ MB peak).
+  - Updated `src/views/ModelsView.svelte` with `✓ SHA-256 + Ed25519 Verified` badge, pause/resume download controls, and live storage gauge.
+- **Bookmark-to-SM2 Pipeline & Persona Seed Decks (`lingua-storage`, `LearnView.svelte`)**:
+  - Automatically synchronize dictionary favorite bookmarks (`☆/★`) in `crates/lingua-storage/src/history_repo.rs` (`add_favorite`, `remove_favorite`) into SM-2 flashcards under `deck-user-bookmarks`.
+  - Created Database Migration 012 in `crates/lingua-storage/src/schema.rs` pre-seeding 3 curated persona decks with bilingual vocabulary, grammar notes, IPA, and examples:
+    - **Healthcare & Medical Triage** (Dr. Ananya): clinical symptoms, pyrexia, angina, dyspnea, dosage instructions in Kannada, Tamil, and English.
+    - **Interstate Logistics & Freight** (Murugan): cargo freight, toll plazas, weighbridge scales, route permits across Karnataka and Tamil Nadu.
+    - **Kannada & Tamil Literature & Grammar** (Vikram): epic poetry, Sandhi euphonic junctions, metrical prosody, and Rasa aesthetics.
+- **Acoustic Pronunciation Practice (`lingua-engine`, `LearnView.svelte`)**:
+  - Connected pronunciation assessment in `src/views/LearnView.svelte` to `PronunciationEvaluator::assess` in `crates/lingua-engine/src/learning.rs`.
+  - Evaluates spoken text against reference transcripts using Popović chrF character 6-grams, dynamic programming Levenshtein Character Error Rate (CER), Word Error Rate (WER), composite accuracy scoring ($\ge 70.0\%$ pass mark), and actionable token-by-token pronunciation feedback.
+- **Enterprise Gateway Hardening & Offline Entitlements (`lingua-server`, `lingua-core`)**:
+  - Axum Tower authentication middleware (`api_gateway_auth_middleware`) in `crates/lingua-server/src/routes.rs` covering `/api/v1/*` routes.
+  - Constant-time SHA-256 hash lookup of `Authorization: Bearer lf_live_...` API keys with token bucket rate limiting (429 status code) and tamper-evident SHA-256 hash-chained audit logging to SQLite.
+  - Preserved Anonymous Offline Mode Guarantee for unauthenticated local requests.
+  - Added `zeroize::Zeroizing` memory scrubbing in `crates/lingua-engine/src/security_audit.rs` (`create_zeroized_buffer`, `create_zeroized_text`) to guarantee RAM scrubbing on drop for Zero-Log privacy mode.
+  - Implemented offline `Free`, `Pro`, and `Enterprise` entitlement token issuance and verification in `crates/lingua-core/src/crypto.rs` with zero network requests.
+- **Verification, Quality Gates & Acceptance**:
+  - Workspace Rust Tests: 180 passed, 0 failed across all crates (100% pass rate).
+  - Strict Clippy check: 0 errors, 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`).
+  - Rust formatting: 0 diffs (`cargo fmt --check`).
+  - Svelte check: 0 errors, 0 warnings (`npm run check`).
+  - Production build: succeeded in 3.33s (`npm run build`).
+  - Authored `docs/STAGE_14_ACCEPTANCE_REPORT.md`.

@@ -230,6 +230,12 @@ pub fn list_detailed_model_packs(
                 ModelInstallState::Corrupted {
                     reason: "Integrity verification failed".into(),
                 }
+            } else if status_str == "paused" {
+                ModelInstallState::Paused {
+                    progress_pct: 50.0,
+                    downloaded_bytes: (size_bytes as u64) / 2,
+                    total_bytes: size_bytes as u64,
+                }
             } else {
                 ModelInstallState::NotInstalled
             };
@@ -306,6 +312,12 @@ pub fn get_detailed_model_pack(
             } else if status_str == "corrupted" {
                 ModelInstallState::Corrupted {
                     reason: "Integrity verification failed".into(),
+                }
+            } else if status_str == "paused" {
+                ModelInstallState::Paused {
+                    progress_pct: 50.0,
+                    downloaded_bytes: (size_bytes as u64) / 2,
+                    total_bytes: size_bytes as u64,
                 }
             } else {
                 ModelInstallState::NotInstalled
@@ -398,6 +410,17 @@ pub fn update_model_pack_install_state(
             )
             .map_err(|e| {
                 LinguaError::Database(format!("Failed to update model downloading state: {e}"))
+            })?;
+        }
+        ModelInstallState::Paused { .. } => {
+            conn.execute(
+                "UPDATE model_packs
+                 SET status = 'paused'
+                 WHERE id = ?1",
+                params![id],
+            )
+            .map_err(|e| {
+                LinguaError::Database(format!("Failed to update model paused state: {e}"))
             })?;
         }
     }

@@ -20,6 +20,8 @@ uuid = { workspace = true }
 chrono = { workspace = true }
 sha2 = { workspace = true }
 hex = { workspace = true }
+ed25519-dalek = { workspace = true }
+zeroize = { workspace = true }
 fs2 = { workspace = true }
 cpal = { workspace = true }
 symphonia = { version = "0.5.4", default-features = false, features = ["wav", "mp3", "ogg", "vorbis", "flac", "isomp4", "aac", "alac", "pcm"] }

@@ -409,6 +409,11 @@ pub enum ModelInstallState {
         downloaded_bytes: u64,
         total_bytes: u64,
     },
+    Paused {
+        progress_pct: f32,
+        downloaded_bytes: u64,
+        total_bytes: u64,
+    },
     Installed {
         installed_at: DateTime<Utc>,
         install_path: String,

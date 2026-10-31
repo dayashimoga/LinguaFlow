@@ -25,22 +25,22 @@ use lingua_core::{
     GetPlatformReleaseStatusCmdResponse, GetSessionCaptionsCmdResponse, GetTtsVoicesCmdResponse,
     GetUsageSummaryCmdResponse, GetWorkerMetricsCmdResponse, IntelligenceTranslationRequest,
     IntelligenceTranslationResponse, InterruptConversationCmdRequest,
-    InterruptConversationCmdResponse, LanguageCode, LanguagePair, ListApiKeysCmdResponse,
-    ListAuditEventsCmdResponse, ListDevicesCmdResponse, ListGlossaryTermsCmdResponse,
-    ListInvoicesCmdResponse, ListLearningDecksCmdResponse, ListMediaSegmentsCmdResponse,
-    ListOrgGlossariesCmdResponse, ListOrgMembersCmdResponse, MediaProgressStatus, MediaSession,
-    MediaSubtitleExportFormat, ModelPackDetailedInfo, ModelPackInfo, OrgCmdResponse, OrgGlossary,
-    OrgGlossaryStatus, OrgGlossaryTerm, OrgMember, OrgRole, Organization,
-    PauseSpeechSessionCmdRequest, PerformOcrCmdRequest, PerformOcrCmdResponse,
-    PurgeUserDataCmdRequest, PurgeUserDataCmdResponse, RegisterDeviceCmdRequest,
-    RegisterDeviceCmdResponse, ResumeSpeechSessionCmdRequest, ReviewCardCmdResponse, ReviewRating,
-    RunEvaluationCmdResponse, SaveDataPrivacySettingsCmdRequest, SaveOverlaySettingsCmdRequest,
-    SetResourceProfileCmdRequest, SpeechSession, StartConversationCmdRequest,
-    StartConversationCmdResponse, StartMediaTranscriptionCmdRequest,
-    StartMediaTranscriptionCmdResponse, StartSpeechSessionCmdRequest,
-    StartSpeechSessionCmdResponse, StopConversationCmdRequest, StopConversationCmdResponse,
-    StopSpeechSessionCmdRequest, StopSpeechSessionCmdResponse, SubmitTurnCmdRequest,
-    SubmitTurnCmdResponse, SwitchSpeakerCmdRequest, SwitchSpeakerCmdResponse,
+    InterruptConversationCmdResponse, LanguageCode, LanguagePair, LinguaError,
+    ListApiKeysCmdResponse, ListAuditEventsCmdResponse, ListDevicesCmdResponse,
+    ListGlossaryTermsCmdResponse, ListInvoicesCmdResponse, ListLearningDecksCmdResponse,
+    ListMediaSegmentsCmdResponse, ListOrgGlossariesCmdResponse, ListOrgMembersCmdResponse,
+    MediaProgressStatus, MediaSession, MediaSubtitleExportFormat, ModelPackDetailedInfo,
+    ModelPackInfo, OrgCmdResponse, OrgGlossary, OrgGlossaryStatus, OrgGlossaryTerm, OrgMember,
+    OrgRole, Organization, PauseSpeechSessionCmdRequest, PerformOcrCmdRequest,
+    PerformOcrCmdResponse, PurgeUserDataCmdRequest, PurgeUserDataCmdResponse,
+    RegisterDeviceCmdRequest, RegisterDeviceCmdResponse, ResumeSpeechSessionCmdRequest,
+    ReviewCardCmdResponse, ReviewRating, RunEvaluationCmdResponse,
+    SaveDataPrivacySettingsCmdRequest, SaveOverlaySettingsCmdRequest, SetResourceProfileCmdRequest,
+    SpeechSession, StartConversationCmdRequest, StartConversationCmdResponse,
+    StartMediaTranscriptionCmdRequest, StartMediaTranscriptionCmdResponse,
+    StartSpeechSessionCmdRequest, StartSpeechSessionCmdResponse, StopConversationCmdRequest,
+    StopConversationCmdResponse, StopSpeechSessionCmdRequest, StopSpeechSessionCmdResponse,
+    SubmitTurnCmdRequest, SubmitTurnCmdResponse, SwitchSpeakerCmdRequest, SwitchSpeakerCmdResponse,
     SynthesizeSpeechCmdRequest, SynthesizeSpeechCmdResponse, SystemAudioPermission,
     TranslateCmdRequest, TranslateCmdResponse, TranslateDocumentCmdRequest,
     TranslateDocumentCmdResponse, TranslateIntelligenceCmdRequest, TranslationRecord,
@@ -286,9 +286,85 @@ pub fn create_router(state: ServerState) -> Router {
             "/api/v1/enterprise/workers/metrics",
             get(get_worker_metrics_handler),
         )
+        .layer(axum::middleware::from_fn_with_state(
+            state.clone(),
+            api_gateway_auth_middleware,
+        ))
         .layer(cors)
         .layer(TraceLayer::new_for_http())
         .with_state(state)
+}
+
+async fn api_gateway_auth_middleware(
+    State(state): State<ServerState>,
+    req: axum::extract::Request,
+    next: axum::middleware::Next,
+) -> Result<Response, (StatusCode, Json<serde_json::Value>)> {
+    let path = req.uri().path().to_string();
+
+    if let Some(auth_val) = req.headers().get(axum::http::header::AUTHORIZATION) {
+        if let Ok(auth_str) = auth_val.to_str() {
+            if let Some(token) = auth_str.strip_prefix("Bearer ") {
+                let token = token.trim();
+                let key_hash = ApiGateway::hash_api_key(token);
+
+                match state.storage.find_api_key_by_hash(&key_hash) {
+                    Ok(key_record) => {
+                        if !key_record.is_active {
+                            return Err((
+                                StatusCode::UNAUTHORIZED,
+                                Json(
+                                    serde_json::json!({ "error": "API key is revoked or inactive" }),
+                                ),
+                            ));
+                        }
+
+                        // Enforce token-bucket rate limit per minute
+                        if let Err(LinguaError::RateLimitExceeded {
+                            limit_per_minute,
+                            retry_after_secs,
+                        }) = state.api_gateway.check_rate_limit(&key_record)
+                        {
+                            return Err((
+                                StatusCode::TOO_MANY_REQUESTS,
+                                Json(serde_json::json!({
+                                    "error": "Rate limit exceeded",
+                                    "limit_per_minute": limit_per_minute,
+                                    "retry_after_secs": retry_after_secs
+                                })),
+                            ));
+                        }
+
+                        // Record tamper-evident SHA-256 audit log entry for API key access
+                        let event = AuditEvent {
+                            id: format!("audit-{}", Uuid::new_v4()),
+                            org_id: key_record.org_id.clone(),
+                            actor_id: key_record.user_id.clone(),
+                            actor_email: format!("apikey:{}", key_record.key_prefix),
+                            action: "gateway.request".into(),
+                            resource_type: "api_route".into(),
+                            resource_id: path.clone(),
+                            details: format!(
+                                "Authenticated access via key '{}'",
+                                key_record.key_prefix
+                            ),
+                            ip_address: "127.0.0.1".into(),
+                            timestamp: chrono::Utc::now(),
+                        };
+                        let _ = state.storage.record_audit_event(&event);
+                    }
+                    Err(_) => {
+                        return Err((
+                            StatusCode::UNAUTHORIZED,
+                            Json(serde_json::json!({ "error": "Invalid API key" })),
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    Ok(next.run(req).await)
 }
 
 async fn health_handler(

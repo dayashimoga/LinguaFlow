@@ -786,4 +786,71 @@ mod tests {
         assert_eq!(metrics_resp.metrics.active_workers, 0);
         assert_eq!(metrics_resp.metrics.queue_depth, 0);
     }
+
+    #[tokio::test]
+    async fn test_api_gateway_bearer_auth_and_rate_limiting() {
+        let storage = StorageService::open_in_memory().unwrap();
+        let engine = Arc::new(EngineRegistry::new_with_storage(storage.clone()));
+        let app_info = AppInfo::default();
+        let state = ServerState::new(storage.clone(), engine, app_info);
+        let app = create_router(state);
+
+        // 1. Create API key with rate limit of 2 requests/min
+        let anon = storage.get_or_create_anonymous_account().unwrap();
+        let (raw_key, prefix, key_hash) = lingua_engine::ApiGateway::generate_raw_api_key("live");
+        let key_rec = lingua_core::ApiKeyRecord {
+            id: "key-gw-test".into(),
+            user_id: anon.id.clone(),
+            org_id: None,
+            key_hash,
+            key_prefix: prefix,
+            name: "Gateway Auth Test Key".into(),
+            rate_limit_per_min: 2,
+            is_active: true,
+            created_at: chrono::Utc::now(),
+            expires_at: None,
+        };
+        storage.create_api_key(&key_rec).unwrap();
+
+        // 2. Request with valid Bearer token -> 200 OK
+        let req1 = axum::http::Request::builder()
+            .uri("/api/v1/capabilities")
+            .header("Authorization", format!("Bearer {raw_key}"))
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let res1 = app.clone().oneshot(req1).await.unwrap();
+        assert_eq!(res1.status(), axum::http::StatusCode::OK);
+
+        // 3. Second request within limit -> 200 OK
+        let req2 = axum::http::Request::builder()
+            .uri("/api/v1/capabilities")
+            .header("Authorization", format!("Bearer {raw_key}"))
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let res2 = app.clone().oneshot(req2).await.unwrap();
+        assert_eq!(res2.status(), axum::http::StatusCode::OK);
+
+        // 4. Third request exceeds limit of 2 -> 429 Too Many Requests
+        let req3 = axum::http::Request::builder()
+            .uri("/api/v1/capabilities")
+            .header("Authorization", format!("Bearer {raw_key}"))
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let res3 = app.clone().oneshot(req3).await.unwrap();
+        assert_eq!(res3.status(), axum::http::StatusCode::TOO_MANY_REQUESTS);
+
+        // 5. Request with invalid key -> 401 Unauthorized
+        let req_invalid = axum::http::Request::builder()
+            .uri("/api/v1/capabilities")
+            .header("Authorization", "Bearer lf_live_invalidkey1234567890")
+            .body(axum::body::Body::empty())
+            .unwrap();
+        let res_invalid = app.clone().oneshot(req_invalid).await.unwrap();
+        assert_eq!(res_invalid.status(), axum::http::StatusCode::UNAUTHORIZED);
+
+        // 6. Audit event was generated for authenticated requests
+        let events = storage.list_audit_events(None, 10).unwrap();
+        assert!(!events.is_empty());
+        assert_eq!(events[0].action, "gateway.request");
+    }
 }

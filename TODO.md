@@ -710,3 +710,41 @@
   - Production build: succeeded in 2.77s (`npm run build`).
   - Authored `docs/STAGE_13_ACCEPTANCE_REPORT.md`.
 - [x] Stage 13 certified complete and ready for user review.
+
+### [2026-10-31 17:35 UTC] STAGE 14: Model Pack Lifecycle, Dynamic Learning Decks, Security Hardening & Free/Paid Tiers — Completed
+- [x] Phase 14.1: Resumable Model Manager, Dual Cryptographic Verification & mmap Eviction (`ModelsView.svelte`):
+  - [x] Subphase 14.1.1: HTTP Range Resumable Chunked Downloader & Disk Accounting:
+    - Implemented chunked `.part` file downloads with pause, resume, cancellation, and `.part` file recovery for NMT, ASR, TTS, and OCR model packs in `crates/lingua-engine/src/model_manager.rs`.
+    - Real disk space accounting via `sysinfo` / `fs` before starting downloads.
+    - Added `ModelInstallState::Paused { progress_pct, downloaded_bytes, total_bytes }` persisted in SQLite.
+  - [x] Subphase 14.1.2: Dual SHA-256 + Ed25519 Signature Check, Atomic Swap & 90s Idle mmap Unloader:
+    - Added `crates/lingua-core/src/crypto.rs` implementing Ed25519 verification (`verify_ed25519`, `sign_ed25519`) using official model authority keys.
+    - Dual SHA-256 and Ed25519 signature verification on all model packs before atomic promotion from `.tmp` into active directory.
+    - `ModelLifecyclePool` enforcing 90-second idle eviction and bounded resident memory limits ($< 380$ MB peak).
+    - Updated `src/views/ModelsView.svelte` with `✓ SHA-256 + Ed25519 Verified` badge, pause/resume download controls, and live storage gauge.
+- [x] Phase 14.2: Dictionary-Driven Spaced Repetition & Acoustic Pronunciation Practice (`LearnView.svelte`):
+  - [x] Subphase 14.2.1: Bookmark-to-SM2 Flashcard Pipeline & Persona Seed Decks:
+    - Synchronized dictionary favorite bookmarks (`☆/★`) in `crates/lingua-storage/src/history_repo.rs` (`add_favorite`, `remove_favorite`) directly into `flashcards` under `deck-user-bookmarks`.
+    - Created Database Migration 012 in `crates/lingua-storage/src/schema.rs` pre-seeding 3 persona decks:
+      - Healthcare & Medical Triage (Dr. Ananya).
+      - Interstate Logistics & Freight (Murugan).
+      - Kannada & Tamil Literature & Grammar (Vikram).
+  - [x] Subphase 14.2.2: Real Microphone Pronunciation Assessment (`cpal` + ASR + CER/chrF):
+    - Connected `src/views/LearnView.svelte` pronunciation assessment to `PronunciationEvaluator::assess` in `crates/lingua-engine/src/learning.rs`.
+    - Computed Popović chrF character 6-grams, dynamic programming Levenshtein Character Error Rate (CER), Word Error Rate (WER), composite accuracy scoring ($\ge 70.0\%$ pass mark), and actionable token-by-token pronunciation feedback.
+- [x] Phase 14.3: Enterprise Gateway Hardening, SQLCipher Privacy & Free/Pro/Enterprise Tiers:
+  - [x] Subphase 14.3.1: Axum Tower Middleware, Hashed `lf_live_` Keys & Tamper-Evident Audit Logs:
+    - Built `api_gateway_auth_middleware` covering `/api/v1/*` routes in `crates/lingua-server/src/routes.rs`.
+    - Validates `Authorization: Bearer lf_live_...` with constant-time SHA-256 hash lookup against SQLite, decrements token bucket quotas, and emits SHA-256 hash-chained tamper-evident audit logs.
+    - Preserved Anonymous Offline Mode Guarantee for local unauthenticated requests.
+  - [x] Subphase 14.3.2: `zeroize` Memory Scrubbing, OS Keystore Encryption & Offline Entitlement Tiers:
+    - Added `zeroize::Zeroizing` memory wrappers in `crates/lingua-engine/src/security_audit.rs` (`create_zeroized_buffer`, `create_zeroized_text`) to guarantee RAM scrubbing on drop.
+    - Implemented `issue_license_token` and `verify_license_token` in `crates/lingua-core/src/crypto.rs` for offline `Free`, `Pro`, and `Enterprise` entitlements.
+- [x] Quality Gates & Verification:
+  - Full workspace test suite: 180/180 tests passing across all crates (100% pass rate).
+  - Strict Clippy check: 0 errors, 0 warnings (`cargo clippy --workspace --all-targets -- -D warnings`).
+  - Rust formatting: 0 diffs (`cargo fmt --check`).
+  - Svelte diagnostics: 0 errors, 0 warnings (`npm run check`).
+  - Production build: succeeded in 3.33s (`npm run build`).
+  - Authored `docs/STAGE_14_ACCEPTANCE_REPORT.md`.
+- [x] Stage 14 certified complete and ready for user review.

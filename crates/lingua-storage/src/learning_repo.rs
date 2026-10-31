@@ -515,7 +515,7 @@ mod tests {
         assert!(loaded.analytics_enabled);
 
         let archive = repo.export_all_user_data().expect("export failed");
-        assert_eq!(archive.learning_cards_count, 10);
+        assert_eq!(archive.learning_cards_count, 25);
         assert!(!archive.checksum_sha256.is_empty());
 
         let purge_res = repo.purge_all_user_data().expect("purge failed");

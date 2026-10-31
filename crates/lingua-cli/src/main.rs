@@ -808,6 +808,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             } => {
                                 format!("DOWNLOADING ({progress_pct:.1}%)")
                             }
+                            lingua_core::ModelInstallState::Paused { progress_pct, .. } => {
+                                format!("PAUSED ({progress_pct:.1}%)")
+                            }
                             lingua_core::ModelInstallState::Corrupted { reason } => {
                                 format!("CORRUPTED ({reason})")
                             }

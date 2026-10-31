@@ -2,7 +2,7 @@ use lingua_core::LinguaError;
 use rusqlite::Connection;
 use tracing::info;
 
-pub const CURRENT_SCHEMA_VERSION: u32 = 11;
+pub const CURRENT_SCHEMA_VERSION: u32 = 12;
 
 pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     // Enable WAL mode and foreign keys for high concurrent performance & safety
@@ -63,6 +63,9 @@ pub fn run_migrations(conn: &mut Connection) -> Result<u32, LinguaError> {
     }
     if current_version < 11 {
         apply_migration_011(conn)?;
+    }
+    if current_version < 12 {
+        apply_migration_012(conn)?;
     }
 
     Ok(CURRENT_SCHEMA_VERSION)
@@ -980,5 +983,103 @@ fn apply_migration_011(conn: &mut Connection) -> Result<(), LinguaError> {
         .map_err(|e| LinguaError::Database(format!("Failed to commit migration 011: {e}")))?;
 
     info!("Migration 011 applied successfully");
+    Ok(())
+}
+
+fn apply_migration_012(conn: &mut Connection) -> Result<(), LinguaError> {
+    info!(
+        "Applying LinguaFlow Database Migration 012 — Persona Learning Decks & User Bookmark Deck"
+    );
+
+    let tx = conn
+        .transaction()
+        .map_err(|e| LinguaError::Database(format!("Failed to begin transaction: {e}")))?;
+
+    tx.execute_batch(
+        "
+        -- Seed Persona Decks (Phase 14.2.1)
+        INSERT OR IGNORE INTO learning_decks (id, title, description, source_lang, target_lang, created_at)
+        VALUES 
+        ('deck-persona-ananya', 'Healthcare & Medical Triage (Dr. Ananya)', 'Clinical anamnesis, vital symptoms, emergency triage, dosage instructions in Kannada, Tamil, and English', 'kn-IN', 'en-US', datetime('now')),
+        ('deck-persona-murugan', 'Interstate Logistics & Freight (Murugan)', 'Waybill manifests, toll clearance, cargo loading, route navigation, axle weight permits across Karnataka and Tamil Nadu', 'ta-IN', 'en-US', datetime('now')),
+        ('deck-persona-vikram', 'Kannada & Tamil Literature & Grammar (Vikram)', 'Classical aesthetics, Tolkappiyam & Kavirajamarga rules, Sandhi junctions, Sangam & Halegannada poetry', 'kn-IN', 'ta-IN', datetime('now')),
+        ('deck-user-bookmarks', 'Bookmarked Vocabulary (Personal Favorites)', 'Personalized flashcards dynamically synchronized from saved Dictionary and Translation favorites', 'kn-IN', 'en-US', datetime('now'));
+
+        -- Seed Dr. Ananya Healthcare flashcards
+        INSERT OR IGNORE INTO flashcards (
+            id, deck_id, source_lang, target_lang, source_term, target_term,
+            romanization, ipa, part_of_speech, example_source, example_target,
+            grammar_notes, repetition, interval_days, ease_factor, next_review_at, total_reviews, created_at
+        ) VALUES
+        ('card-ananya-01', 'deck-persona-ananya', 'kn-IN', 'en-US', 'ಜ್ವರ', 'Fever / Pyrexia',
+         'Jvara', '/dʒʋʌrʌ/', 'noun', 'ರೋಗಿಗೆ ತೀವ್ರ ಜ್ವರ ಮತ್ತು ತಲೆನೋವು ಇದೆ.', 'The patient has severe fever and headache.',
+         'Clinical triage indicator; neuter noun; Dative: ಜ್ವರಕ್ಕೆ (jvarakke).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-ananya-02', 'deck-persona-ananya', 'kn-IN', 'en-US', 'ಎದೆ ನೋವು', 'Chest pain / Angina',
+         'Ede nōvu', '/ede noːʋu/', 'noun phrase', 'ಎದೆ ನೋವು ಇದ್ದರೆ ತಕ್ಷಣ ಇಸಿಜಿ ಪರೀಕ್ಷೆ ಮಾಡಿ.', 'If chest pain is present, perform an ECG test immediately.',
+         'Red flag triage condition; Locative: ಎದೆಯಲ್ಲಿ (edeyalli).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-ananya-03', 'deck-persona-ananya', 'kn-IN', 'en-US', 'ಉಸಿರಾಟದ ತೊಂದರೆ', 'Shortness of breath / Dyspnea',
+         'Usirāṭada tondare', '/usirɑːʈʌd̪ʌ t̪ond̪ʌre/', 'noun phrase', 'ಉಸಿರಾಟದ ತೊಂದರೆ ಇರುವ ರೋಗಿಗೆ ಆಮ್ಲಜನಕ ನೀಡಿ.', 'Administer oxygen to the patient with respiratory distress.',
+         'Compound of ಉಸಿರಾಟದ (respiratory genitive) + ತೊಂದರೆ (difficulty).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-ananya-04', 'deck-persona-ananya', 'kn-IN', 'en-US', 'ರಕ್ತದೊತ್ತಡ', 'Blood pressure / Hypertension',
+         'Raktadottada', '/rʌkt̪ʌd̪ot̪ːʌɖʌ/', 'noun', 'ರಕ್ತದೊತ್ತಡ ಸಾಮಾನ್ಯ ಮಟ್ಟಕ್ಕಿಂತ ಹೆಚ್ಚಾಗಿದೆ.', 'Blood pressure is elevated above normal levels.',
+         'Medical compound: ರಕ್ತ (blood) + ಒತ್ತಡ (pressure); Accusative: ರಕ್ತದೊತ್ತಡವನ್ನು.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-ananya-05', 'deck-persona-ananya', 'kn-IN', 'en-US', 'ಮಾತ್ರೆ', 'Tablet / Medication pill',
+         'Mātre', '/mɑːt̪re/', 'noun', 'ಊಟದ ನಂತರ ಈ ಮಾತ್ರೆಯನ್ನು ದಿನಕ್ಕೆ ಎರಡು ಬಾರಿ ತೆಗೆದುಕೊಳ್ಳಿ.', 'Take this tablet twice daily after meals.',
+         'Dosage instruction; Plural: ಮಾತ್ರೆಗಳು (mātregaḷu); Instrumental: ಮಾತ್ರೆಯಿಂದ.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now'));
+
+        -- Seed Murugan Logistics flashcards
+        INSERT OR IGNORE INTO flashcards (
+            id, deck_id, source_lang, target_lang, source_term, target_term,
+            romanization, ipa, part_of_speech, example_source, example_target,
+            grammar_notes, repetition, interval_days, ease_factor, next_review_at, total_reviews, created_at
+        ) VALUES
+        ('card-murugan-01', 'deck-persona-murugan', 'ta-IN', 'en-US', 'சரக்கு', 'Cargo / Freight',
+         'Carakku', '/sɐrɐkːɯ/', 'noun', 'சரக்கு வாகனம் நாளை காலை பெங்களூரு சென்றடையும்.', 'The freight vehicle will reach Bengaluru tomorrow morning.',
+         'Dravidian logistics root; Accusative: சரக்கை (carakkai); Dative: சரக்கிற்கு.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-murugan-02', 'deck-persona-murugan', 'ta-IN', 'en-US', 'சுங்கச்சாவடி', 'Toll Plaza / Checkpoint',
+         'Cuṅkaccāvaṭi', '/suŋɡɐtː͡ʃɑːʋɐɖi/', 'noun', 'அடுத்த சுங்கச்சாவடியில் மின்னணு கட்டணம் செலுத்த வேண்டும்.', 'Electronic toll must be paid at the next toll plaza.',
+         'Compound of சுங்கம் (toll/customs) + சாவடி (post/station).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-murugan-03', 'deck-persona-murugan', 'ta-IN', 'en-US', 'எடை மேடை', 'Weighbridge / Axle scale',
+         'Eṭai mēṭai', '/eɖɐi meːɖɐi/', 'noun phrase', 'லாரியின் மொத்த எடையை எடை மேடையில் சரிபார்க்கவும்.', 'Verify the total gross weight of the truck on the weighbridge.',
+         'Freight compliance term; Locative: எடை மேடையில் (eṭai mēṭaiyil).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-murugan-04', 'deck-persona-murugan', 'ta-IN', 'en-US', 'வழித்தட அனுமதி', 'Route permit / Transit clearance',
+         'Vaḻittaṭa aṉumati', '/ʋɐɻit̪ːɐɖɐ ɐn̪umɐd̪i/', 'noun phrase', 'மாநிலங்களுக்கு இடையேயான வழித்தட அனுமதி தயார் நிலையில் உள்ளது.', 'The interstate route transit permit is ready.',
+         'Compound of வழித்தட (route genitive) + அனுமதி (permission/clearance).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-murugan-05', 'deck-persona-murugan', 'ta-IN', 'en-US', 'விநியோக ரசீது', 'Delivery receipt / Proof of Delivery (POD)',
+         'Viṉiyōka racītu', '/ʋin̪ijoːɡɐ rɐsiːd̪ɯ/', 'noun phrase', 'சரக்கை இறக்கிய பின் விநியோக ரசீதில் கையெழுத்து பெறவும்.', 'Obtain signature on the delivery receipt after unloading cargo.',
+         'Commercial freight documentation; Instrumental: ரசீதால்; Locative: ரசீதில்.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now'));
+
+        -- Seed Vikram Literature flashcards
+        INSERT OR IGNORE INTO flashcards (
+            id, deck_id, source_lang, target_lang, source_term, target_term,
+            romanization, ipa, part_of_speech, example_source, example_target,
+            grammar_notes, repetition, interval_days, ease_factor, next_review_at, total_reviews, created_at
+        ) VALUES
+        ('card-vikram-01', 'deck-persona-vikram', 'kn-IN', 'ta-IN', 'ಸಂಸ್ಕೃತಿ', 'பண்பாடு (Culture / Heritage)',
+         'Saṁskr̥ti', '/sʌmskɾut̪i/', 'noun', 'ಕನ್ನಡ ಮತ್ತು ತಮಿಳು ಶ್ರೀಮಂತ ಸಂಸ್ಕೃತಿಯನ್ನು ಹೊಂದಿವೆ.', 'கன்னடமும் தமிழும் செழுமையான பண்பாட்டைக் கொண்டுள்ளன.',
+         'High-register cultural cognate; Accusative: ಸಂಸ್ಕೃತಿಯನ್ನು / பண்பாட்டை.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-vikram-02', 'deck-persona-vikram', 'kn-IN', 'ta-IN', 'ಕಾವ್ಯ', 'காவியம் (Epic Poetry)',
+         'Kāvya', '/kɑːʋjʌ/', 'noun', 'ಪಂಪನ ವಿಕ್ರಮಾರ್ಜುನ ವಿಜಯವು ಪ್ರಸಿದ್ಧ ಕನ್ನಡ ಕಾವ್ಯವಾಗಿದೆ.', 'பம்பனின் விக்ரமார்ஜுன விஜயம் புகழ்பெற்ற கன்னடக் காவியமாகும்.',
+         'Classical poetic genre; Sanskrit loan preserved across Halegannada and Classical Tamil.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-vikram-03', 'deck-persona-vikram', 'kn-IN', 'ta-IN', 'ಸಂಧಿ', 'புணர்ச்சி (Sandhi / Euphonic Junction)',
+         'Sandhi', '/sʌnd̪ʱi/', 'noun', 'ಕೇಶಿರಾಜನ ಶಬ್ದಮಣಿದರ್ಪಣದಲ್ಲಿ ಸಂಧಿ ನಿಯಮಗಳನ್ನು ವಿವರಿಸಲಾಗಿದೆ.', 'தொல்காப்பியத்தில் புணர்ச்சி விதிகள் விரிவாக விளக்கப்பட்டுள்ளன.',
+         'Phonological junction rule (Lopa, Agama, Adesha in Kannada; Meyppadu, Udanpadumey in Tamil).', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-vikram-04', 'deck-persona-vikram', 'kn-IN', 'ta-IN', 'ಛಂದಸ್ಸು', 'யாப்பிலக்கணம் (Prosody / Metrical Grammar)',
+         'Chandassu', '/t͡ʃʰʌnd̪ʌsːu/', 'noun', 'ಕಂದ ಪದ್ಯ ಮತ್ತು ರಗಳೆ ಕನ್ನಡ ಛಂದಸ್ಸಿನ ವೈಶಿಷ್ಟ್ಯಗಳಾಗಿವೆ.', 'வெண்பா மற்றும் ஆசிரியப்பா தமிழ் யாப்பிலக்கணத்தின் சிறப்புகளாகும்.',
+         'Metrical framework; Halegannada Shatpadi/Tripadi vs Tamil Asiriyappa/Venba.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now')),
+        ('card-vikram-05', 'deck-persona-vikram', 'kn-IN', 'ta-IN', 'ರಸಧ್ವನಿ', 'மெய்ப்பாடு (Aesthetic Sentiment / Rasa)',
+         'Rasadhvani', '/rʌsʌd̪ʱʋʌni/', 'noun', 'ಉತ್ತಮ ಸಾಹಿತ್ಯದಲ್ಲಿ ರಸಧ್ವನಿಯು ಹೃದಯಸ್ಪರ್ಶಿಯಾಗಿರುತ್ತದೆ.', 'சிறந்த இலக்கியத்தில் மெய்ப்பாடு உள்ளத்தை உருக்குவதாக அமைகிறது.',
+         'Aesthetic poetics; Anandavardhana Dhvanyaloka vs Tolkappiyam Meyppattiyal.', 0, 1.0, 2.5, datetime('now'), 0, datetime('now'));
+
+        INSERT INTO schema_migrations (version, applied_at, description)
+        VALUES (12, datetime('now'), 'Stage 14: Persona Learning Decks (Ananya, Murugan, Vikram) and User Bookmark Deck');
+        ",
+    )
+    .map_err(|e| LinguaError::Database(format!("Failed to execute migration 012: {e}")))?;
+
+    tx.commit()
+        .map_err(|e| LinguaError::Database(format!("Failed to commit migration 012: {e}")))?;
+
+    info!("Migration 012 applied successfully");
     Ok(())
 }
